@@ -26,10 +26,9 @@ class _HabitDetailScreenState extends State<HabitDetailScreen> {
   // Mock data — replace with real data from Firestore later
   final Set<int> _completedDays = {4, 5, 7, 8, 10, 11, 12, 13, 15, 16, 17, 19, 22, 23};
   final int _todayDay = 16;
-  final int _currentMonth = 10; // October
+// October
   final int _firstWeekdayOfMonth = 2; // October 1 = Tuesday (0=Sun,1=Mon,2=Tue...)
 
-  final List<String> _weekDays  = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   final List<String> _weekDayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
   // Week ribbon: show current week (days 13-19 for this mock)

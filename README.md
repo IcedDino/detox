@@ -1,16 +1,29 @@
-# detox
+# Detox
 
-A new Flutter project.
+Detox is a Flutter MVP for digital detox and habit tracking.
 
-## Getting Started
+## Included
+- Daily dashboard
+- Real Android usage access entry point
+- Weekly stats chart
+- Focus timer
+- Habit tracker
+- Daily screen-time limit
+- Per-app limits
+- Dark mode
+- Local persistence using shared_preferences
 
-This project is a starting point for a Flutter application.
+## Android real usage
+1. Run the app on Android.
+2. Open **Settings** inside the app.
+3. Tap **Open Android usage settings**.
+4. Enable Usage Access for Detox.
+5. Return to the dashboard and refresh.
 
-A few resources to get you started if this is your first Flutter project:
+If Usage Access is not enabled, the app falls back to demo data.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Run
+```bash
+flutter pub get
+flutter run
+```
