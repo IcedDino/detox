@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-
+import '../models/link_requests.dart';
 import '../models/sponsor_profile.dart';
 import '../models/sponsor_request.dart';
 import '../services/location_zone_service.dart';
@@ -84,16 +84,7 @@ class _SponsorScreenState extends State<SponsorScreen> with WidgetsBindingObserv
     }
   }
 
-  Future<void> _linkSponsor() async {
-    try {
-      await _sponsorService.linkWithCode(_codeController.text);
-      _codeController.clear();
-      _snack('Sponsor linked successfully.');
-      await _refresh();
-    } catch (e) {
-      _snack(e.toString());
-    }
-  }
+
 
   Future<void> _request(String type) async {
     try {
@@ -290,9 +281,43 @@ class _SponsorScreenState extends State<SponsorScreen> with WidgetsBindingObserv
     if (diff.inSeconds <= 0) return 'Expired';
     return '${diff.inMinutes} min left';
   }
+  Future<void> _linkSponsor() async {
+    final code = _codeController.text.trim();
 
+    if (code.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter a sponsor code'),
+        ),
+      );
+      return;
+    }
+
+    try {
+      await SponsorService.instance.sendLinkRequestWithCode(code);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Request sent. Waiting for approval.'),
+        ),
+      );
+
+      _codeController.clear();
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+        ),
+      );
+    }
+  }
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
       appBar: AppBar(title: const Text('Sponsor center')),
       body: DetoxBackground(
@@ -321,7 +346,63 @@ class _SponsorScreenState extends State<SponsorScreen> with WidgetsBindingObserv
                         GlassCard(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
+                            children: [StreamBuilder<List<LinkRequest>>(
+                              stream: SponsorService.instance.incomingLinkRequests(),
+                              builder: (context, snapshot) {
+                                if (!snapshot.hasData) return const SizedBox();
+
+                                final requests = snapshot.data!;
+
+                                if (requests.isEmpty) return const SizedBox();
+
+                                return Column(
+                                  children: requests.map((req) {
+                                    return Card(
+                                      margin: const EdgeInsets.only(bottom: 12),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(14),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              "${req.requesterName} wants to be your sponsor partner",
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+
+                                            const SizedBox(height: 10),
+
+                                            Row(
+                                              children: [
+
+                                                OutlinedButton(
+                                                  onPressed: () async {
+                                                    await SponsorService.instance
+                                                        .rejectLinkRequest(req.id);
+                                                  },
+                                                  child: const Text("Reject"),
+                                                ),
+
+                                                const SizedBox(width: 12),
+
+                                                FilledButton(
+                                                  onPressed: () async {
+                                                    await SponsorService.instance
+                                                        .acceptLinkRequest(req.id);
+                                                  },
+                                                  child: const Text("Accept"),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                );
+                              },
+                            ),
                               Text('Add a sponsor', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
                               const SizedBox(height: 10),
                               TextField(

@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/auth_user.dart';
 import '../models/sponsor_profile.dart';
 import '../models/sponsor_request.dart';
-
+import '../models/link_requests.dart';
 class SponsorException implements Exception {
   SponsorException(this.message);
   final String message;
@@ -21,7 +21,8 @@ class SponsorService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final Random _random = Random();
-
+  CollectionReference<Map<String, dynamic>> get _linkRequestsRef =>
+      _firestore.collection('meta').doc('sponsor').collection('link_requests');
   String? get _uid => _auth.currentUser?.uid;
   bool get isSignedIn => _uid != null;
 
@@ -76,18 +77,24 @@ class SponsorService {
     if (data == null) return null;
     return SponsorProfile.fromUserDoc(sponsorUid, data);
   }
-
-  Future<void> linkWithCode(String code) async {
+  Future<void> sendLinkRequestWithCode(String code) async {
     final uid = _uid;
     final meDoc = _userDoc;
-    if (uid == null || meDoc == null) throw SponsorException('Sign in first.');
+
+    if (uid == null || meDoc == null) {
+      throw SponsorException('Sign in first.');
+    }
+
     final normalized = code.trim().toUpperCase();
-    if (normalized.isEmpty) throw SponsorException('Enter a valid sponsor code.');
+    if (normalized.isEmpty) {
+      throw SponsorException('Enter a valid sponsor code.');
+    }
 
     await ensureCurrentUserInitialized();
 
     final meSnap = await meDoc.get();
     final meData = meSnap.data() ?? <String, dynamic>{};
+
     if ((meData['sponsorUid'] as String?)?.isNotEmpty == true) {
       throw SponsorException('You already have a sponsor linked.');
     }
@@ -97,32 +104,165 @@ class SponsorService {
         .where('sponsorCode', isEqualTo: normalized)
         .limit(1)
         .get();
+
     if (targetQuery.docs.isEmpty) {
       throw SponsorException('That sponsor code was not found.');
     }
 
     final targetDoc = targetQuery.docs.first;
+    final targetData = targetDoc.data();
+
     if (targetDoc.id == uid) {
       throw SponsorException('You cannot use your own sponsor code.');
     }
 
-    final targetData = targetDoc.data();
     if ((targetData['sponsorUid'] as String?)?.isNotEmpty == true) {
       throw SponsorException('That user already has a sponsor linked.');
     }
 
-    final batch = _firestore.batch();
-    batch.set(meDoc, {
-      'sponsorUid': targetDoc.id,
-      'sponsorLinkedAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-    batch.set(targetDoc.reference, {
-      'sponsorUid': uid,
-      'sponsorLinkedAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-    await batch.commit();
+    final duplicate = await _linkRequestsRef
+        .where('requesterUid', isEqualTo: uid)
+        .where('targetUid', isEqualTo: targetDoc.id)
+        .where('status', isEqualTo: 'pending')
+        .limit(1)
+        .get();
+
+    if (duplicate.docs.isNotEmpty) {
+      throw SponsorException('A pending request already exists.');
+    }
+
+    final request = LinkRequest(
+      id: '',
+      requesterUid: uid,
+      requesterName: meData['profile']?['displayName'] ??
+          _auth.currentUser?.displayName ??
+          _auth.currentUser?.email ??
+          'Detox user',
+      targetUid: targetDoc.id,
+      targetName: targetData['profile']?['displayName'] ??
+          targetData['profile']?['email'] ??
+          'User',
+      status: 'pending',
+      createdAt: null,
+      type: 'sponsor',
+    );
+
+    await _linkRequestsRef.add({
+      ...request.toMap(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+  Stream<List<LinkRequest>> incomingLinkRequests() {
+    final uid = _uid;
+    if (uid == null) {
+      return const Stream.empty();
+    }
+
+    return _linkRequestsRef
+        .where('targetUid', isEqualTo: uid)
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+          .map((doc) => LinkRequest.fromDocument(doc))
+          .toList(),
+    );
+  }
+  Future<void> rejectLinkRequest(String requestId) async {
+    final uid = _uid;
+    if (uid == null) {
+      throw SponsorException('Sign in first.');
+    }
+
+    final reqRef = _linkRequestsRef.doc(requestId);
+    final snap = await reqRef.get();
+    final data = snap.data();
+
+    if (data == null) {
+      throw SponsorException('Request not found.');
+    }
+
+    if (data['targetUid'] != uid) {
+      throw SponsorException('This request is not for you.');
+    }
+
+    await reqRef.set(
+      {
+        'status': 'rejected',
+        'rejectedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> acceptLinkRequest(String requestId) async {
+    final uid = _uid;
+    final meDoc = _userDoc;
+
+    if (uid == null || meDoc == null) {
+      throw SponsorException('Sign in first.');
+    }
+
+    final reqRef = _linkRequestsRef.doc(requestId);
+
+    await _firestore.runTransaction((tx) async {
+      final reqSnap = await tx.get(reqRef);
+      final reqData = reqSnap.data();
+
+      if (reqData == null) {
+        throw SponsorException('Request not found.');
+      }
+
+      if (reqData['targetUid'] != uid) {
+        throw SponsorException('This request is not for you.');
+      }
+
+      if (reqData['status'] != 'pending') {
+        throw SponsorException('This request is no longer pending.');
+      }
+
+      final requesterUid = reqData['requesterUid'] as String;
+      final requesterRef = _firestore.collection('users').doc(requesterUid);
+
+      final mySnap = await tx.get(meDoc);
+      final requesterSnap = await tx.get(requesterRef);
+
+      final mySponsor = mySnap.data()?['sponsorUid'] as String?;
+      final requesterSponsor = requesterSnap.data()?['sponsorUid'] as String?;
+
+      if ((mySponsor ?? '').isNotEmpty || (requesterSponsor ?? '').isNotEmpty) {
+        throw SponsorException('One of the users is already linked.');
+      }
+
+      tx.set(
+        meDoc,
+        {
+          'sponsorUid': requesterUid,
+          'sponsorLinkedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+
+      tx.set(
+        requesterRef,
+        {
+          'sponsorUid': uid,
+          'sponsorLinkedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+
+      tx.set(
+        reqRef,
+        {
+          'status': 'accepted',
+          'acceptedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+    });
   }
 
   Future<void> unlinkSponsor() async {
