@@ -127,7 +127,6 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   Future<bool> _ensureProtectedSettingsAccess() async {
-    final t = AppStrings.of(context);
     if (!_hasSponsor || _settingsUnlockActive) return true;
 
     final action = await showModalBottomSheet<String>(
@@ -139,33 +138,26 @@ class _SettingsScreenState extends State<SettingsScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              t.sponsorApprovalRequired,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(fontWeight: FontWeight.bold),
+              'Sponsor approval required',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 10),
-            Text(
-              t.sponsorApprovalBody,
-              style: const TextStyle(color: DetoxColors.muted),
+            const Text(
+              'Removing apps or zones needs your sponsor to approve settings access.',
+              style: TextStyle(color: DetoxColors.muted),
             ),
             const SizedBox(height: 14),
             FilledButton.icon(
               onPressed: () => Navigator.pop(context, 'request'),
               icon: const Icon(Icons.send_outlined),
-              label: Text(t.requestCodeFromSponsor),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.pop(context, 'enter'),
-              icon: const Icon(Icons.password_rounded),
-              label: Text(t.enterSponsorCode),
+              label: const Text('Request sponsor approval'),
             ),
             const SizedBox(height: 10),
             TextButton(
               onPressed: () => Navigator.pop(context, 'open'),
-              child: Text(t.openSponsorCenter),
+              child: const Text('Open sponsor center'),
             ),
           ],
         ),
@@ -180,7 +172,9 @@ class _SettingsScreenState extends State<SettingsScreen>
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(t.sponsorRequestSent)),
+            const SnackBar(
+              content: Text('Settings approval request sent to your sponsor.'),
+            ),
           );
         }
       } catch (e) {
@@ -205,64 +199,8 @@ class _SettingsScreenState extends State<SettingsScreen>
       return _settingsUnlockActive;
     }
 
-    if (action == 'enter') {
-      final controller = TextEditingController();
-      final code = await showDialog<String>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(t.enterSponsorCode),
-          content: TextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            maxLength: 6,
-            decoration: InputDecoration(
-              labelText:
-              t.isEs ? 'Código de 6 dígitos' : '6-digit code',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(t.cancel),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, controller.text),
-              child: Text(t.isEs ? 'Usar código' : 'Use code'),
-            ),
-          ],
-        ),
-      );
-
-      if (code == null || code.trim().isEmpty) return false;
-
-      try {
-        final minutes = await SponsorService.instance.consumeCode(
-          code: code,
-          requestType: 'settings_unlock',
-        );
-        await _load();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(t.settingsUnlockedFor(minutes))),
-          );
-        }
-        return true;
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                e.toString().replaceFirst('Exception: ', ''),
-              ),
-            ),
-          );
-        }
-      }
-    }
-
     return false;
   }
-
   Future<void> _addAppLimit() async {
     final created = await showModalBottomSheet<AppLimit>(
       context: context,

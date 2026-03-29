@@ -30,7 +30,7 @@ class SponsorRequest {
   bool get isConsumed => status == 'consumed';
   bool get isExpired => expiresAt != null && DateTime.now().isAfter(expiresAt!);
   bool get isEmailed => status == 'emailed';
-
+  bool get isRejected => status == 'rejected';
   String get prettyType {
     switch (requestType) {
       case 'settings_unlock':
