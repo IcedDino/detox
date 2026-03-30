@@ -8,6 +8,7 @@ import '../models/permission_status.dart';
 import '../services/app_blocking_service.dart';
 import '../services/focus_notification_service.dart';
 import '../services/location_zone_service.dart';
+import '../services/sponsor_service.dart';
 import '../services/storage_service.dart';
 import '../services/usage_service.dart';
 import '../theme/app_theme.dart';
@@ -89,6 +90,7 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
     await AppBlockingService.instance.startShield(
       blockedPackages: packages,
       reason: AppStrings.of(context).focusSessionActiveReason,
+      hasSponsor: await SponsorService.instance.hasSponsor(),
     );
 
     if (!_appInForeground) {

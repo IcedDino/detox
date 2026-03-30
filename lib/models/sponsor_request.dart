@@ -37,6 +37,8 @@ class SponsorRequest {
         return 'Settings changes';
       case 'zone_override':
         return 'Zone pause';
+      case 'shield_pause':
+        return 'App shield pause';
       case 'unlink_sponsor':
         return 'Sponsor unlink';
       case 'unlink_email':

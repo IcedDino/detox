@@ -15,6 +15,7 @@ import 'screens/habits_screen.dart';
 import 'screens/permission_setup_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/stats_screen.dart';
+import 'services/app_blocking_service.dart';
 import 'services/auth_service.dart';
 import 'services/focus_notification_service.dart';
 import 'services/location_zone_service.dart';
@@ -38,6 +39,7 @@ Future<void> main() async {
     await StorageService().bootstrapForSignedInUser();
     await SponsorService.instance.ensureCurrentUserInitialized(currentUser);
     SponsorAlertService.instance.start();
+    await AppBlockingService.instance.consumePendingNativeAction();
   }
 
   final onboardingDone = await StorageService().loadOnboardingDone();
@@ -104,6 +106,7 @@ class _DetoxAppState extends State<DetoxApp> {
           await StorageService().bootstrapForSignedInUser();
           await SponsorService.instance.ensureCurrentUserInitialized(user);
           SponsorAlertService.instance.start();
+          await _consumePendingBlockAction();
 
           final onboardingDone = await StorageService().loadOnboardingDone();
 
@@ -138,6 +141,26 @@ class _DetoxAppState extends State<DetoxApp> {
     super.dispose();
   }
 
+
+  Future<void> _consumePendingBlockAction() async {
+    final action = await AppBlockingService.instance.consumePendingNativeAction();
+    if (action == null) return;
+
+    if (action == NativeBlockAction.requestShieldPause) {
+      try {
+        await SponsorService.instance.createUnlockRequest(
+          requestType: 'shield_pause',
+          durationMinutes: 15,
+        );
+      } catch (_) {}
+      return;
+    }
+
+    if (action == NativeBlockAction.suspendShield15) {
+      await AppBlockingService.instance.suspendForMinutes(15);
+    }
+  }
+
   Future<void> _setDarkMode(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('dark_mode', value);
@@ -163,6 +186,7 @@ class _DetoxAppState extends State<DetoxApp> {
     await StorageService().bootstrapForSignedInUser();
     await SponsorService.instance.ensureCurrentUserInitialized(user);
     SponsorAlertService.instance.start();
+    await _consumePendingBlockAction();
 
     final onboardingDone = await StorageService().loadOnboardingDone();
 

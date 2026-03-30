@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../models/sponsor_request.dart';
+import 'app_blocking_service.dart';
 import 'focus_notification_service.dart';
 import 'sponsor_service.dart';
 
@@ -48,7 +49,14 @@ class SponsorAlertService {
       final signature = '${request.status}_${request.code ?? ''}';
       if (_seenStates[key] == signature) continue;
       _seenStates[key] = signature;
-      if (request.isApproved && (request.code?.isNotEmpty ?? false)) {
+      if (request.requestType == 'shield_pause' && request.isApproved) {
+        unawaited(AppBlockingService.instance.suspendForMinutes(request.durationMinutes));
+        FocusNotificationService.instance.showSponsorAlert(
+          id: (request.id.hashCode + 150000) & 0x7fffffff,
+          title: '15-minute pause approved',
+          body: 'Your sponsor approved an app shield pause.',
+        );
+      } else if (request.isApproved && (request.code?.isNotEmpty ?? false)) {
         FocusNotificationService.instance.showSponsorAlert(
           id: (request.id.hashCode + 100000) & 0x7fffffff,
           title: 'Your sponsor code is ready',

@@ -19,6 +19,11 @@ import java.io.ByteArrayOutputStream
 class MainActivity : FlutterActivity() {
     private val channelName = "detox/device_control"
 
+    companion object {
+        private const val PREFS = "detox_native"
+        private const val KEY_PENDING_ACTION = "pending_action"
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
@@ -70,16 +75,18 @@ class MainActivity : FlutterActivity() {
                                 ?: emptySet()
 
                             val reason = args?.get("reason") as? String ?: "Focus session active"
+                            val hasSponsor = args?.get("hasSponsor") as? Boolean ?: false
 
                             if (packages.isEmpty()) {
                                 result.success(false)
                                 return@setMethodCallHandler
                             }
 
-                            val prefs = getSharedPreferences("detox_native", Context.MODE_PRIVATE)
+                            val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                             prefs.edit()
                                 .putStringSet("blocked_packages", packages)
                                 .putString("block_reason", reason)
+                                .putBoolean("has_sponsor", hasSponsor)
                                 .apply()
 
                             val intent = Intent(this, FocusBlockerService::class.java).apply {
@@ -101,6 +108,27 @@ class MainActivity : FlutterActivity() {
                             result.success(true)
                         } catch (e: Exception) {
                             result.error("STOP_BLOCKING_ERROR", e.message, null)
+                        }
+                    }
+                    "suspendBlockingForMinutes" -> {
+                        try {
+                            val minutes = call.argument<Int>("minutes") ?: 15
+                            val untilMillis = System.currentTimeMillis() + minutes * 60_000L
+                            val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                            prefs.edit().putLong("suspend_until_millis", untilMillis).apply()
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("SUSPEND_BLOCKING_ERROR", e.message, null)
+                        }
+                    }
+                    "consumePendingBlockAction" -> {
+                        try {
+                            val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                            val action = prefs.getString(KEY_PENDING_ACTION, null)
+                            prefs.edit().remove(KEY_PENDING_ACTION).apply()
+                            result.success(action)
+                        } catch (e: Exception) {
+                            result.error("CONSUME_PENDING_ACTION_ERROR", e.message, null)
                         }
                     }
                     else -> result.notImplemented()

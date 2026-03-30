@@ -185,6 +185,8 @@ class _SponsorScreenState extends State<SponsorScreen>
       _snack(
         request.requestType == 'settings_unlock'
             ? 'Settings access approved.'
+            : request.requestType == 'shield_pause'
+            ? 'App shield pause approved.'
             : 'Zone pause approved.',
       );
       await _refresh();
@@ -570,12 +572,15 @@ class _SponsorScreenState extends State<SponsorScreen>
         return Column(
           children: requests.map((request) {
             final isDirect = request.requestType == 'settings_unlock' ||
-                request.requestType == 'zone_override';
+                request.requestType == 'zone_override' ||
+                request.requestType == 'shield_pause';
 
             final title = request.requestType == 'zone_override'
                 ? 'Zone pause approval'
                 : request.requestType == 'settings_unlock'
                 ? 'Settings approval'
+                : request.requestType == 'shield_pause'
+                ? 'App shield pause'
                 : 'Unlink approval';
 
             return Padding(

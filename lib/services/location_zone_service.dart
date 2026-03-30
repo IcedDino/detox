@@ -37,6 +37,7 @@ class LocationZoneService {
   StreamSubscription<Position>? _positionSub;
   ZoneState _currentState = const ZoneState(enabled: false, insideZone: false);
   bool _monitoring = false;
+  Timer? _overrideTimer;
 
   Stream<ZoneState> get states => _stateController.stream;
   ZoneState get currentState => _currentState;
@@ -102,6 +103,8 @@ class LocationZoneService {
 
   Future<void> stopMonitoring() async {
     _monitoring = false;
+    _overrideTimer?.cancel();
+    _overrideTimer = null;
     await _positionSub?.cancel();
     _positionSub = null;
     _emit(const ZoneState(enabled: false, insideZone: false));
@@ -159,6 +162,7 @@ class LocationZoneService {
       if (matched != null) {
         final overrideActive = await SponsorService.instance.hasActiveZoneOverride();
         if (overrideActive) {
+          _scheduleOverrideRefresh();
           await AppBlockingService.instance.stopShield();
           _emit(ZoneState(
             enabled: true,
@@ -170,12 +174,16 @@ class LocationZoneService {
           return;
         }
 
+        _overrideTimer?.cancel();
+        _overrideTimer = null;
+
         final appLimits = await _storageService.loadAppLimits();
         final packages = _resolvePackagesForZone(matched, appLimits);
         if (packages.isNotEmpty) {
           await AppBlockingService.instance.startShield(
             blockedPackages: packages,
             reason: 'Study zone: ${matched.name}',
+            hasSponsor: await SponsorService.instance.hasSponsor(),
           );
         }
         _emit(ZoneState(
@@ -216,6 +224,21 @@ class LocationZoneService {
         .map((AppLimit e) => e.packageName!)
         .toSet()
         .toList();
+  }
+
+
+  void _scheduleOverrideRefresh() {
+    _overrideTimer?.cancel();
+    SponsorService.instance.getZoneOverrideUntil().then((until) {
+      if (until == null) return;
+      final delay = until.difference(DateTime.now()).inMilliseconds;
+      final safeDelay = delay < 0 ? 0 : delay + 750;
+      _overrideTimer = Timer(Duration(milliseconds: safeDelay), () async {
+        try {
+          await refresh();
+        } catch (_) {}
+      });
+    }).catchError((_) {});
   }
 
   void _emit(ZoneState state) {

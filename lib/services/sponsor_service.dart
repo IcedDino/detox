@@ -148,7 +148,8 @@ class SponsorService {
       }
 
       if (request.requestType != 'zone_override' &&
-          request.requestType != 'settings_unlock') {
+          request.requestType != 'settings_unlock' &&
+          request.requestType != 'shield_pause') {
         throw SponsorException(
           'This request type still requires the manual code flow.',
         );
@@ -164,9 +165,20 @@ class SponsorService {
       final until =
       DateTime.now().add(Duration(minutes: request.durationMinutes));
 
-      final field = request.requestType == 'settings_unlock'
-          ? 'settingsUnlockUntil'
-          : 'zoneOverrideUntil';
+      String field;
+      switch (request.requestType) {
+        case 'settings_unlock':
+          field = 'settingsUnlockUntil';
+          break;
+        case 'zone_override':
+          field = 'zoneOverrideUntil';
+          break;
+        case 'shield_pause':
+          field = 'shieldPauseUntil';
+          break;
+        default:
+          throw SponsorException('Unsupported request type.');
+      }
 
       tx.set(
         requesterRef,
@@ -759,7 +771,7 @@ class SponsorService {
         if (stillActive) {
           throw SponsorException(
             'You already have an active '
-                '${requestType == 'zone_override' ? 'zone pause' : requestType == 'settings_unlock' ? 'settings' : requestType == 'unlink_sponsor' ? 'unlink' : 'email unlink'} request.',
+                '${requestType == 'zone_override' ? 'zone pause' : requestType == 'settings_unlock' ? 'settings' : requestType == 'shield_pause' ? 'shield pause' : requestType == 'unlink_sponsor' ? 'unlink' : 'email unlink'} request.',
           );
         }
       }
@@ -967,8 +979,11 @@ class SponsorService {
       }
 
       final until = DateTime.now().add(Duration(minutes: request.durationMinutes));
-      final field =
-      requestType == 'settings_unlock' ? 'settingsUnlockUntil' : 'zoneOverrideUntil';
+      final field = requestType == 'settings_unlock'
+          ? 'settingsUnlockUntil'
+          : requestType == 'shield_pause'
+              ? 'shieldPauseUntil'
+              : 'zoneOverrideUntil';
 
       tx.set(userDoc, {
         field: Timestamp.fromDate(until),
