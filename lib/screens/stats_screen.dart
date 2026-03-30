@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+import '../l10n_app_strings.dart';
 import '../services/usage_service.dart';
 import '../theme/app_theme.dart';
 
@@ -29,11 +30,14 @@ class _StatsScreenState extends State<StatsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppStrings.of(context);
+
     return FutureBuilder<List<int>>(
       future: _weeklyMinutes,
       builder: (context, snapshot) {
         final weekly = snapshot.data ?? [145, 132, 118, 160, 170, 124, 96];
         final maxY = (weekly.reduce((a, b) => a > b ? a : b) + 20).toDouble();
+        final days = t.weekDayLabels;
 
         return RefreshIndicator(
           onRefresh: () async {
@@ -44,11 +48,11 @@ class _StatsScreenState extends State<StatsScreen> {
             padding: const EdgeInsets.all(20),
             children: [
               Text(
-                'Weekly Stats',
+                t.statsWeeklyTitle,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              const Text('See your screen-time trend and keep the streak alive.', style: TextStyle(color: DetoxColors.muted)),
+              Text(t.statsWeeklySubtitle, style: const TextStyle(color: DetoxColors.muted)),
               const SizedBox(height: 18),
               GlassCard(
                 child: SizedBox(
@@ -57,7 +61,11 @@ class _StatsScreenState extends State<StatsScreen> {
                     BarChartData(
                       maxY: maxY,
                       borderData: FlBorderData(show: false),
-                      gridData: FlGridData(show: true, horizontalInterval: 60, getDrawingHorizontalLine: (_) => const FlLine(color: Colors.white10)),
+                      gridData: FlGridData(
+                        show: true,
+                        horizontalInterval: 60,
+                        getDrawingHorizontalLine: (_) => const FlLine(color: Colors.white10),
+                      ),
                       titlesData: FlTitlesData(
                         topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                         rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -75,7 +83,6 @@ class _StatsScreenState extends State<StatsScreen> {
                           sideTitles: SideTitles(
                             showTitles: true,
                             getTitlesWidget: (value, meta) {
-                              const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
                               final index = value.toInt();
                               if (index < 0 || index >= days.length) {
                                 return const SizedBox.shrink();
@@ -90,7 +97,7 @@ class _StatsScreenState extends State<StatsScreen> {
                       ),
                       barGroups: List.generate(
                         weekly.length,
-                        (index) => BarChartGroupData(
+                            (index) => BarChartGroupData(
                           x: index,
                           barRods: [
                             BarChartRodData(
@@ -111,11 +118,9 @@ class _StatsScreenState extends State<StatsScreen> {
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.insights_outlined, color: DetoxColors.accentSoft),
-                  title: const Text('Trend insight'),
+                  title: Text(t.statsTrendInsight),
                   subtitle: Text(
-                    weekly.last <= weekly.first
-                        ? 'Your screen time is trending downward this week.'
-                        : 'Your screen time increased this week. Consider more focus sessions.',
+                    weekly.last <= weekly.first ? t.statsTrendDown : t.statsTrendUp,
                     style: const TextStyle(color: DetoxColors.muted),
                   ),
                 ),
@@ -125,11 +130,9 @@ class _StatsScreenState extends State<StatsScreen> {
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.flag_outlined, color: DetoxColors.accentSoft),
-                  title: const Text('Weekly goal'),
+                  title: Text(t.statsWeeklyGoal),
                   subtitle: Text(
-                    weekly.where((e) => e <= 180).length >= 5
-                        ? 'Great job. You stayed under your limit most days.'
-                        : 'Aim for at least 5 days under your daily limit.',
+                    weekly.where((e) => e <= 180).length >= 5 ? t.statsGoalMet : t.statsGoalMiss,
                     style: const TextStyle(color: DetoxColors.muted),
                   ),
                 ),

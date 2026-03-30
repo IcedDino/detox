@@ -32,7 +32,11 @@ Future<void> main() async {
 
   final prefs = await SharedPreferences.getInstance();
   final darkMode = prefs.getBool('dark_mode') ?? true;
-  final localeCode = prefs.getString('locale_code') ?? 'en';
+  // Use system locale if supported and user hasn't set a preference
+  final savedLocale = prefs.getString('locale_code');
+  final systemLang = WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+  const supported = ['en', 'es'];
+  final localeCode = savedLocale ?? (supported.contains(systemLang) ? systemLang : 'en');
   final currentUser = await AuthService.instance.getCurrentUser();
 
   if (currentUser != null) {

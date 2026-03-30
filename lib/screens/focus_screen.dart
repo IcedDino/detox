@@ -260,22 +260,34 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
                       backgroundColor: DetoxColors.accent.withOpacity(0.12),
                     ),
                     Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _format(_remainingSeconds),
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _running ? t.focusShieldActive : t.focusReadyToStart,
-                            style: const TextStyle(color: DetoxColors.muted),
-                          ),
-                        ],
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                _format(_remainingSeconds),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _running ? t.focusShieldActive : t.focusReadyToStart,
+                              style: const TextStyle(
+                                color: DetoxColors.muted,
+                                fontSize: 12,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -288,16 +300,16 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
                 children: _presets
                     .map(
                       (minutes) => ChoiceChip(
-                        label: Text(t.minuteShort(minutes)),
-                        selected: _selectedMinutes == minutes,
-                        onSelected: _running
-                            ? null
-                            : (_) => setState(() {
-                                  _selectedMinutes = minutes;
-                                  _remainingSeconds = minutes * 60;
-                                }),
-                      ),
-                    )
+                    label: Text(t.minuteShort(minutes)),
+                    selected: _selectedMinutes == minutes,
+                    onSelected: _running
+                        ? null
+                        : (_) => setState(() {
+                      _selectedMinutes = minutes;
+                      _remainingSeconds = minutes * 60;
+                    }),
+                  ),
+                )
                     .toList(),
               ),
               const SizedBox(height: 22),
@@ -321,12 +333,16 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
                   const Icon(Icons.shield_moon_outlined,
                       color: DetoxColors.accentSoft),
                   const SizedBox(width: 10),
-                  Text(
-                    t.shieldedDuringFocus,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
+                  Expanded(
+                    child: Text(
+                      t.shieldedDuringFocus,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),
@@ -357,15 +373,19 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
                   Icon(
                     _zoneState.insideZone ? Icons.school_rounded : Icons.place_outlined,
                     color:
-                        _zoneState.insideZone ? Colors.greenAccent : DetoxColors.accentSoft,
+                    _zoneState.insideZone ? Colors.greenAccent : DetoxColors.accentSoft,
                   ),
                   const SizedBox(width: 10),
-                  Text(
-                    t.studyZoneAutomation,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
+                  Expanded(
+                    child: Text(
+                      t.studyZoneAutomation,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),

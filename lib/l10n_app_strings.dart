@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 class AppStrings {
@@ -167,4 +166,90 @@ class AppStrings {
   String get zoneAppsHelp => isEs ? 'Primero agrega apps en la sección de límites por app. Si dejas esto vacío, la zona usará todas las apps marcadas para enfoque.' : 'Add apps in the Per-app limits section first. If you leave this empty, the zone will use all apps marked for focus mode.';
   String get studyZoneDefaultName => isEs ? 'Zona de estudio' : 'Study Zone';
   String get saveZone => isEs ? 'Guardar zona' : 'Save zone';
+
+  // Stats screen
+  String get statsWeeklyTitle => isEs ? 'Estadísticas semanales' : 'Weekly Stats';
+  String get statsWeeklySubtitle => isEs ? 'Mira tu tendencia de tiempo de pantalla y mantén la racha.' : 'See your screen-time trend and keep the streak alive.';
+  String get statsTrendInsight => isEs ? 'Tendencia' : 'Trend insight';
+  String get statsTrendDown => isEs ? 'Tu tiempo de pantalla va a la baja esta semana.' : 'Your screen time is trending downward this week.';
+  String get statsTrendUp => isEs ? 'Tu tiempo de pantalla aumentó esta semana. Considera más sesiones de enfoque.' : 'Your screen time increased this week. Consider more focus sessions.';
+  String get statsWeeklyGoal => isEs ? 'Meta semanal' : 'Weekly goal';
+  String get statsGoalMet => isEs ? 'Buen trabajo. Estuviste bajo tu límite la mayoría de los días.' : 'Great job. You stayed under your limit most days.';
+  String get statsGoalMiss => isEs ? 'Intenta pasar al menos 5 días bajo tu límite diario.' : 'Aim for at least 5 days under your daily limit.';
+  List<String> get weekDayLabels => isEs
+      ? ['L', 'M', 'X', 'J', 'V', 'S', 'D']
+      : ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+  // Sponsor screen
+  String get yourSponsorCode => isEs ? 'Tu código de padrino' : 'Your sponsor code';
+  String get sponsorCodeShare => isEs ? 'Comparte este código con la persona de confianza que aprobará tus cambios en Detox.' : 'Share this code with the one person you trust to approve Detox overrides.';
+  String get addSponsor => isEs ? 'Agregar padrino' : 'Add a sponsor';
+  String get enterSponsorCodeHint => isEs ? 'Ingresa el código de padrino' : 'Enter sponsor code';
+  String get linkSponsor => isEs ? 'Vincular padrino' : 'Link sponsor';
+  String get onlyOneSponsor => isEs ? 'Solo puedes tener un padrino a la vez.' : 'You can only have one sponsor at a time.';
+  String get requestZonePause => isEs ? 'Solicitar pausa de zona' : 'Request zone pause';
+  String get requestSettingsApproval => isEs ? 'Solicitar aprobación de ajustes' : 'Request settings approval';
+  String get endSponsorLink => isEs ? 'Terminar vínculo con padrino' : 'End sponsor link';
+  String get currentSafeguards => isEs ? 'Protecciones actuales' : 'Current safeguards';
+  String get zonePause => isEs ? 'Pausa de zona' : 'Zone pause';
+  String get protectedSettings => isEs ? 'Ajustes protegidos' : 'Protected settings';
+  String get protectedSettingsBody => isEs ? 'Quitar apps o zonas requiere aprobación del padrino.' : 'Removing apps or zones needs sponsor approval.';
+  String get yourOutgoingRequests => isEs ? 'Tus solicitudes enviadas' : 'Your outgoing requests';
+  String get noOutgoingRequests => isEs ? 'Aún no has solicitado ninguna acción al padrino.' : 'You have not requested any sponsor actions yet.';
+  String get historyLabel => isEs ? 'Historial' : 'History';
+  String get noSponsorHistory => isEs ? 'Aún no hay historial de padrino.' : 'No sponsor history yet.';
+  String get incomingSponsorLinkRequests => isEs ? 'Solicitudes de vínculo entrantes' : 'Incoming sponsor link requests';
+  String get acceptLinkBody => isEs ? 'Acepta esta solicitud para vincular ambas cuentas.' : 'Accept this request to link both accounts.';
+  String get pendingSponsorLinkRequests => isEs ? 'Solicitudes de vínculo pendientes' : 'Pending sponsor link requests';
+  String get noIncomingRequests => isEs ? 'Sin solicitudes entrantes por ahora.' : 'No incoming requests right now.';
+  String get incomingRequestsTitle => isEs ? 'Solicitudes entrantes' : 'Incoming requests';
+  String get reject => isEs ? 'Rechazar' : 'Reject';
+  String get accept => isEs ? 'Aceptar' : 'Accept';
+  String get approve => isEs ? 'Aprobar' : 'Approve';
+  String get generateCode => isEs ? 'Generar código' : 'Generate code';
+  String get done => isEs ? 'Listo' : 'Done';
+  String get useCode => isEs ? 'Usar código' : 'Use code';
+  String get enterEmailUnlinkCode => isEs ? 'Ingresar código de desvinculación por email' : 'Enter email unlink code';
+  String get enterSponsorUnlinkCode => isEs ? 'Ingresar código de desvinculación del padrino' : 'Enter sponsor unlink code';
+  String get endSponsorLinkTitle => isEs ? 'Terminar vínculo con padrino' : 'End sponsor link';
+  String get endSponsorLinkBody => isEs ? 'Puedes desvincular con un código del padrino o solicitar uno por correo.' : 'You can unlink with a sponsor-generated code or request a code by email.';
+  String get requestSponsorUnlinkCode => isEs ? 'Solicitar código de desvinculación al padrino' : 'Request sponsor unlink code';
+  String get emailMeUnlinkCode => isEs ? 'Enviarme un código de desvinculación por email' : 'Email me an unlink code';
+  String get enterEmailUnlinkCodeBtn => isEs ? 'Ingresar código de email' : 'Enter email unlink code';
+  String get unlinkCodeSentEmail => isEs ? 'Enviamos una solicitud de código de desvinculación a tu correo.' : 'We sent an unlink code request to your email.';
+  String get unlinkRequestSentSponsor => isEs ? 'Solicitud de desvinculación enviada a tu padrino.' : 'Unlink request sent to your sponsor.';
+  String get sponsorLinkRemoved => isEs ? 'Vínculo con padrino eliminado.' : 'Sponsor link removed.';
+  String get enterSponsorCodeSnack => isEs ? 'Ingresa un código de padrino' : 'Enter a sponsor code';
+  String get requestSentWaiting => isEs ? 'Solicitud enviada. Esperando aprobación.' : 'Request sent. Waiting for approval.';
+  String get sponsorRequestAccepted => isEs ? 'Solicitud de padrino aceptada.' : 'Sponsor request accepted.';
+  String get sponsorRequestRejected => isEs ? 'Solicitud de padrino rechazada.' : 'Sponsor request rejected.';
+  String get requestRejected => isEs ? 'Solicitud rechazada.' : 'Request rejected.';
+  String get settingsAccessApproved => isEs ? 'Acceso a ajustes aprobado.' : 'Settings access approved.';
+  String get shieldPauseApproved => isEs ? 'Pausa del escudo aprobada.' : 'App shield pause approved.';
+  String get zonePauseApproved => isEs ? 'Pausa de zona aprobada.' : 'Zone pause approved.';
+  String get settingsRequestSent => isEs ? 'Solicitud de desbloqueo de ajustes enviada a tu padrino.' : 'Settings approval request sent to your sponsor.';
+  String get zonePauseRequestSent => isEs ? 'Solicitud de pausa de zona enviada a tu padrino.' : 'Zone-pause approval request sent to your sponsor.';
+  String get expired => isEs ? 'Expirado' : 'Expired';
+  String get statusUsed => isEs ? 'Usado' : 'Used';
+  String get statusApproved => isEs ? 'Aprobado' : 'Approved';
+  String get statusRejected => isEs ? 'Rechazado' : 'Rejected';
+  String get statusPending => isEs ? 'Pendiente' : 'Pending';
+  String get statusCompleted => isEs ? 'Completado' : 'Completed';
+  String get statusEmailed => isEs ? 'Enviado por email' : 'Emailed';
+  String get giveCodeTo => isEs ? 'Da este código a' : 'Give this code to';
+  String get codeExpiresOnce => isEs ? 'Expira en 3 minutos y solo funciona una vez.' : 'It expires in 3 minutes and only works once.';
+  String get expiresSoon => isEs ? 'Expira pronto' : 'Expires soon';
+  String  durationMinLabel(int min) => isEs ? 'Duración: $min min' : 'Duration: $min min';
+  String get waitingForTarget => isEs ? 'Esperando que' : 'Waiting for';
+  String get toAcceptRequest => isEs ? 'acepte tu solicitud.' : 'to accept your request.';
+  String get requestStillPending => isEs ? 'Esta solicitud sigue pendiente.' : 'This request is still pending.';
+  String get zonePauseApprovalTitle => isEs ? 'Aprobación de pausa de zona' : 'Zone pause approval';
+  String get settingsApprovalTitle => isEs ? 'Aprobación de ajustes' : 'Settings approval';
+  String get shieldPauseTitle => isEs ? 'Pausa del escudo de apps' : 'App shield pause';
+  String get unlinkApprovalTitle => isEs ? 'Aprobación de desvinculación' : 'Unlink approval';
+  String zoneActiveLabel(String time) => isEs ? 'Activa · $time' : 'Active · $time';
+  String insideZoneLabel(String name) => isEs ? 'Dentro de $name' : 'Inside $name';
+  String get zoneInactive => isEs ? 'Inactiva' : 'Inactive';
+  String get settingsUnlockedLabel => isEs ? 'Desbloqueado' : 'Unlocked';
+  String waitingForName(String name) => isEs ? 'Esperando que $name acepte tu solicitud.' : 'Waiting for $name to accept your request.';
 }
