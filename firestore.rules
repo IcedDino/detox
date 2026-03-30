@@ -1,0 +1,91 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isSelf(userId) { return signedIn() && request.auth.uid == userId; }
+    function isRequesterCreate() {
+      return signedIn() &&
+        request.resource.data.requesterUid is string &&
+        request.resource.data.requesterUid == request.auth.uid;
+    }
+    function isLinkParticipant() {
+      return signedIn() && (
+        resource.data.requesterUid == request.auth.uid ||
+        resource.data.targetUid == request.auth.uid
+      );
+    }
+    function isUnlockParticipant() {
+      return signedIn() && (
+        resource.data.requesterUid == request.auth.uid ||
+        resource.data.sponsorUid == request.auth.uid
+      );
+    }
+    function canAcceptPendingSponsorLink(userId) {
+      return request.resource.data.sponsorUid == request.auth.uid &&
+        exists(/databases/$(database)/documents/meta/sponsor/link_requests/$(userId + "_" + request.auth.uid + "_sponsor")) &&
+        get(/databases/$(database)/documents/meta/sponsor/link_requests/$(userId + "_" + request.auth.uid + "_sponsor")).data.status == "pending";
+    }
+    function canUnlinkLinkedSponsor(userId) {
+      return resource.data.sponsorUid == request.auth.uid &&
+        !("sponsorUid" in request.resource.data);
+    }
+    function canWriteLinkedUser(userId) {
+      return signedIn() && (
+        canAcceptPendingSponsorLink(userId) ||
+        canUnlinkLinkedSponsor(userId)
+      );
+    }
+    function canApplySettingsUnlock(userId) {
+      return request.resource.data.settingsUnlockUntil is timestamp &&
+        exists(/databases/$(database)/documents/meta/sponsor/unlock_requests/$(userId + "_settings_unlock")) &&
+        get(/databases/$(database)/documents/meta/sponsor/unlock_requests/$(userId + "_settings_unlock")).data.sponsorUid == request.auth.uid &&
+        get(/databases/$(database)/documents/meta/sponsor/unlock_requests/$(userId + "_settings_unlock")).data.status == "pending";
+    }
+    function canApplyZoneOverride(userId) {
+      return request.resource.data.zoneOverrideUntil is timestamp &&
+        exists(/databases/$(database)/documents/meta/sponsor/unlock_requests/$(userId + "_zone_override")) &&
+        get(/databases/$(database)/documents/meta/sponsor/unlock_requests/$(userId + "_zone_override")).data.sponsorUid == request.auth.uid &&
+        get(/databases/$(database)/documents/meta/sponsor/unlock_requests/$(userId + "_zone_override")).data.status == "pending";
+    }
+    function canApplyShieldPause(userId) {
+      return request.resource.data.shieldPauseUntil is timestamp &&
+        exists(/databases/$(database)/documents/meta/sponsor/unlock_requests/$(userId + "_shield_pause")) &&
+        get(/databases/$(database)/documents/meta/sponsor/unlock_requests/$(userId + "_shield_pause")).data.sponsorUid == request.auth.uid &&
+        get(/databases/$(database)/documents/meta/sponsor/unlock_requests/$(userId + "_shield_pause")).data.status == "pending";
+    }
+    function canApplyDirectSponsorApproval(userId) {
+      return signedIn() && (
+        canApplySettingsUnlock(userId) ||
+        canApplyZoneOverride(userId) ||
+        canApplyShieldPause(userId)
+      );
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create, update: if isSelf(userId) || canWriteLinkedUser(userId) || canApplyDirectSponsorApproval(userId);
+      allow delete: if false;
+    }
+
+    match /meta/sponsor/link_requests/{requestId} {
+      allow get: if signedIn();
+      allow list: if signedIn();
+      allow create: if isRequesterCreate();
+      allow update: if isLinkParticipant();
+      allow delete: if false;
+    }
+
+    match /meta/sponsor/unlock_requests/{requestId} {
+      allow get: if signedIn();
+      allow list: if signedIn();
+      allow create: if isRequesterCreate();
+      allow update: if isUnlockParticipant();
+      allow delete: if false;
+    }
+
+    match /mail/{docId} {
+      allow create: if signedIn();
+      allow read, update, delete: if false;
+    }
+  }
+}
