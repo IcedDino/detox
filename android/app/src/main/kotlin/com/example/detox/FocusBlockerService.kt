@@ -60,6 +60,10 @@ class FocusBlockerService : Service() {
     private var hasAudioFocus = false
     private var originalVolume: Int = -1
     private var isMutedByService = false
+    private var lastForegroundPackage: String? = null
+    private var lastForegroundResolveAt: Long = 0L
+    private var lastLongFallbackAt: Long = 0L
+    private var lastInspectionAt: Long = 0L
     @Volatile
     private var pollRunning = false
 
@@ -69,7 +73,9 @@ class FocusBlockerService : Service() {
             try {
                 inspectForegroundApp()
             } finally {
-                if (pollRunning) handler.postDelayed(this, 350)
+                if (pollRunning) {
+                    handler.postDelayed(this, computeNextPollDelay())
+                }
             }
         }
     }
@@ -206,6 +212,7 @@ class FocusBlockerService : Service() {
     }
 
     private fun inspectForegroundApp() {
+        lastInspectionAt = System.currentTimeMillis()
         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val blockedPackages = prefs.getStringSet("blocked_packages", emptySet()) ?: emptySet()
         currentReason = prefs.getString("block_reason", currentReason) ?: currentReason
@@ -271,8 +278,13 @@ class FocusBlockerService : Service() {
             val usageStatsManager =
                 getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             val endTime = System.currentTimeMillis()
+            val canReuseRecent =
+                lastForegroundPackage != null && (endTime - lastForegroundResolveAt) <= 1_500L
+            if (canReuseRecent) {
+                return lastForegroundPackage
+            }
 
-            val beginShort = endTime - 10_000
+            val beginShort = endTime - 10_000L
             val events = usageStatsManager.queryEvents(beginShort, endTime)
             val event = UsageEvents.Event()
             var currentPkg: String? = null
@@ -284,20 +296,46 @@ class FocusBlockerService : Service() {
             }
 
             if (currentPkg == null) {
-                val beginLong = endTime - 60 * 60_000L
-                val longEvents = usageStatsManager.queryEvents(beginLong, endTime)
-                val longEvent = UsageEvents.Event()
-                while (longEvents.hasNextEvent()) {
-                    longEvents.getNextEvent(longEvent)
-                    if (longEvent.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
-                        currentPkg = longEvent.packageName
+                val shouldRunLongFallback =
+                    lastForegroundPackage == null || (endTime - lastLongFallbackAt) >= 15_000L
+                if (shouldRunLongFallback) {
+                    val beginLong = endTime - 5 * 60_000L
+                    val longEvents = usageStatsManager.queryEvents(beginLong, endTime)
+                    val longEvent = UsageEvents.Event()
+                    while (longEvents.hasNextEvent()) {
+                        longEvents.getNextEvent(longEvent)
+                        if (longEvent.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                            currentPkg = longEvent.packageName
+                        }
                     }
+                    lastLongFallbackAt = endTime
                 }
             }
 
-            currentPkg
+            if (currentPkg != null) {
+                lastForegroundPackage = currentPkg
+                lastForegroundResolveAt = endTime
+                return currentPkg
+            }
+
+            if ((endTime - lastForegroundResolveAt) <= 5_000L) {
+                return lastForegroundPackage
+            }
+
+            null
         } catch (e: Exception) {
             null
+        }
+    }
+
+    private fun computeNextPollDelay(): Long {
+        val now = System.currentTimeMillis()
+        val sinceLastInspection = now - lastInspectionAt
+        return when {
+            overlayView != null -> 400L
+            requestInFlight || keepOverlayPinned -> 450L
+            lastShownPackage != null && sinceLastInspection < 5_000L -> 650L
+            else -> 1_000L
         }
     }
 
