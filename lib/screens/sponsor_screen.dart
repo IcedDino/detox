@@ -5,6 +5,7 @@ import '../l10n_app_strings.dart';
 import '../models/link_requests.dart';
 import '../models/sponsor_profile.dart';
 import '../models/sponsor_request.dart';
+import '../services/app_blocking_service.dart';
 import '../services/location_zone_service.dart';
 import '../services/sponsor_service.dart';
 import '../theme/app_theme.dart';
@@ -74,11 +75,16 @@ class _SponsorScreenState extends State<SponsorScreen>
         _sponsorService.getZoneOverrideUntil(),
       ]);
 
+      final sponsor = results[1] as SponsorProfile?;
+
+      await AppBlockingService.instance.syncSponsorState(sponsor != null);
+      await LocationZoneService.instance.refresh();
+
       if (!mounted) return;
 
       setState(() {
         _myCode = results[0] as String;
-        _sponsor = results[1] as SponsorProfile?;
+        _sponsor = sponsor;
         _settingsUnlockActive = results[2] as bool;
         _zoneOverrideActive = results[3] as bool;
         _settingsUntil = results[4] as DateTime?;
@@ -134,9 +140,7 @@ class _SponsorScreenState extends State<SponsorScreen>
       context: context,
       builder: (context) => AlertDialog(
         title: Text(
-          emailCode
-              ? t.enterEmailUnlinkCode
-              : t.enterSponsorUnlinkCode,
+          emailCode ? t.enterEmailUnlinkCode : t.enterSponsorUnlinkCode,
         ),
         content: TextField(
           controller: controller,
@@ -168,6 +172,9 @@ class _SponsorScreenState extends State<SponsorScreen>
           requestType: 'unlink_sponsor',
         );
       }
+
+      await AppBlockingService.instance.syncSponsorState(false);
+      await LocationZoneService.instance.refresh();
 
       _snack(AppStrings.of(context).sponsorLinkRemoved);
       await _refresh();
@@ -242,9 +249,9 @@ class _SponsorScreenState extends State<SponsorScreen>
                 ),
               ),
               const SizedBox(height: 8),
-               Text(
+              Text(
                 t.codeExpiresOnce,
-                style: TextStyle(color: DetoxColors.muted),
+                style: const TextStyle(color: DetoxColors.muted),
               ),
             ],
           ),
@@ -359,6 +366,9 @@ class _SponsorScreenState extends State<SponsorScreen>
     setState(() => _linkActionBusy = true);
     try {
       await _sponsorService.acceptLinkRequest(request.id);
+      await AppBlockingService.instance.syncSponsorState(true);
+      await LocationZoneService.instance.refresh();
+
       if (!mounted) return;
       _snack(t.sponsorRequestAccepted);
       await _refresh();
@@ -454,9 +464,8 @@ class _SponsorScreenState extends State<SponsorScreen>
                         children: [
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: _linkActionBusy
-                                  ? null
-                                  : () => _rejectLink(req),
+                              onPressed:
+                              _linkActionBusy ? null : () => _rejectLink(req),
                               icon: const Icon(Icons.close_rounded),
                               label: Text(t.reject),
                             ),
@@ -464,9 +473,8 @@ class _SponsorScreenState extends State<SponsorScreen>
                           const SizedBox(width: 12),
                           Expanded(
                             child: FilledButton.icon(
-                              onPressed: _linkActionBusy
-                                  ? null
-                                  : () => _acceptLink(req),
+                              onPressed:
+                              _linkActionBusy ? null : () => _acceptLink(req),
                               icon: const Icon(Icons.check_rounded),
                               label: Text(t.accept),
                             ),
@@ -556,9 +564,7 @@ class _SponsorScreenState extends State<SponsorScreen>
         }
 
         final requests = (snapshot.data ?? const <SponsorRequest>[])
-            .where((request) =>
-        request.isPending ||
-            (request.isApproved && !request.isExpired))
+            .where((request) => request.isPending || (request.isApproved && !request.isExpired))
             .toList();
 
         if (requests.isEmpty) {
@@ -743,8 +749,7 @@ class _SponsorScreenState extends State<SponsorScreen>
                         const SizedBox(height: 10),
                         TextField(
                           controller: _codeController,
-                          textCapitalization:
-                          TextCapitalization.characters,
+                          textCapitalization: TextCapitalization.characters,
                           decoration: InputDecoration(
                             labelText: t.enterSponsorCodeHint,
                             prefixIcon: const Icon(Icons.link_rounded),
@@ -777,8 +782,7 @@ class _SponsorScreenState extends State<SponsorScreen>
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
-                                crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     _sponsor!.displayName,
@@ -821,8 +825,7 @@ class _SponsorScreenState extends State<SponsorScreen>
                               child: OutlinedButton.icon(
                                 onPressed: () =>
                                     _request('settings_unlock'),
-                                icon:
-                                const Icon(Icons.lock_open_rounded),
+                                icon: const Icon(Icons.lock_open_rounded),
                                 label: Text(
                                   t.requestSettingsApproval,
                                 ),
@@ -867,7 +870,9 @@ class _SponsorScreenState extends State<SponsorScreen>
                             _zoneOverrideActive
                                 ? t.zoneActiveLabel(_timeLabel(_zoneUntil))
                                 : _zoneState.insideZone
-                                ? t.insideZoneLabel(_zoneState.zoneName ?? '')
+                                ? t.insideZoneLabel(
+                              _zoneState.zoneName ?? '',
+                            )
                                 : t.zoneInactive,
                             style: const TextStyle(
                               color: DetoxColors.muted,
@@ -927,7 +932,9 @@ class _SponsorScreenState extends State<SponsorScreen>
                       return GlassCard(
                         child: Text(
                           t.noOutgoingRequests,
-                          style: const TextStyle(color: DetoxColors.muted),
+                          style: const TextStyle(
+                            color: DetoxColors.muted,
+                          ),
                         ),
                       );
                     }
@@ -1006,7 +1013,9 @@ class _SponsorScreenState extends State<SponsorScreen>
                       return GlassCard(
                         child: Text(
                           t.noSponsorHistory,
-                          style: const TextStyle(color: DetoxColors.muted),
+                          style: const TextStyle(
+                            color: DetoxColors.muted,
+                          ),
                         ),
                       );
                     }

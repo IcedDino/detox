@@ -9,7 +9,10 @@ import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Build
@@ -17,6 +20,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -33,6 +37,8 @@ class FocusBlockerService : Service() {
     companion object {
         const val ACTION_START = "com.example.detox.START_BLOCKING"
         const val ACTION_STOP = "com.example.detox.STOP_BLOCKING"
+        const val ACTION_SYNC_SPONSOR_STATE = "com.example.detox.SYNC_SPONSOR_STATE"
+
         private const val CHANNEL_ID = "detox_focus_shield"
         private const val NOTIFICATION_ID = 4812
         private const val PREFS = "detox_native"
@@ -52,7 +58,8 @@ class FocusBlockerService : Service() {
     private var audioFocusRequest: AudioFocusRequest? = null
     private var hasAudioFocus = false
 
-    @Volatile private var pollRunning = false
+    @Volatile
+    private var pollRunning = false
 
     private val pollTask = object : Runnable {
         override fun run() {
@@ -73,6 +80,21 @@ class FocusBlockerService : Service() {
                 stopSelfSafely()
                 START_NOT_STICKY
             }
+
+            ACTION_SYNC_SPONSOR_STATE -> {
+                val hasSponsor = intent.getBooleanExtra("has_sponsor", false)
+                getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                    .edit()
+                    .putBoolean("has_sponsor", hasSponsor)
+                    .apply()
+
+                if (overlayView != null) {
+                    syncOverlayButtonState()
+                    syncOverlayAppDetails()
+                }
+                START_STICKY
+            }
+
             else -> {
                 createChannel()
                 try {
@@ -85,16 +107,19 @@ class FocusBlockerService : Service() {
                 windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
                 audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
                 val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                val blockedPackages = prefs.getStringSet("blocked_packages", emptySet()) ?: emptySet()
+                val blockedPackages =
+                    prefs.getStringSet("blocked_packages", emptySet()) ?: emptySet()
+
                 if (!Settings.canDrawOverlays(this) || blockedPackages.isEmpty()) {
                     stopSelfSafely()
                     return START_NOT_STICKY
                 }
 
-                currentReason = prefs.getString("block_reason", "Focus session active") ?: "Focus session active"
+                currentReason = prefs.getString("block_reason", "Focus session active")
+                    ?: "Focus session active"
+
                 startShieldPauseWatcher()
-                // Always cancel any existing callbacks before posting pollTask
-                // to prevent duplicate polling if the service is restarted by Android.
+
                 handler.removeCallbacksAndMessages(null)
                 pollRunning = true
                 handler.post(pollTask)
@@ -148,8 +173,6 @@ class FocusBlockerService : Service() {
         userListener?.remove()
         userListener = null
 
-        // Re-attach auth state listener so we reconnect if the token refreshes
-        // or the user signs out/in while the service is running.
         val auth = FirebaseAuth.getInstance()
         val uid = auth.currentUser?.uid ?: return
 
@@ -157,12 +180,11 @@ class FocusBlockerService : Service() {
             .collection("users")
             .document(uid)
             .addSnapshotListener { snapshot, error ->
-                // If Firestore signals a permission error, the token may have
-                // refreshed — schedule a watcher restart on the main thread.
                 if (error != null) {
                     handler.postDelayed({ startShieldPauseWatcher() }, 5_000)
                     return@addSnapshotListener
                 }
+
                 val ts = snapshot?.getTimestamp("shieldPauseUntil")
                 val millis = ts?.toDate()?.time ?: 0L
                 getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -209,8 +231,6 @@ class FocusBlockerService : Service() {
             return
         }
 
-        // If overlay was lost while a request was in flight (e.g. during Firestore async call),
-        // and the foreground app is not our own package, keep the overlay alive.
         if ((requestInFlight || keepOverlayPinned) && !isOwnApp && !isSystemInterruption) {
             if (lastShownPackage != null) {
                 showOverlay(currentReason)
@@ -233,7 +253,6 @@ class FocusBlockerService : Service() {
         }
 
         if (isOwnApp) {
-            // Do NOT dismiss while a sponsor request is pending or overlay is pinned.
             if (!requestInFlight && !keepOverlayPinned) {
                 hideOverlay(force = false)
                 lastShownPackage = null
@@ -247,11 +266,10 @@ class FocusBlockerService : Service() {
 
     private fun queryForegroundPackage(): String? {
         return try {
-            val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+            val usageStatsManager =
+                getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             val endTime = System.currentTimeMillis()
 
-            // First: check recent events (last 10s) for a MOVE_TO_FOREGROUND event.
-            // This is accurate when the user switches apps frequently.
             val beginShort = endTime - 10_000
             val events = usageStatsManager.queryEvents(beginShort, endTime)
             val event = UsageEvents.Event()
@@ -263,11 +281,8 @@ class FocusBlockerService : Service() {
                 }
             }
 
-            // If no recent MOVE_TO_FOREGROUND found (user has been in the same app for
-            // a long time, e.g. after a 15-minute suspend expires), fall back to a wider
-            // event window to find which app was last brought to foreground.
             if (currentPkg == null) {
-                val beginLong = endTime - 60 * 60_000L // last 60 minutes
+                val beginLong = endTime - 60 * 60_000L
                 val longEvents = usageStatsManager.queryEvents(beginLong, endTime)
                 val longEvent = UsageEvents.Event()
                 while (longEvents.hasNextEvent()) {
@@ -289,58 +304,160 @@ class FocusBlockerService : Service() {
         val hasSponsor = prefs.getBoolean("has_sponsor", false)
         requestAudioFocus()
 
-        // If overlay already exists, just update the text/button state in place.
-        // Never recreate it while a request is in flight — that would reset the UI.
         if (overlayView != null) {
-            overlayView?.findViewWithTag<TextView>("reasonText")?.text = reason
+            overlayView?.findViewWithTag<TextView>("reasonText")?.text = buildBodyText(reason)
             syncOverlayButtonState()
+            syncOverlayAppDetails()
             return
         }
 
-        // Only build a fresh overlay if there is no request in flight.
-        // If keepOverlayPinned is true and we somehow lost the view, rebuild it
-        // but restore the in-flight state immediately so the button stays disabled.
-        val layout = LinearLayout(this).apply {
+        val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#081120"))
-            setPadding(56, 56, 56, 56)
+            setBackgroundColor(Color.parseColor("#CC08111F"))
+            setPadding(dp(24), dp(24), dp(24), dp(24))
             isClickable = true
             isFocusable = true
         }
 
-        val title = TextView(this).apply {
-            text = "Stay in focus"
-            textSize = 24f
-            setTextColor(Color.WHITE)
-            setPadding(0, 0, 0, 12)
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(24), dp(26), dp(24), dp(22))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpF(28)
+                colors = intArrayOf(
+                    Color.parseColor("#111827"),
+                    Color.parseColor("#0F172A")
+                )
+                orientation = GradientDrawable.Orientation.TOP_BOTTOM
+                setStroke(dp(1), Color.parseColor("#223047"))
+            }
+            elevation = dpF(10)
         }
 
-        // Use the live reason (may already reflect "Waiting for sponsor…")
-        val displayReason = if (requestInFlight) "15-minute pause requested. Waiting for sponsor approval." else reason
+        val iconCircle = TextView(this).apply {
+            text = "\uD83D\uDD12"
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                colors = intArrayOf(
+                    Color.parseColor("#1E3A5F"),
+                    Color.parseColor("#13304D")
+                )
+                orientation = GradientDrawable.Orientation.TOP_BOTTOM
+                setStroke(dp(1), Color.parseColor("#34506D"))
+            }
+            val size = dp(64)
+            layoutParams = LinearLayout.LayoutParams(size, size).apply {
+                bottomMargin = dp(16)
+            }
+        }
+
+        val badge = TextView(this).apply {
+            text = "Focus Shield Active"
+            setTextColor(Color.parseColor("#8FD3FF"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            setTypeface(typeface, Typeface.BOLD)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpF(999)
+                setColor(Color.parseColor("#142334"))
+                setStroke(dp(1), Color.parseColor("#27415D"))
+            }
+            setPadding(dp(12), dp(6), dp(12), dp(6))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dp(14)
+            }
+        }
+
+        val title = TextView(this).apply {
+            text = "Stay focused"
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, Typeface.BOLD)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 25f)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dp(10)
+            }
+        }
+
+        val blockedAppLabel = TextView(this).apply {
+            tag = "appLabelText"
+            text = buildBlockedAppTitle()
+            gravity = Gravity.CENTER
+            setTextColor(Color.parseColor("#E6EEF8"))
+            setTypeface(typeface, Typeface.BOLD)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dp(8)
+            }
+        }
 
         val body = TextView(this).apply {
-            text = displayReason
+            text = buildBodyText(reason)
             tag = "reasonText"
-            textSize = 16f
-            setTextColor(Color.parseColor("#FFAFC2D6"))
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 24)
+            setTextColor(Color.parseColor("#B7C8D9"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            setLineSpacing(0f, 1.12f)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dp(22)
+            }
         }
 
         val actionButton = Button(this).apply {
             tag = "actionButton"
-            // Restore correct button label immediately based on current state
             isAllCaps = false
+            textSize = 15f
+            setTextColor(Color.WHITE)
+            typeface = Typeface.DEFAULT_BOLD
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpF(18)
+                colors = intArrayOf(
+                    Color.parseColor("#2563EB"),
+                    Color.parseColor("#1D4ED8")
+                )
+                orientation = GradientDrawable.Orientation.TOP_BOTTOM
+            }
+            minHeight = dp(54)
+            setPadding(dp(18), dp(14), dp(18), dp(14))
             isEnabled = !requestInFlight
             text = when {
                 requestInFlight -> "Waiting for response..."
                 hasSponsor -> "Request 15-minute pause"
-                else -> "Suspend 15 minutes"
+                else -> "Pause for 15 minutes"
             }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dp(12)
+            }
+
             setOnClickListener {
                 if (requestInFlight) return@setOnClickListener
-                if (hasSponsor) {
+
+                val latestHasSponsor = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                    .getBoolean("has_sponsor", false)
+
+                if (latestHasSponsor) {
                     requestInFlight = true
                     keepOverlayPinned = true
                     isEnabled = false
@@ -353,12 +470,25 @@ class FocusBlockerService : Service() {
             }
         }
 
-        val button = Button(this).apply {
+        val backButton = Button(this).apply {
             text = "Back to focus"
             isAllCaps = false
+            textSize = 15f
+            setTextColor(Color.parseColor("#D7E3F0"))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpF(18)
+                setColor(Color.TRANSPARENT)
+                setStroke(dp(1), Color.parseColor("#38506A"))
+            }
+            minHeight = dp(52)
+            setPadding(dp(18), dp(14), dp(18), dp(14))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+
             setOnClickListener {
-                // Always allow escape to home, even if request is in flight.
-                // Reset pin state so the overlay does not re-appear.
                 requestInFlight = false
                 keepOverlayPinned = false
                 currentRequestId = null
@@ -366,6 +496,7 @@ class FocusBlockerService : Service() {
                 requestListener = null
                 lastShownPackage = null
                 hideOverlay(force = true)
+
                 val homeIntent = Intent(Intent.ACTION_MAIN).apply {
                     addCategory(Intent.CATEGORY_HOME)
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -374,10 +505,35 @@ class FocusBlockerService : Service() {
             }
         }
 
-        layout.addView(title)
-        layout.addView(body)
-        layout.addView(actionButton)
-        layout.addView(button)
+        val footer = TextView(this).apply {
+            text = "Protected by Detox"
+            gravity = Gravity.CENTER
+            setTextColor(Color.parseColor("#70839A"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = dp(14)
+            }
+        }
+
+        card.addView(iconCircle)
+        card.addView(badge)
+        card.addView(title)
+        card.addView(blockedAppLabel)
+        card.addView(body)
+        card.addView(actionButton)
+        card.addView(backButton)
+        card.addView(footer)
+
+        outer.addView(
+            card,
+            LinearLayout.LayoutParams(
+                dp(340),
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
@@ -391,9 +547,9 @@ class FocusBlockerService : Service() {
             android.graphics.PixelFormat.OPAQUE
         )
         params.gravity = Gravity.CENTER
-        overlayView = layout
+        overlayView = outer
         try {
-            windowManager.addView(layout, params)
+            windowManager.addView(outer, params)
         } catch (e: Exception) {
             overlayView = null
         }
@@ -405,6 +561,7 @@ class FocusBlockerService : Service() {
             .edit()
             .putLong("suspend_until_millis", untilMillis)
             .apply()
+
         requestInFlight = false
         keepOverlayPinned = false
         hideOverlay(force = true)
@@ -423,7 +580,6 @@ class FocusBlockerService : Service() {
         val firestore = FirebaseFirestore.getInstance()
         val uid = user.uid
 
-        // If we already have a live request, just re-attach the watcher and wait.
         if (currentRequestId != null && requestListener != null) {
             keepOverlayPinned = true
             updateOverlayReason("15-minute pause requested. Waiting for sponsor approval.")
@@ -439,7 +595,7 @@ class FocusBlockerService : Service() {
                 if (sponsorUid.isNullOrBlank()) {
                     requestInFlight = false
                     keepOverlayPinned = false
-                    updateOverlayReason("No sponsor linked. Suspending 15 minutes locally.")
+                    updateOverlayReason("No sponsor linked. Pausing locally for 15 minutes.")
                     syncOverlayButtonState()
                     suspendLocallyForMinutes(15)
                     return@addOnSuccessListener
@@ -461,7 +617,6 @@ class FocusBlockerService : Service() {
                     else -> "Detox user"
                 }
 
-                // First set the core fields (no FieldValue.delete allowed without merge)
                 requestRef.set(
                     hashMapOf(
                         "requesterUid" to uid,
@@ -474,7 +629,6 @@ class FocusBlockerService : Service() {
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
                 ).continueWithTask {
-                    // Then clear stale fields with update() which allows FieldValue.delete()
                     requestRef.update(
                         mapOf(
                             "code" to FieldValue.delete(),
@@ -515,13 +669,16 @@ class FocusBlockerService : Service() {
                     updateOverlayReason("15-minute pause requested. Waiting for sponsor approval.")
                     syncOverlayButtonState()
                 }
+
                 "approved" -> {
                     val expiresAt = snapshot.getTimestamp("expiresAt")?.toDate()?.time
                         ?: (System.currentTimeMillis() + 15 * 60_000L)
+
                     getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                         .edit()
                         .putLong("suspend_until_millis", expiresAt)
                         .apply()
+
                     requestInFlight = false
                     keepOverlayPinned = false
                     currentRequestId = null
@@ -529,6 +686,7 @@ class FocusBlockerService : Service() {
                     requestListener = null
                     hideOverlay(force = true)
                 }
+
                 "rejected" -> {
                     requestInFlight = false
                     keepOverlayPinned = true
@@ -543,33 +701,70 @@ class FocusBlockerService : Service() {
     private fun syncOverlayButtonState() {
         val hasSponsor = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getBoolean("has_sponsor", false)
+
         val actionButton = overlayView?.findViewWithTag<Button>("actionButton") ?: return
         actionButton.isEnabled = !requestInFlight
         actionButton.text = when {
             requestInFlight -> "Waiting for response..."
             hasSponsor -> "Request 15-minute pause"
-            else -> "Suspend 15 minutes"
+            else -> "Pause for 15 minutes"
         }
+    }
+
+    private fun syncOverlayAppDetails() {
+        val appLabelText = overlayView?.findViewWithTag<TextView>("appLabelText") ?: return
+        appLabelText.text = buildBlockedAppTitle()
     }
 
     private fun updateOverlayReason(message: String) {
         overlayView?.findViewWithTag<TextView>("reasonText")?.text = message
+        syncOverlayAppDetails()
+    }
+
+    private fun buildBlockedAppTitle(): String {
+        val label = getReadableAppLabel(lastShownPackage)
+        return if (label != null) {
+            "$label is blocked right now"
+        } else {
+            "This app is blocked right now"
+        }
+    }
+
+    private fun buildBodyText(reason: String): String {
+        val label = getReadableAppLabel(lastShownPackage)
+        return when {
+            requestInFlight -> "15-minute pause requested for ${label ?: "this app"}. Waiting for sponsor approval."
+            label != null -> "$label is blocked during your focus session. $reason"
+            else -> reason
+        }
+    }
+
+    private fun getReadableAppLabel(packageNameValue: String?): String? {
+        if (packageNameValue.isNullOrBlank()) return null
+        return try {
+            val pm: PackageManager = packageManager
+            val appInfo = pm.getApplicationInfo(packageNameValue, 0)
+            pm.getApplicationLabel(appInfo)?.toString()
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun hideOverlay(force: Boolean) {
-        // Never tear down the overlay while a sponsor request is in flight,
-        // unless this is an explicit force-dismiss (e.g. approval received).
         if (!force && (keepOverlayPinned || requestInFlight)) {
             return
         }
+
         val view = overlayView ?: run {
             abandonAudioFocus()
             return
         }
+
         try {
             windowManager.removeView(view)
         } catch (_: Exception) {
         }
+
         overlayView = null
         abandonAudioFocus()
     }
@@ -578,13 +773,12 @@ class FocusBlockerService : Service() {
         if (hasAudioFocus) return
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                // Use GAIN_TRANSIENT (not EXCLUSIVE) so music/calls are ducked
-                // rather than fully paused when the overlay appears.
                 val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
                     .setAcceptsDelayedFocusGain(true)
                     .setWillPauseWhenDucked(false)
                     .setOnAudioFocusChangeListener { }
                     .build()
+
                 val result = audioManager.requestAudioFocus(request)
                 if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
                     audioFocusRequest = request
@@ -630,5 +824,21 @@ class FocusBlockerService : Service() {
         hideOverlay(force = true)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    private fun dp(value: Int): Int {
+        return TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            value.toFloat(),
+            resources.displayMetrics
+        ).toInt()
+    }
+
+    private fun dpF(value: Int): Float {
+        return TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            value.toFloat(),
+            resources.displayMetrics
+        )
     }
 }

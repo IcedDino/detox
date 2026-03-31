@@ -41,7 +41,8 @@ class AppBlockingService {
     required bool hasSponsor,
   }) async {
     if (!_isAndroid) return;
-    final normalized = blockedPackages.toSet().where((e) => e.isNotEmpty).toList();
+    final normalized =
+    blockedPackages.toSet().where((e) => e.isNotEmpty).toList();
     if (normalized.isEmpty) return;
     try {
       await _channel.invokeMethod('startBlocking', {
@@ -81,6 +82,17 @@ class AppBlockingService {
     } catch (e) {
       debugPrint('consumePendingNativeAction error: $e');
       return null;
+    }
+  }
+
+  Future<void> syncSponsorState(bool hasSponsor) async {
+    if (!_isAndroid) return;
+    try {
+      await _channel.invokeMethod('syncSponsorState', {
+        'hasSponsor': hasSponsor,
+      });
+    } catch (e) {
+      debugPrint('syncSponsorState error: $e');
     }
   }
 }

@@ -31,19 +31,29 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "hasOverlayPermission" -> {
-                        result.success(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(this) else true)
+                        result.success(
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                Settings.canDrawOverlays(this)
+                            } else {
+                                true
+                            }
+                        )
                     }
+
                     "hasUsageAccess" -> {
                         result.success(hasUsageAccess())
                     }
+
                     "getAppLabel" -> {
                         val packageNameArg = call.argument<String>("packageName")
                         result.success(getAppLabel(packageNameArg))
                     }
+
                     "getAppIcon" -> {
                         val packageNameArg = call.argument<String>("packageName")
                         result.success(getAppIcon(packageNameArg))
                     }
+
                     "openUsageAccessSettings" -> {
                         try {
                             val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
@@ -55,6 +65,7 @@ class MainActivity : FlutterActivity() {
                             result.error("USAGE_SETTINGS_ERROR", e.message, null)
                         }
                     }
+
                     "openOverlayPermissionSettings" -> {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                             val intent = Intent(
@@ -65,6 +76,7 @@ class MainActivity : FlutterActivity() {
                         }
                         result.success(null)
                     }
+
                     "startBlocking" -> {
                         try {
                             val args = call.arguments as? Map<*, *>
@@ -99,6 +111,7 @@ class MainActivity : FlutterActivity() {
                             result.error("START_BLOCKING_ERROR", e.message, null)
                         }
                     }
+
                     "stopBlocking" -> {
                         try {
                             val intent = Intent(this, FocusBlockerService::class.java).apply {
@@ -110,6 +123,7 @@ class MainActivity : FlutterActivity() {
                             result.error("STOP_BLOCKING_ERROR", e.message, null)
                         }
                     }
+
                     "suspendBlockingForMinutes" -> {
                         try {
                             val minutes = call.argument<Int>("minutes") ?: 15
@@ -121,6 +135,7 @@ class MainActivity : FlutterActivity() {
                             result.error("SUSPEND_BLOCKING_ERROR", e.message, null)
                         }
                     }
+
                     "consumePendingBlockAction" -> {
                         try {
                             val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -131,6 +146,27 @@ class MainActivity : FlutterActivity() {
                             result.error("CONSUME_PENDING_ACTION_ERROR", e.message, null)
                         }
                     }
+
+                    "syncSponsorState" -> {
+                        try {
+                            val hasSponsor = call.argument<Boolean>("hasSponsor") ?: false
+                            val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                            prefs.edit()
+                                .putBoolean("has_sponsor", hasSponsor)
+                                .apply()
+
+                            val intent = Intent(this, FocusBlockerService::class.java).apply {
+                                action = FocusBlockerService.ACTION_SYNC_SPONSOR_STATE
+                                putExtra("has_sponsor", hasSponsor)
+                            }
+                            startService(intent)
+
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("SYNC_SPONSOR_STATE_ERROR", e.message, null)
+                        }
+                    }
+
                     else -> result.notImplemented()
                 }
             }
