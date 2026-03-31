@@ -86,13 +86,27 @@ class _HabitsScreenState extends State<HabitsScreen> {
     }
   }
 
+  // Tracks which habit IDs had their streak incremented this session,
+  // preventing multiple increments if the user toggles on/off/on the same day.
+  final Set<String> _streakIncrementedToday = {};
+
   Future<void> _toggleHabit(Habit habit, bool value) async {
     setState(() {
+      final wasCompleted = habit.completedToday;
       habit.completedToday = value;
-      if (value) {
-        habit.streak += 1;
-      } else {
-        habit.streak = habit.streak > 0 ? habit.streak - 1 : 0;
+
+      if (value && !wasCompleted) {
+        // Only increment streak once per session (guards re-taps on same day)
+        if (!_streakIncrementedToday.contains(habit.id)) {
+          habit.streak += 1;
+          _streakIncrementedToday.add(habit.id);
+        }
+      } else if (!value && wasCompleted) {
+        // Undo the streak increment only if we added it this session
+        if (_streakIncrementedToday.contains(habit.id)) {
+          habit.streak = habit.streak > 0 ? habit.streak - 1 : 0;
+          _streakIncrementedToday.remove(habit.id);
+        }
       }
     });
     await _save();
@@ -113,39 +127,39 @@ class _HabitsScreenState extends State<HabitsScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                Text(
-                  t.habitsTitle,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Text(t.completedTodayText(completed, _habits.length), style: const TextStyle(color: DetoxColors.muted)),
-                const SizedBox(height: 18),
-                ..._habits.map(
-                  (habit) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: GlassCard(
-                      child: CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        value: habit.completedToday,
-                        onChanged: (value) => _toggleHabit(habit, value ?? false),
-                        title: Text(habit.title),
-                        subtitle: Text(
-                          '${habit.targetDescription} • ${t.streakText(habit.streak)}',
-                          style: const TextStyle(color: DetoxColors.muted),
-                        ),
-                        secondary: IconButton(
-                          onPressed: () => _deleteHabit(habit),
-                          icon: const Icon(Icons.delete_outline, color: DetoxColors.muted),
-                        ),
-                      ),
-                    ),
+        padding: const EdgeInsets.all(20),
+        children: [
+          Text(
+            t.habitsTitle,
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(t.completedTodayText(completed, _habits.length), style: const TextStyle(color: DetoxColors.muted)),
+          const SizedBox(height: 18),
+          ..._habits.map(
+                (habit) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: GlassCard(
+                child: CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: habit.completedToday,
+                  onChanged: (value) => _toggleHabit(habit, value ?? false),
+                  title: Text(habit.title),
+                  subtitle: Text(
+                    '${habit.targetDescription} • ${t.streakText(habit.streak)}',
+                    style: const TextStyle(color: DetoxColors.muted),
+                  ),
+                  secondary: IconButton(
+                    onPressed: () => _deleteHabit(habit),
+                    icon: const Icon(Icons.delete_outline, color: DetoxColors.muted),
                   ),
                 ),
-                const SizedBox(height: 100),
-              ],
+              ),
             ),
+          ),
+          const SizedBox(height: 100),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _addHabit,
         icon: const Icon(Icons.add),

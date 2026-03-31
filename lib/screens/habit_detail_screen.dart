@@ -1,16 +1,15 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
+import '../l10n_app_strings.dart';
+import '../models/habit.dart';
+
 class HabitDetailScreen extends StatefulWidget {
-  final String habitName;
-  final String frequency;
-  final IconData icon;
+  final Habit habit;
 
   const HabitDetailScreen({
     super.key,
-    required this.habitName,
-    required this.frequency,
-    required this.icon,
+    required this.habit,
   });
 
   @override
@@ -23,32 +22,78 @@ class _HabitDetailScreenState extends State<HabitDetailScreen> {
   static const Color textPrimary  = Colors.white;
   static const Color textMuted    = Color(0xFF64748B);
 
-  // Mock data — replace with real data from Firestore later
-  final Set<int> _completedDays = {4, 5, 7, 8, 10, 11, 12, 13, 15, 16, 17, 19, 22, 23};
-  final int _todayDay = 16;
-// October
-  final int _firstWeekdayOfMonth = 2; // October 1 = Tuesday (0=Sun,1=Mon,2=Tue...)
+  // Build real completed-day set from habit data
+  // Habit.completedToday tells us about today; streak tells us the run length.
+  // We approximate the calendar by marking the last `streak` consecutive days as done.
+  Set<int> _buildCompletedDays(DateTime now) {
+    final completed = <int>{};
+    if (widget.habit.streak <= 0) return completed;
+    for (int i = 0; i < widget.habit.streak && i < now.day; i++) {
+      completed.add(now.day - i);
+    }
+    if (widget.habit.completedToday) {
+      completed.add(now.day);
+    }
+    return completed;
+  }
 
-  final List<String> _weekDayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-
-  // Week ribbon: show current week (days 13-19 for this mock)
-  final List<Map<String, dynamic>> _weekRibbon = [
-    {'day': 'Mon', 'date': 13, 'state': 'completed'},
-    {'day': 'Tue', 'date': 14, 'state': 'today'},
-    {'day': 'Wed', 'date': 15, 'state': 'dot'},
-    {'day': 'Thu', 'date': 16, 'state': 'none'},
-    {'day': 'Fri', 'date': 17, 'state': 'partial'},
-    {'day': 'Sat', 'date': 18, 'state': 'none'},
-    {'day': 'Sun', 'date': 19, 'state': 'none'},
-  ];
+  List<Map<String, dynamic>> _buildWeekRibbon(DateTime now, Set<int> completedDays) {
+    // Find Monday of current week
+    final weekday = now.weekday; // 1=Mon, 7=Sun
+    final ribbon = <Map<String, dynamic>>[];
+    for (int i = 0; i < 7; i++) {
+      final dayOffset = i - (weekday - 1);
+      final date = now.add(Duration(days: dayOffset));
+      final dayNum = date.day;
+      final isToday = dayOffset == 0;
+      final isCompleted = completedDays.contains(dayNum) && date.month == now.month;
+      String state;
+      if (isToday) {
+        state = isCompleted ? 'completed' : 'today';
+      } else if (isCompleted) {
+        state = 'completed';
+      } else {
+        state = 'none';
+      }
+      ribbon.add({'dayNum': dayNum, 'state': state, 'date': date});
+    }
+    return ribbon;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final t = AppStrings.of(context);
+    final now = DateTime.now();
+    final completedDays = _buildCompletedDays(now);
+    final weekRibbon = _buildWeekRibbon(now, completedDays);
+    final weekLabels = t.weekDayLabels; // localized
+
+    // Month stats
+    final daysInMonth = DateUtils.getDaysInMonth(now.year, now.month);
+    final firstWeekday = DateTime(now.year, now.month, 1).weekday % 7; // 0=Sun
+
     return Scaffold(
       backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: textPrimary),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          t.habitOverview,
+          style: const TextStyle(
+            color: textMuted,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 3,
+          ),
+        ),
+        centerTitle: true,
+      ),
       body: Stack(
         children: [
-          // ── Atmospheric glows ──────────────────────
           Positioned.fill(
             child: Container(
               decoration: const BoxDecoration(
@@ -71,110 +116,51 @@ class _HabitDetailScreenState extends State<HabitDetailScreen> {
               ),
             ),
           ),
-          // ──────────────────────────────────────────
           SafeArea(
-            child: Column(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.only(bottom: 120),
-                    child: Column(
-                      children: [
-                        _buildTopNav(context),
-                        _buildTitle(),
-                        _buildWeekRibbon(),
-                        _buildMonthlyCalendar(),
-                        _buildStats(),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(bottom: 32),
+              child: Column(
+                children: [
+                  _buildTitle(t),
+                  _buildWeekRibbonWidget(weekRibbon, weekLabels, now, t),
+                  _buildMonthlyCalendar(now, daysInMonth, firstWeekday, completedDays, weekLabels, t),
+                  _buildStats(t, now),
+                ],
+              ),
             ),
-          ),
-          // ── Floating bottom nav ────────────────────
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: _buildBottomNav(),
           ),
         ],
       ),
     );
   }
 
-  // ── Top nav ────────────────────────────────────────────
-  Widget _buildTopNav(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _glassCircleButton(
-            icon: Icons.arrow_back_ios_new,
-            onTap: () => Navigator.pop(context),
-          ),
-          const Text(
-            'OVERVIEW',
-            style: TextStyle(
-              color: textMuted,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 3,
-            ),
-          ),
-          _glassCircleButton(icon: Icons.more_horiz, onTap: () {}),
-        ],
-      ),
-    );
-  }
-
-  Widget _glassCircleButton({required IconData icon, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: _glass(
-        borderRadius: 999,
-        padding: const EdgeInsets.all(10),
-        child: Icon(icon, color: textPrimary, size: 20),
-      ),
-    );
-  }
-
-  // ── Title ──────────────────────────────────────────────
-  Widget _buildTitle() {
+  Widget _buildTitle(AppStrings t) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: Column(
         children: [
           Text(
-            widget.habitName,
+            widget.habit.title,
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: textPrimary,
-              fontSize: 36,
+              fontSize: 32,
               fontWeight: FontWeight.bold,
               letterSpacing: -1,
-              shadows: [
-                Shadow(
-                  color: Color(0x99256AF4),
-                  blurRadius: 15,
-                ),
-              ],
+              shadows: [Shadow(color: Color(0x99256AF4), blurRadius: 15)],
             ),
           ),
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.schedule, color: accentBlue, size: 16),
+              const Icon(Icons.track_changes, color: accentBlue, size: 16),
               const SizedBox(width: 6),
-              Text(
-                widget.frequency,
-                style: const TextStyle(
-                  color: accentBlue,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
+              Flexible(
+                child: Text(
+                  widget.habit.targetDescription,
+                  style: const TextStyle(color: accentBlue, fontWeight: FontWeight.w600, fontSize: 14),
+                  textAlign: TextAlign.center,
                 ),
               ),
             ],
@@ -184,8 +170,13 @@ class _HabitDetailScreenState extends State<HabitDetailScreen> {
     );
   }
 
-  // ── Week ribbon ────────────────────────────────────────
-  Widget _buildWeekRibbon() {
+  Widget _buildWeekRibbonWidget(
+      List<Map<String, dynamic>> ribbon,
+      List<String> weekLabels,
+      DateTime now,
+      AppStrings t,
+      ) {
+    final monthName = _monthName(now.month, t);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: Column(
@@ -193,176 +184,105 @@ class _HabitDetailScreenState extends State<HabitDetailScreen> {
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text('This Week',
-                  style: TextStyle(
-                      color: textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold)),
-              Text('October',
-                  style: TextStyle(color: textMuted, fontSize: 14)),
+            children: [
+              Text(t.thisWeek, style: const TextStyle(color: textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(monthName, style: const TextStyle(color: textMuted, fontSize: 14)),
             ],
           ),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: _weekRibbon.map((d) => _weekDayItem(d)).toList(),
+            children: ribbon.asMap().entries.map((e) {
+              final i = e.key;
+              final d = e.value;
+              final label = weekLabels[i == 6 ? 6 : i]; // Mon=0..Sun=6
+              return _weekDayItem(d, label);
+            }).toList(),
           ),
         ],
       ),
     );
   }
 
-  Widget _weekDayItem(Map<String, dynamic> d) {
+  Widget _weekDayItem(Map<String, dynamic> d, String dayLabel) {
     final state = d['state'] as String;
-    final isToday    = state == 'today';
+    final dayNum = d['dayNum'] as int;
+    final isToday     = state == 'today';
     final isCompleted = state == 'completed';
-    final isPartial  = state == 'partial';
-    final hasDot     = state == 'dot';
 
     return Column(
       children: [
-        Text(
-          d['day'] as String,
-          style: const TextStyle(
-              color: textMuted, fontSize: 11, fontWeight: FontWeight.bold),
-        ),
+        Text(dayLabel, style: const TextStyle(color: textMuted, fontSize: 11, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
-        Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.center,
-          children: [
-            // Circle
-            isToday || isCompleted
-                ? Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: accentBlue,
-                boxShadow: [
-                  BoxShadow(
-                    color: accentBlue.withOpacity(0.5),
-                    blurRadius: 15,
-                  ),
-                ],
-              ),
-              child: Center(
-                child: Text(
-                  '${d['date']}',
-                  style: const TextStyle(
-                      color: textPrimary, fontWeight: FontWeight.bold),
-                ),
-              ),
-            )
-                : isPartial
-                ? Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: accentBlue.withOpacity(0.2),
-                border: Border.all(
-                    color: accentBlue.withOpacity(0.3), width: 1),
-              ),
-              child: Center(
-                child: Text(
-                  '${d['date']}',
-                  style: const TextStyle(
-                      color: accentBlue, fontWeight: FontWeight.bold),
-                ),
-              ),
-            )
-                : _glass(
-              borderRadius: 999,
-              padding: EdgeInsets.zero,
-              child: SizedBox(
-                width: 40,
-                height: 40,
-                child: Center(
-                  child: Text(
-                    '${d['date']}',
-                    style: const TextStyle(color: textPrimary),
-                  ),
-                ),
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: (isToday || isCompleted) ? accentBlue : Colors.white.withOpacity(0.06),
+            boxShadow: (isToday || isCompleted)
+                ? [BoxShadow(color: accentBlue.withOpacity(0.5), blurRadius: 15)]
+                : null,
+            border: isToday && !isCompleted
+                ? Border.all(color: accentBlue.withOpacity(0.6), width: 2)
+                : null,
+          ),
+          child: Center(
+            child: isCompleted
+                ? const Icon(Icons.check, color: Colors.white, size: 18)
+                : Text(
+              '$dayNum',
+              style: TextStyle(
+                color: isToday ? Colors.white : textMuted,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
               ),
             ),
-            // Dot indicator
-            if (hasDot)
-              Positioned(
-                bottom: -6,
-                child: Container(
-                  width: 5,
-                  height: 5,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: accentBlue,
-                  ),
-                ),
-              ),
-          ],
+          ),
         ),
       ],
     );
   }
 
-  // ── Monthly calendar ───────────────────────────────────
-  Widget _buildMonthlyCalendar() {
+  Widget _buildMonthlyCalendar(
+      DateTime now,
+      int daysInMonth,
+      int firstWeekday,
+      Set<int> completedDays,
+      List<String> weekLabels,
+      AppStrings t,
+      ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: _glass(
-        borderRadius: 16,
+        borderRadius: 20,
         padding: const EdgeInsets.all(20),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text(_monthName(now.month, t),
+                style: const TextStyle(color: textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('October Progress',
-                    style: TextStyle(
-                        color: textPrimary,
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold)),
-                Row(
-                  children: [
-                    Icon(Icons.chevron_left, color: textMuted),
-                    const SizedBox(width: 8),
-                    Icon(Icons.chevron_right, color: textMuted),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Day labels
-            Row(
-              children: _weekDayLabels
+              children: weekLabels
                   .map((l) => Expanded(
                 child: Text(l,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        color: textMuted,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold)),
+                    style: const TextStyle(color: textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
               ))
                   .toList(),
             ),
             const SizedBox(height: 8),
-
-            // Calendar grid
-            _buildCalendarGrid(),
+            _buildCalendarGrid(now, daysInMonth, firstWeekday, completedDays),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildCalendarGrid() {
-    const int daysInMonth = 31;
-    final int startOffset = _firstWeekdayOfMonth; // 2 = Tuesday
-    final int totalCells = startOffset + daysInMonth;
-    final int rows = (totalCells / 7).ceil();
-
+  Widget _buildCalendarGrid(DateTime now, int daysInMonth, int startOffset, Set<int> completedDays) {
+    final totalCells = startOffset + daysInMonth;
+    final rows = (totalCells / 7).ceil();
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -375,30 +295,18 @@ class _HabitDetailScreenState extends State<HabitDetailScreen> {
       itemBuilder: (context, index) {
         final dayNumber = index - startOffset + 1;
         final isEmpty = dayNumber < 1 || dayNumber > daysInMonth;
-        final isCompleted = _completedDays.contains(dayNumber);
-        final isToday = dayNumber == _todayDay;
-
         if (isEmpty) {
-          return _calendarCell(
-            completed: false,
-            isToday: false,
-            opacity: 0.15,
-          );
+          return _calendarCell(completed: false, isToday: false, opacity: 0.0);
         }
-
         return _calendarCell(
-          completed: isCompleted,
-          isToday: isToday,
+          completed: completedDays.contains(dayNumber),
+          isToday: dayNumber == now.day,
         );
       },
     );
   }
 
-  Widget _calendarCell({
-    required bool completed,
-    required bool isToday,
-    double opacity = 1.0,
-  }) {
+  Widget _calendarCell({required bool completed, required bool isToday, double opacity = 1.0}) {
     return Opacity(
       opacity: opacity,
       child: isToday
@@ -428,8 +336,12 @@ class _HabitDetailScreenState extends State<HabitDetailScreen> {
     );
   }
 
-  // ── Stats ──────────────────────────────────────────────
-  Widget _buildStats() {
+  Widget _buildStats(AppStrings t, DateTime now) {
+    // Calculate real completion rate for current month
+    final totalDays = now.day;
+    final completedCount = _buildCompletedDays(now).length;
+    final completionRate = totalDays > 0 ? (completedCount / totalDays * 100).round() : 0;
+
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Row(
@@ -441,28 +353,21 @@ class _HabitDetailScreenState extends State<HabitDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: const [
-                      Icon(Icons.local_fire_department,
-                          color: Colors.orange, size: 18),
-                      SizedBox(width: 6),
-                      Text('STREAK',
-                          style: TextStyle(
-                              color: textMuted,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2)),
-                    ],
-                  ),
+                  Row(children: const [
+                    Icon(Icons.local_fire_department, color: Colors.orange, size: 18),
+                    SizedBox(width: 6),
+                    Text('STREAK', style: TextStyle(color: textMuted, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                  ]),
                   const SizedBox(height: 8),
-                  const Text('12 Days',
-                      style: TextStyle(
-                          color: textPrimary,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold)),
+                  Text(
+                    t.streakDaysLabel(widget.habit.streak),
+                    style: const TextStyle(color: textPrimary, fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 4),
-                  const Text('Personal best: 24',
-                      style: TextStyle(color: textMuted, fontSize: 10)),
+                  Text(
+                    widget.habit.completedToday ? t.completedToday : t.notCompletedToday,
+                    style: const TextStyle(color: textMuted, fontSize: 10),
+                  ),
                 ],
               ),
             ),
@@ -475,27 +380,18 @@ class _HabitDetailScreenState extends State<HabitDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: const [
-                      Icon(Icons.task_alt, color: accentBlue, size: 18),
-                      SizedBox(width: 6),
-                      Text('TOTAL',
-                          style: TextStyle(
-                              color: textMuted,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2)),
-                    ],
-                  ),
+                  Row(children: const [
+                    Icon(Icons.task_alt, color: accentBlue, size: 18),
+                    SizedBox(width: 6),
+                    Text('TOTAL', style: TextStyle(color: textMuted, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                  ]),
                   const SizedBox(height: 8),
-                  const Text('142',
-                      style: TextStyle(
-                          color: textPrimary,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold)),
+                  Text(
+                    '$completionRate%',
+                    style: const TextStyle(color: textPrimary, fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 4),
-                  const Text('Completed this year',
-                      style: TextStyle(color: textMuted, fontSize: 10)),
+                  Text(t.completionThisMonth, style: const TextStyle(color: textMuted, fontSize: 10)),
                 ],
               ),
             ),
@@ -505,67 +401,9 @@ class _HabitDetailScreenState extends State<HabitDetailScreen> {
     );
   }
 
-  // ── Floating bottom nav ────────────────────────────────
-  Widget _buildBottomNav() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-      child: _glass(
-        borderRadius: 999,
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _navItem(icon: Icons.home_outlined, label: 'Home', active: false),
-            _navItem(icon: Icons.check_circle, label: 'Habits', active: true),
-            // FAB in the middle
-            GestureDetector(
-              onTap: () {},
-              child: Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: accentBlue,
-                  boxShadow: [
-                    BoxShadow(
-                      color: accentBlue.withOpacity(0.4),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.add, color: textPrimary, size: 28),
-              ),
-            ),
-            _navItem(icon: Icons.bar_chart_outlined, label: 'Stats', active: false),
-            _navItem(icon: Icons.person_outline, label: 'Profile', active: false),
-          ],
-        ),
-      ),
-    );
-  }
+  String _monthName(int month, AppStrings t) => t.monthName(month);
 
-  Widget _navItem({required IconData icon, required String label, required bool active}) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: active ? accentBlue : textMuted, size: 24),
-        const SizedBox(height: 3),
-        Text(label,
-            style: TextStyle(
-                color: active ? accentBlue : textMuted,
-                fontSize: 10,
-                fontWeight: FontWeight.w600)),
-      ],
-    );
-  }
-
-  // ── Glass helper ───────────────────────────────────────
-  Widget _glass({
-    required Widget child,
-    required double borderRadius,
-    EdgeInsets padding = const EdgeInsets.all(16),
-  }) {
+  Widget _glass({required Widget child, required double borderRadius, EdgeInsets padding = const EdgeInsets.all(16)}) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: BackdropFilter(

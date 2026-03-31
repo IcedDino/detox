@@ -53,6 +53,25 @@ class _StatsScreenState extends State<StatsScreen> {
               ),
               const SizedBox(height: 8),
               Text(t.statsWeeklySubtitle, style: const TextStyle(color: DetoxColors.muted)),
+              if (snapshot.data == null && snapshot.connectionState == ConnectionState.done) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.orangeAccent.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.info_outline, color: Colors.orangeAccent, size: 14),
+                      const SizedBox(width: 6),
+                      Text(t.demoDataNotice, style: const TextStyle(color: Colors.orangeAccent, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 18),
               GlassCard(
                 child: SizedBox(

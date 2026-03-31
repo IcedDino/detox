@@ -768,12 +768,13 @@ class SponsorService {
         final stillActive = !existing.isConsumed &&
             (existing.isPending || (existing.isApproved && !existing.isExpired));
 
-        if (stillActive) {
-          throw SponsorException(
-            'You already have an active '
-                '${requestType == 'zone_override' ? 'zone pause' : requestType == 'settings_unlock' ? 'settings' : requestType == 'shield_pause' ? 'shield pause' : requestType == 'unlink_sponsor' ? 'unlink' : 'email unlink'} request.',
-          );
-        }
+        // If a pending request exists, silently succeed — the UI will show
+        // the existing request state via the outgoing stream. Throwing here
+        // confuses the user who just wants to re-send or check the status.
+        if (stillActive && existing.isPending) return;
+
+        // If it was approved and not yet expired, let it complete naturally.
+        if (stillActive && existing.isApproved && !existing.isExpired) return;
       }
 
       tx.set(requestRef, {
@@ -982,13 +983,19 @@ class SponsorService {
       final field = requestType == 'settings_unlock'
           ? 'settingsUnlockUntil'
           : requestType == 'shield_pause'
-              ? 'shieldPauseUntil'
-              : 'zoneOverrideUntil';
+          ? 'shieldPauseUntil'
+          : 'zoneOverrideUntil';
 
-      tx.set(userDoc, {
-        field: Timestamp.fromDate(until),
+      // For shield_pause consumed via code, clear the timestamp so the
+      // FocusBlockerService Firestore listener stops treating it as active.
+      final Map<String, dynamic> userUpdate = {
+        field: requestType == 'shield_pause'
+            ? FieldValue.delete()
+            : Timestamp.fromDate(until),
         'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      };
+
+      tx.set(userDoc, userUpdate, SetOptions(merge: true));
 
       tx.set(requestRef, {
         'status': 'consumed',
@@ -1032,11 +1039,31 @@ class SponsorService {
     return null;
   }
 
-  Stream<List<SponsorRequest>> incomingHistory() =>
-      incomingRequests().map((items) => items.take(20).toList());
+  Stream<List<SponsorRequest>> incomingHistory() {
+    final uid = _uid;
+    if (uid == null) return const Stream.empty();
+    return _requestsCollectionRef
+        .where('sponsorUid', isEqualTo: uid)
+        .orderBy('createdAt', descending: true)
+        .limit(20)
+        .snapshots()
+        .map((snap) => snap.docs
+        .map((doc) => SponsorRequest.fromDoc(doc.id, doc.data()))
+        .toList());
+  }
 
-  Stream<List<SponsorRequest>> outgoingHistory() =>
-      outgoingRequests().map((items) => items.take(20).toList());
+  Stream<List<SponsorRequest>> outgoingHistory() {
+    final uid = _uid;
+    if (uid == null) return const Stream.empty();
+    return _requestsCollectionRef
+        .where('requesterUid', isEqualTo: uid)
+        .orderBy('createdAt', descending: true)
+        .limit(12)
+        .snapshots()
+        .map((snap) => snap.docs
+        .map((doc) => SponsorRequest.fromDoc(doc.id, doc.data()))
+        .toList());
+  }
 
   String _generateNumericCode() =>
       (100000 + _random.nextInt(900000)).toString();

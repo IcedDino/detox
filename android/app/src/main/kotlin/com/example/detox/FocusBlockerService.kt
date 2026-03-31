@@ -52,12 +52,15 @@ class FocusBlockerService : Service() {
     private var audioFocusRequest: AudioFocusRequest? = null
     private var hasAudioFocus = false
 
+    @Volatile private var pollRunning = false
+
     private val pollTask = object : Runnable {
         override fun run() {
+            if (!pollRunning) return
             try {
                 inspectForegroundApp()
             } finally {
-                handler.postDelayed(this, 350)
+                if (pollRunning) handler.postDelayed(this, 350)
             }
         }
     }
@@ -90,7 +93,10 @@ class FocusBlockerService : Service() {
 
                 currentReason = prefs.getString("block_reason", "Focus session active") ?: "Focus session active"
                 startShieldPauseWatcher()
+                // Always cancel any existing callbacks before posting pollTask
+                // to prevent duplicate polling if the service is restarted by Android.
                 handler.removeCallbacksAndMessages(null)
+                pollRunning = true
                 handler.post(pollTask)
                 START_STICKY
             }
@@ -142,11 +148,21 @@ class FocusBlockerService : Service() {
         userListener?.remove()
         userListener = null
 
-        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        // Re-attach auth state listener so we reconnect if the token refreshes
+        // or the user signs out/in while the service is running.
+        val auth = FirebaseAuth.getInstance()
+        val uid = auth.currentUser?.uid ?: return
+
         userListener = FirebaseFirestore.getInstance()
             .collection("users")
             .document(uid)
-            .addSnapshotListener { snapshot, _ ->
+            .addSnapshotListener { snapshot, error ->
+                // If Firestore signals a permission error, the token may have
+                // refreshed — schedule a watcher restart on the main thread.
+                if (error != null) {
+                    handler.postDelayed({ startShieldPauseWatcher() }, 5_000)
+                    return@addSnapshotListener
+                }
                 val ts = snapshot?.getTimestamp("shieldPauseUntil")
                 val millis = ts?.toDate()?.time ?: 0L
                 getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -233,17 +249,35 @@ class FocusBlockerService : Service() {
         return try {
             val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             val endTime = System.currentTimeMillis()
-            val beginTime = endTime - 10_000
-            val events = usageStatsManager.queryEvents(beginTime, endTime)
+
+            // First: check recent events (last 10s) for a MOVE_TO_FOREGROUND event.
+            // This is accurate when the user switches apps frequently.
+            val beginShort = endTime - 10_000
+            val events = usageStatsManager.queryEvents(beginShort, endTime)
             val event = UsageEvents.Event()
             var currentPkg: String? = null
-
             while (events.hasNextEvent()) {
                 events.getNextEvent(event)
                 if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
                     currentPkg = event.packageName
                 }
             }
+
+            // If no recent MOVE_TO_FOREGROUND found (user has been in the same app for
+            // a long time, e.g. after a 15-minute suspend expires), fall back to a wider
+            // event window to find which app was last brought to foreground.
+            if (currentPkg == null) {
+                val beginLong = endTime - 60 * 60_000L // last 60 minutes
+                val longEvents = usageStatsManager.queryEvents(beginLong, endTime)
+                val longEvent = UsageEvents.Event()
+                while (longEvents.hasNextEvent()) {
+                    longEvents.getNextEvent(longEvent)
+                    if (longEvent.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                        currentPkg = longEvent.packageName
+                    }
+                }
+            }
+
             currentPkg
         } catch (e: Exception) {
             null
@@ -544,9 +578,11 @@ class FocusBlockerService : Service() {
         if (hasAudioFocus) return
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
-                    .setAcceptsDelayedFocusGain(false)
-                    .setWillPauseWhenDucked(true)
+                // Use GAIN_TRANSIENT (not EXCLUSIVE) so music/calls are ducked
+                // rather than fully paused when the overlay appears.
+                val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                    .setAcceptsDelayedFocusGain(true)
+                    .setWillPauseWhenDucked(false)
                     .setOnAudioFocusChangeListener { }
                     .build()
                 val result = audioManager.requestAudioFocus(request)
@@ -559,7 +595,7 @@ class FocusBlockerService : Service() {
                 val result = audioManager.requestAudioFocus(
                     null,
                     AudioManager.STREAM_MUSIC,
-                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
                 )
                 hasAudioFocus = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
             }
@@ -584,11 +620,13 @@ class FocusBlockerService : Service() {
     }
 
     private fun stopSelfSafely() {
+        pollRunning = false
         keepOverlayPinned = false
         requestInFlight = false
         currentRequestId = null
         requestListener?.remove()
         requestListener = null
+        handler.removeCallbacksAndMessages(null)
         hideOverlay(force = true)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()

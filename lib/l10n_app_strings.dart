@@ -252,4 +252,20 @@ class AppStrings {
   String get zoneInactive => isEs ? 'Inactiva' : 'Inactive';
   String get settingsUnlockedLabel => isEs ? 'Desbloqueado' : 'Unlocked';
   String waitingForName(String name) => isEs ? 'Esperando que $name acepte tu solicitud.' : 'Waiting for $name to accept your request.';
+
+  // HabitDetailScreen
+  String get habitOverview => isEs ? 'RESUMEN' : 'OVERVIEW';
+  String get thisWeek => isEs ? 'Esta semana' : 'This week';
+  String streakDaysLabel(int n) => isEs ? '$n días' : '$n days';
+  String get completedToday => isEs ? 'Completado hoy' : 'Completed today';
+  String get notCompletedToday => isEs ? 'Pendiente hoy' : 'Not done today';
+  String get completionThisMonth => isEs ? 'Completado este mes' : 'Completion this month';
+  String get demoDataNotice => isEs ? 'Mostrando datos de ejemplo — concede Acceso de uso para ver datos reales.' : 'Showing sample data — grant Usage Access to see real data.';
+  String monthName(int month) {
+    const es = ['', 'Enero','Febrero','Marzo','Abril','Mayo','Junio',
+      'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const en = ['', 'January','February','March','April','May','June',
+      'July','August','September','October','November','December'];
+    return isEs ? es[month] : en[month];
+  }
 }

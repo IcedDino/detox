@@ -6,6 +6,9 @@ import '../models/habit.dart';
 import 'cloud_sync_service.dart';
 
 class StorageService {
+  /// Prevents concurrent bootstrap calls from main() and the auth listener.
+  static bool bootstrapInProgress = false;
+
   static const _habitsKey = 'habits_v2';
   static const _dailyLimitKey = 'daily_limit_minutes';
   static const _limitsKey = 'app_limits_v2';
@@ -13,28 +16,28 @@ class StorageService {
   static const _zonesKey = 'concentration_zones_v1';
 
   List<Habit> _defaultHabits() => [
-        Habit(
-          id: '1',
-          title: 'No social media before breakfast',
-          targetDescription: 'Start the day without mindless scrolling',
-        ),
-        Habit(
-          id: '2',
-          title: 'One 25-minute focus session',
-          targetDescription: 'Finish one distraction-free session',
-        ),
-        Habit(
-          id: '3',
-          title: 'Keep screen time under 3 hours',
-          targetDescription: 'Respect your daily limit',
-        ),
-      ];
+    Habit(
+      id: '1',
+      title: 'No social media before breakfast',
+      targetDescription: 'Start the day without mindless scrolling',
+    ),
+    Habit(
+      id: '2',
+      title: 'One 25-minute focus session',
+      targetDescription: 'Finish one distraction-free session',
+    ),
+    Habit(
+      id: '3',
+      title: 'Keep screen time under 3 hours',
+      targetDescription: 'Respect your daily limit',
+    ),
+  ];
 
   List<AppLimit> _defaultAppLimits() => [
-        AppLimit(appName: 'Instagram', packageName: 'com.instagram.android', minutes: 30),
-        AppLimit(appName: 'TikTok', packageName: 'com.zhiliaoapp.musically', minutes: 25),
-        AppLimit(appName: 'YouTube', packageName: 'com.google.android.youtube', minutes: 45),
-      ];
+    AppLimit(appName: 'Instagram', packageName: 'com.instagram.android', minutes: 30),
+    AppLimit(appName: 'TikTok', packageName: 'com.zhiliaoapp.musically', minutes: 25),
+    AppLimit(appName: 'YouTube', packageName: 'com.google.android.youtube', minutes: 45),
+  ];
 
   Future<void> bootstrapForSignedInUser() async {
     if (!CloudSyncService.instance.isSignedIn) return;

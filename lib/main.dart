@@ -32,15 +32,15 @@ Future<void> main() async {
 
   final prefs = await SharedPreferences.getInstance();
   final darkMode = prefs.getBool('dark_mode') ?? true;
-  // Use system locale if supported and user hasn't set a preference
-  final savedLocale = prefs.getString('locale_code');
-  final systemLang = WidgetsBinding.instance.platformDispatcher.locale.languageCode;
-  const supported = ['en', 'es'];
-  final localeCode = savedLocale ?? (supported.contains(systemLang) ? systemLang : 'en');
+  final localeCode = prefs.getString('locale_code') ?? 'en';
   final currentUser = await AuthService.instance.getCurrentUser();
 
   if (currentUser != null) {
+    // Mark bootstrap as in-progress before any async work so the auth
+    // listener in _DetoxAppState does not run a second bootstrap concurrently.
+    StorageService.bootstrapInProgress = true;
     await StorageService().bootstrapForSignedInUser();
+    StorageService.bootstrapInProgress = false;
     await SponsorService.instance.ensureCurrentUserInitialized(currentUser);
     SponsorAlertService.instance.start();
     await AppBlockingService.instance.consumePendingNativeAction();
@@ -107,7 +107,10 @@ class _DetoxAppState extends State<DetoxApp> {
             return;
           }
 
-          await StorageService().bootstrapForSignedInUser();
+          // Guard against concurrent bootstrap from main() startup
+          if (!StorageService.bootstrapInProgress) {
+            await StorageService().bootstrapForSignedInUser();
+          }
           await SponsorService.instance.ensureCurrentUserInitialized(user);
           SponsorAlertService.instance.start();
           await _consumePendingBlockAction();
@@ -187,7 +190,9 @@ class _DetoxAppState extends State<DetoxApp> {
   }
 
   Future<void> _handleAuthenticated(AuthUser user) async {
-    await StorageService().bootstrapForSignedInUser();
+    if (!StorageService.bootstrapInProgress) {
+      await StorageService().bootstrapForSignedInUser();
+    }
     await SponsorService.instance.ensureCurrentUserInitialized(user);
     SponsorAlertService.instance.start();
     await _consumePendingBlockAction();

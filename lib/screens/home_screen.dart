@@ -1,6 +1,9 @@
 import 'dart:math';
 import 'dart:ui';
+
+import 'package:detox/models/habit.dart';
 import 'package:detox/screens/habit_detail_screen.dart';
+import 'package:detox/services/storage_service.dart';
 import 'package:flutter/material.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -12,11 +15,34 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+  final StorageService _storageService = StorageService();
+  List<Habit> _habits = [];
 
-  static const Color bgColor     = Color(0xFF0A1120);
-  static const Color accentBlue  = Color(0xFF256AF4);
+  static const Color bgColor = Color(0xFF0A1120);
+  static const Color accentBlue = Color(0xFF256AF4);
   static const Color textPrimary = Colors.white;
-  static const Color textMuted   = Color(0xFF64748B);
+  static const Color textMuted = Color(0xFF64748B);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHabits();
+  }
+
+  Future<void> _loadHabits() async {
+    try {
+      final habits = await _storageService.loadHabits();
+      if (!mounted) return;
+      setState(() {
+        _habits = habits;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _habits = [];
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +50,6 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: bgColor,
       body: Stack(
         children: [
-          // ── Glow blobs ───────────────────────────────
           Positioned(
             top: -60,
             left: -60,
@@ -41,7 +66,6 @@ class _HomeScreenState extends State<HomeScreen> {
               height: MediaQuery.of(context).size.height * 0.4,
             ),
           ),
-          // ────────────────────────────────────────────
           SafeArea(
             child: Column(
               children: [
@@ -56,8 +80,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         _buildScreenTimeCard(),
                         const SizedBox(height: 16),
                         _buildFocusButton(),
-                        const SizedBox(height: 24),
-                        _buildHabitProgress(),
+                        if (_habits.isNotEmpty) ...[
+                          const SizedBox(height: 24),
+                          _buildHabitProgress(),
+                        ],
                         const SizedBox(height: 16),
                         _buildWeeklyInsight(),
                         const SizedBox(height: 24),
@@ -74,7 +100,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── Glow blob ────────────────────────────────────────────
   Widget _glowBlob({required double width, required double height}) {
     return Container(
       width: width,
@@ -90,8 +115,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── Header ───────────────────────────────────────────────
   Widget _buildHeader() {
+    final totalStreak = _habits.isEmpty
+        ? 0
+        : _habits.fold<int>(0, (sum, habit) => sum + habit.streak);
+
     return Row(
       children: [
         Column(
@@ -118,35 +146,42 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         const Spacer(),
-        // Streak badge
         _glassContainer(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           borderRadius: 999,
           child: Row(
-            children: const [
-              Icon(Icons.local_fire_department, color: Colors.orange, size: 18),
-              SizedBox(width: 4),
-              Text('12',
-                  style: TextStyle(
-                      color: textPrimary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14)),
+            children: [
+              const Icon(
+                Icons.local_fire_department,
+                color: Colors.orange,
+                size: 18,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '$totalStreak',
+                style: const TextStyle(
+                  color: textPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
             ],
           ),
         ),
         const SizedBox(width: 10),
-        // Notification button
         _glassContainer(
           padding: const EdgeInsets.all(10),
           borderRadius: 999,
-          child: const Icon(Icons.notifications_outlined,
-              color: textPrimary, size: 22),
+          child: const Icon(
+            Icons.notifications_outlined,
+            color: textPrimary,
+            size: 22,
+          ),
         ),
       ],
     );
   }
 
-  // ── Screen Time Card ─────────────────────────────────────
   Widget _buildScreenTimeCard() {
     return _glassContainer(
       padding: const EdgeInsets.all(32),
@@ -163,8 +198,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 32),
-
-          // Circular progress ring
           SizedBox(
             width: 200,
             height: 200,
@@ -187,13 +220,18 @@ class _HomeScreenState extends State<HomeScreen> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: const [
-                        Icon(Icons.trending_down,
-                            color: Color(0xFF34D399), size: 16),
+                        Icon(
+                          Icons.trending_down,
+                          color: Color(0xFF34D399),
+                          size: 16,
+                        ),
                         SizedBox(width: 4),
                         Text(
                           '15% vs yesterday',
                           style: TextStyle(
-                              color: Color(0xFF34D399), fontSize: 13),
+                            color: Color(0xFF34D399),
+                            fontSize: 13,
+                          ),
                         ),
                       ],
                     ),
@@ -202,16 +240,14 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-
           const SizedBox(height: 32),
-
-          // Limit + Top App
           Row(
             children: [
               Expanded(child: _statBox(label: 'LIMIT', value: '5h 00m')),
               const SizedBox(width: 12),
               Expanded(
-                  child: _statBox(label: 'TOP APP', value: 'Social Media')),
+                child: _statBox(label: 'TOP APP', value: 'Social Media'),
+              ),
             ],
           ),
         ],
@@ -230,24 +266,29 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: const TextStyle(
-                  color: textMuted,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2)),
+          Text(
+            label,
+            style: const TextStyle(
+              color: textMuted,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(value,
-              style: const TextStyle(
-                  color: textPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold)),
+          Text(
+            value,
+            style: const TextStyle(
+              color: textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  // ── Focus Button ─────────────────────────────────────────
   Widget _buildFocusButton() {
     return Container(
       width: double.infinity,
@@ -273,7 +314,11 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.play_circle_filled, color: textPrimary, size: 26),
+                Icon(
+                  Icons.play_circle_filled,
+                  color: textPrimary,
+                  size: 26,
+                ),
                 SizedBox(width: 10),
                 Text(
                   'Start Focus Session',
@@ -291,13 +336,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── Habit Progress ───────────────────────────────────────
   Widget _buildHabitProgress() {
-    final habits = [
-      _HabitData('Hydrate', Icons.water_drop, '1.2L / 2L', true),
-      _HabitData('Meditate', Icons.self_improvement, '0 / 10m', false),
-      _HabitData('Read', Icons.menu_book, '12 / 20p', true),
-    ];
+    final visibleHabits = _habits.take(4).toList();
 
     return Column(
       children: [
@@ -324,31 +364,32 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 16),
         Row(
-          children: habits
-              .map((h) => Expanded(
-            child: Padding(
-              padding: habits.indexOf(h) < habits.length - 1
-                  ? const EdgeInsets.only(right: 12)
-                  : EdgeInsets.zero,
-              child: _buildHabitCard(h),
-            ),
-          ))
-              .toList(),
+          children: visibleHabits.asMap().entries.map((entry) {
+            final index = entry.key;
+            final habit = entry.value;
+
+            return Expanded(
+              child: Padding(
+                padding: index < visibleHabits.length - 1
+                    ? const EdgeInsets.only(right: 12)
+                    : EdgeInsets.zero,
+                child: _buildHabitCard(habit),
+              ),
+            );
+          }).toList(),
         ),
       ],
     );
   }
 
-  Widget _buildHabitCard(_HabitData habit) {
+  Widget _buildHabitCard(Habit habit) {
+    final isActive = habit.completedToday;
+
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-            builder: (_) => HabitDetailScreen(
-                habitName: habit.name,
-                frequency: '15 mins daily',
-                icon: habit.icon,
-            ),
+          builder: (_) => HabitDetailScreen(habit: habit),
         ),
       ),
       child: _glassContainer(
@@ -361,40 +402,48 @@ class _HomeScreenState extends State<HomeScreen> {
               height: 52,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: habit.active ? accentBlue.withOpacity(0.15) : Colors.transparent,
+                color: isActive
+                    ? accentBlue.withOpacity(0.15)
+                    : Colors.transparent,
                 border: Border.all(
-                  color: habit.active ? accentBlue : textMuted.withOpacity(0.4),
+                  color: isActive ? accentBlue : textMuted.withOpacity(0.4),
                   width: 2,
                 ),
               ),
               child: Icon(
-                habit.icon,
-                color: habit.active ? accentBlue : textMuted,
+                isActive
+                    ? Icons.check_circle_outline
+                    : Icons.radio_button_unchecked,
+                color: isActive ? accentBlue : textMuted,
                 size: 24,
               ),
             ),
             const SizedBox(height: 10),
             Text(
-              habit.name,
+              habit.title,
               style: const TextStyle(
                 color: textPrimary,
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
               ),
               textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 4),
             Text(
-              habit.progress,
-              style: const TextStyle(color: textMuted, fontSize: 11),
+              'Racha: ${habit.streak}',
+              style: const TextStyle(
+                color: textMuted,
+                fontSize: 11,
+              ),
             ),
           ],
         ),
-      )
+      ),
     );
   }
 
-  // ── Weekly Insight ───────────────────────────────────────
   Widget _buildWeeklyInsight() {
     return _glassContainer(
       padding: const EdgeInsets.all(20),
@@ -408,7 +457,11 @@ class _HomeScreenState extends State<HomeScreen> {
               color: accentBlue.withOpacity(0.2),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Icon(Icons.lightbulb, color: accentBlue, size: 28),
+            child: const Icon(
+              Icons.lightbulb,
+              color: accentBlue,
+              size: 28,
+            ),
           ),
           const SizedBox(width: 16),
           const Expanded(
@@ -440,26 +493,30 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── Bottom Nav ───────────────────────────────────────────
   Widget _buildBottomNav() {
     final items = [
-      {'icon': Icons.grid_view_rounded,   'label': 'Dashboard'},
+      {'icon': Icons.grid_view_rounded, 'label': 'Dashboard'},
       {'icon': Icons.check_circle_outline, 'label': 'Habits'},
-      {'icon': Icons.timer_outlined,       'label': 'Focus'},
-      {'icon': Icons.person_outline,       'label': 'Profile'},
+      {'icon': Icons.timer_outlined, 'label': 'Focus'},
+      {'icon': Icons.person_outline, 'label': 'Profile'},
     ];
 
     return Container(
       decoration: BoxDecoration(
         color: bgColor.withOpacity(0.8),
         border: Border(
-            top: BorderSide(color: Colors.white.withOpacity(0.05), width: 1)),
+          top: BorderSide(
+            color: Colors.white.withOpacity(0.05),
+            width: 1,
+          ),
+        ),
       ),
       padding: const EdgeInsets.fromLTRB(32, 16, 32, 32),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: List.generate(items.length, (i) {
           final selected = i == _selectedIndex;
+
           return GestureDetector(
             onTap: () => setState(() => _selectedIndex = i),
             child: Column(
@@ -487,7 +544,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── Glass container helper ───────────────────────────────
   Widget _glassContainer({
     required Widget child,
     required double borderRadius,
@@ -511,7 +567,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ── Ring painter ─────────────────────────────────────────
 class _RingPainter extends CustomPainter {
   final double progress;
   const _RingPainter({required this.progress});
@@ -522,7 +577,6 @@ class _RingPainter extends CustomPainter {
     final radius = (size.width / 2) - 14;
     const strokeWidth = 14.0;
 
-    // Background ring
     canvas.drawCircle(
       center,
       radius,
@@ -532,7 +586,6 @@ class _RingPainter extends CustomPainter {
         ..strokeWidth = strokeWidth,
     );
 
-    // Progress arc
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
       -pi / 2,
@@ -547,13 +600,7 @@ class _RingPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_RingPainter old) => old.progress != progress;
-}
-
-// ── Habit data model ─────────────────────────────────────
-class _HabitData {
-  final String name, progress;
-  final IconData icon;
-  final bool active;
-  const _HabitData(this.name, this.icon, this.progress, this.active);
+  bool shouldRepaint(_RingPainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
 }
