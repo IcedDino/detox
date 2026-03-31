@@ -549,10 +549,10 @@ class _SettingsScreenState extends State<SettingsScreen>
                   Icons.auto_awesome_motion_rounded,
                   color: DetoxColors.accentSoft,
                 ),
-                title: const Text('Automation & hard mode'),
-                subtitle: const Text(
-                  'Schedules, strict mode, smart presets, and zone + schedule rules.',
-                  style: TextStyle(color: DetoxColors.muted),
+                title: Text(t.automationAndHardMode),
+                subtitle: Text(
+                  t.automationAndHardModeBody,
+                  style: const TextStyle(color: DetoxColors.muted),
                 ),
                 onTap: () async {
                   await Navigator.of(context).push(
