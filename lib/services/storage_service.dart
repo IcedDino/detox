@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/app_limit.dart';
+import '../models/automation_rule.dart';
 import '../models/concentration_zone.dart';
 import '../models/habit.dart';
 import 'cloud_sync_service.dart';
@@ -14,7 +15,21 @@ class StorageService {
   static const _limitsKey = 'app_limits_v2';
   static const _onboardingDoneKey = 'onboarding_done_v1';
   static const _zonesKey = 'concentration_zones_v1';
+  static const _automationRulesKey = 'automation_rules_v1';
+  static const _strictModeKey = 'focus_strict_mode_v1';
+  static const _focusStreakKey = 'focus_streak_v1';
+  static const _focusLastCompletedAtKey = 'focus_last_completed_at_v1';
 
+
+  Future<void> setStrictMode(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_strictModeKey, value);
+  }
+
+  Future<bool> getStrictMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_strictModeKey) ?? false;
+  }
   static final StorageService instance = StorageService._internal();
   factory StorageService() => instance;
   StorageService._internal();
@@ -243,6 +258,68 @@ class StorageService {
     try {
       await CloudSyncService.instance.saveConcentrationZones(zones);
     } catch (_) {}
+  }
+
+  Future<List<AutomationRule>> loadAutomationRules() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getStringList(_automationRulesKey);
+    if (raw == null || raw.isEmpty) return const [];
+    return raw.map(AutomationRule.fromJson).toList();
+  }
+
+  Future<void> saveAutomationRules(List<AutomationRule> rules) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_automationRulesKey, rules.map((e) => e.toJson()).toList());
+  }
+
+  Future<bool> loadStrictModeEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_strictModeKey) ?? false;
+  }
+
+  Future<void> saveStrictModeEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_strictModeKey, value);
+  }
+
+  Future<int> loadFocusStreak() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_focusStreakKey) ?? 0;
+  }
+
+  Future<DateTime?> loadLastFocusCompletion() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_focusLastCompletedAtKey);
+    if (raw == null || raw.isEmpty) return null;
+    return DateTime.tryParse(raw);
+  }
+
+  Future<int> registerCompletedFocusSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final rawLast = prefs.getString(_focusLastCompletedAtKey);
+    final last = rawLast == null ? null : DateTime.tryParse(rawLast);
+    final lastDay = last == null ? null : DateTime(last.year, last.month, last.day);
+    var streak = prefs.getInt(_focusStreakKey) ?? 0;
+
+    if (lastDay == null) {
+      streak = 1;
+    } else {
+      final diff = today.difference(lastDay).inDays;
+      if (diff <= 0) {
+        return streak;
+      }
+      if (diff == 1) {
+        streak += 1;
+      } else {
+        streak = 1;
+      }
+    }
+
+    await prefs.setInt(_focusStreakKey, streak);
+    await prefs.setString(_focusLastCompletedAtKey, now.toIso8601String());
+    return streak;
   }
 
   Future<bool> loadOnboardingDone() async {

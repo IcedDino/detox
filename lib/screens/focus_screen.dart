@@ -6,6 +6,7 @@ import '../l10n_app_strings.dart';
 import '../models/app_limit.dart';
 import '../models/permission_status.dart';
 import '../services/app_blocking_service.dart';
+import '../services/automation_service.dart';
 import '../services/focus_notification_service.dart';
 import '../services/location_zone_service.dart';
 import '../services/sponsor_service.dart';
@@ -30,6 +31,8 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
   int _remainingSeconds = 25 * 60;
   List<AppLimit> _shieldedApps = const [];
   bool _overlayReady = true;
+  bool _strictMode = false;
+  int _focusStreak = 0;
   bool _appInForeground = true;
   ZoneState _zoneState = LocationZoneService.instance.currentState;
   StreamSubscription<ZoneState>? _zoneSubscription;
@@ -53,11 +56,15 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
     final limits = await _storageService.loadAppLimits();
     final overlay = await AppBlockingService.instance.hasOverlayPermission();
     final permissionStatus = await _usageService.getPermissionStatus();
+    final strictMode = await _storageService.loadStrictModeEnabled();
+    final focusStreak = await _storageService.loadFocusStreak();
     if (!mounted) return;
     setState(() {
       _shieldedApps = limits.where((e) => e.useInFocusMode).toList();
       _overlayReady = overlay;
       _permissionStatus = permissionStatus;
+      _strictMode = strictMode;
+      _focusStreak = focusStreak;
     });
   }
 
@@ -87,10 +94,18 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
       return;
     }
 
+    final hasSponsor =
+        (await SponsorService.instance.getCurrentSponsorProfile()) != null;
+
+    final blockedPackages = packages.toList(); // o la variable real que uses
+    const reason = 'focus_session';
+
     await AppBlockingService.instance.startShield(
-      blockedPackages: packages,
-      reason: AppStrings.of(context).focusSessionActiveReason,
-      hasSponsor: await SponsorService.instance.hasSponsor(),
+      blockedPackages: blockedPackages,
+      reason: reason,
+      hasSponsor: hasSponsor,
+      source: 'focus',
+      strictModeOverride: _strictMode,
     );
 
     if (!_appInForeground) {
@@ -108,9 +123,14 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
         setState(() => _remainingSeconds = 0);
         await FocusNotificationService.instance.cancel();
         if (!_zoneState.insideZone) {
-          await AppBlockingService.instance.stopShield();
+          await AppBlockingService.instance.stopShield(source: 'focus');
         }
-        _showSnack(AppStrings.of(context).focusCompleteSnack);
+        final streak = await _storageService.registerCompletedFocusSession();
+        if (mounted) {
+          setState(() => _focusStreak = streak);
+        }
+        await AutomationService.instance.refresh();
+        _showSnack('${AppStrings.of(context).focusCompleteSnack} • 🔥 $streak');
       } else {
         setState(() => _remainingSeconds--);
         if (!_appInForeground) {
@@ -129,7 +149,7 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
     await FocusNotificationService.instance.cancel();
     setState(() => _remainingSeconds = _selectedMinutes * 60);
     if (!_zoneState.insideZone) {
-      await AppBlockingService.instance.stopShield();
+      await AppBlockingService.instance.stopShield(source: 'focus');
     }
   }
 
@@ -196,6 +216,29 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
         Text(
           t.focusSubtitle,
           style: TextStyle(color: DetoxColors.muted),
+        ),
+        const SizedBox(height: 12),
+        GlassCard(
+          child: Row(
+            children: [
+              const Icon(Icons.local_fire_department, color: Colors.orangeAccent),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Focus streak: $_focusStreak day${_focusStreak == 1 ? '' : 's'}',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
+              Switch(
+                value: _strictMode,
+                onChanged: _running ? null : (value) async {
+                  setState(() => _strictMode = value);
+                  await _storageService.saveStrictModeEnabled(value);
+                  await AutomationService.instance.refresh();
+                },
+              ),
+            ],
+          ),
         ),
         if (androidNeedsUsage || !_overlayReady || !_hasConfiguredApps) ...[
           const SizedBox(height: 14),

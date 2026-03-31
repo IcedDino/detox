@@ -213,6 +213,23 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ],
                 ),
               ],
+              if (summary != null && summary.topApps.isNotEmpty && summary.topApps.first.minutes >= 90) ...[
+                GlassCard(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.notifications_active_outlined, color: Colors.orangeAccent),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'You have spent ${_formatMinutes(summary.topApps.first.minutes)} in ${summary.topApps.first.appName} today. Time to start a focus session?',
+                          style: const TextStyle(color: DetoxColors.muted),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
               const SizedBox(height: 18),
               Text(
                 t.topAppsToday,

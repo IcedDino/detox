@@ -35,6 +35,14 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".RewardAdActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
+
         <service
             android:name=".FocusBlockerService"
             android:exported="false"

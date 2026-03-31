@@ -17,49 +17,17 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
 
 class MainActivity : FlutterActivity() {
+    private var hasSponsor: Boolean = false
+    private var strictMode: Boolean = false
     private val channelName = "detox/device_control"
-    private lateinit var adsChannel: MethodChannel
 
     companion object {
         private const val PREFS = "detox_native"
         private const val KEY_PENDING_ACTION = "pending_action"
-        private const val KEY_PENDING_REWARDED_AD = "pending_rewarded_ad"
-        private const val ADS_CHANNEL = "detox/ads"
-    }
-
-    override fun onCreate(savedInstanceState: android.os.Bundle?) {
-        super.onCreate(savedInstanceState)
-        cacheRewardedAdRequest(intent)
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        cacheRewardedAdRequest(intent)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-
-        adsChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ADS_CHANNEL)
-        adsChannel.setMethodCallHandler { call, result ->
-            when (call.method) {
-                "onAdResult" -> {
-                    val success = call.argument<Boolean>("success") ?: false
-                    FocusBlockerService.onAdResult(success)
-                    result.success(null)
-                }
-
-                "consumePendingRewardedAd" -> {
-                    val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                    val pending = prefs.getBoolean(KEY_PENDING_REWARDED_AD, false)
-                    prefs.edit().putBoolean(KEY_PENDING_REWARDED_AD, false).apply()
-                    result.success(pending)
-                }
-
-                else -> result.notImplemented()
-            }
-        }
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
             .setMethodCallHandler { call, result ->
@@ -105,49 +73,55 @@ class MainActivity : FlutterActivity() {
                             val intent = Intent(
                                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                                 Uri.parse("package:$packageName")
-                            )
+                            ).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
                             startActivity(intent)
                         }
                         result.success(null)
                     }
 
                     "startBlocking" -> {
-                        try {
-                            val args = call.arguments as? Map<*, *>
-                            val packages = (args?.get("blockedPackages") as? List<*>)
-                                ?.filterIsInstance<String>()
-                                ?.filter { it.isNotBlank() && it != packageName }
-                                ?.toSet()
-                                ?: emptySet()
+                        val blockedPackages =
+                            call.argument<List<String>>("blockedPackages") ?: emptyList()
+                        val reason = call.argument<String>("reason") ?: "focus_session"
+                        hasSponsor = call.argument<Boolean>("hasSponsor") ?: false
+                        strictMode = call.argument<Boolean>("strictMode") ?: false
 
-                            val reason = args?.get("reason") as? String ?: "Focus session active"
-                            val hasSponsor = args?.get("hasSponsor") as? Boolean ?: false
+                        val normalizedPackages = blockedPackages
+                            .map { it.trim() }
+                            .filter { it.isNotEmpty() }
+                            .toSet()
+                            .toList()
 
-                            if (packages.isEmpty()) {
-                                result.success(false)
-                                return@setMethodCallHandler
-                            }
+                        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                        prefs.edit()
+                            .putStringSet("blocked_packages", normalizedPackages.toSet())
+                            .putString("block_reason", reason)
+                            .putBoolean("has_sponsor", hasSponsor)
+                            .putBoolean("strict_mode", strictMode)
+                            .apply()
 
-                            val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                            prefs.edit()
-                                .putStringSet("blocked_packages", packages)
-                                .putString("block_reason", reason)
-                                .putBoolean("has_sponsor", hasSponsor)
-                                .apply()
-
-                            val intent = Intent(this, FocusBlockerService::class.java).apply {
-                                action = FocusBlockerService.ACTION_START
-                            }
-
-                            ContextCompat.startForegroundService(this, intent)
-                            result.success(true)
-                        } catch (e: Exception) {
-                            result.error("START_BLOCKING_ERROR", e.message, null)
+                        val intent = Intent(this, FocusBlockerService::class.java).apply {
+                            action = FocusBlockerService.ACTION_START
+                            putStringArrayListExtra("blockedPackages", ArrayList(normalizedPackages))
+                            putExtra("reason", reason)
+                            putExtra("hasSponsor", hasSponsor)
+                            putExtra("strictMode", strictMode)
                         }
+                        startService(intent)
+                        result.success(true)
                     }
 
                     "stopBlocking" -> {
                         try {
+                            val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                            prefs.edit()
+                                .remove("blocked_packages")
+                                .remove("block_reason")
+                                .remove("strict_mode")
+                                .apply()
+
                             val intent = Intent(this, FocusBlockerService::class.java).apply {
                                 action = FocusBlockerService.ACTION_STOP
                             }
@@ -182,40 +156,27 @@ class MainActivity : FlutterActivity() {
                     }
 
                     "syncSponsorState" -> {
-                        try {
-                            val hasSponsor = call.argument<Boolean>("hasSponsor") ?: false
-                            val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                            prefs.edit()
-                                .putBoolean("has_sponsor", hasSponsor)
-                                .apply()
+                        hasSponsor = call.argument<Boolean>("hasSponsor") ?: false
+                        strictMode = call.argument<Boolean>("strictMode") ?: false
 
-                            val intent = Intent(this, FocusBlockerService::class.java).apply {
-                                action = FocusBlockerService.ACTION_SYNC_SPONSOR_STATE
-                                putExtra("has_sponsor", hasSponsor)
-                            }
-                            startService(intent)
+                        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                        prefs.edit()
+                            .putBoolean("has_sponsor", hasSponsor)
+                            .putBoolean("strict_mode", strictMode)
+                            .apply()
 
-                            result.success(true)
-                        } catch (e: Exception) {
-                            result.error("SYNC_SPONSOR_STATE_ERROR", e.message, null)
+                        val intent = Intent(this, FocusBlockerService::class.java).apply {
+                            action = FocusBlockerService.ACTION_SYNC_SPONSOR_STATE
+                            putExtra("has_sponsor", hasSponsor)
+                            putExtra("strict_mode", strictMode)
                         }
+                        startService(intent)
+                        result.success(true)
                     }
 
                     else -> result.notImplemented()
                 }
             }
-    }
-
-    private fun cacheRewardedAdRequest(intent: Intent?) {
-        val shouldOpenRewardedAd = intent?.getBooleanExtra("open_rewarded_ad", false) ?: false
-        if (!shouldOpenRewardedAd) return
-
-        getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_PENDING_REWARDED_AD, true)
-            .apply()
-
-        intent.removeExtra("open_rewarded_ad")
     }
 
     private fun hasUsageAccess(): Boolean {

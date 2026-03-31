@@ -281,73 +281,31 @@ class FocusBlockerService : Service() {
             return
         }
 
-        private fun inspectForegroundApp() {
-            val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            val blockedPackages = prefs.getStringSet("blocked_packages", emptySet()) ?: emptySet()
-            currentReason = prefs.getString("block_reason", currentReason) ?: currentReason
-            val suspendedUntilMillis = prefs.getLong("suspend_until_millis", 0L)
-            val shieldSuspended = suspendedUntilMillis > System.currentTimeMillis()
-
-            if (blockedPackages.isEmpty()) {
-                hideOverlay(force = true)
-                return
-            }
-
-            if (shieldSuspended) {
-                hideOverlay(force = true)
-                return
-            }
-
-            val currentPackage = queryForegroundPackage()
-            val now = System.currentTimeMillis()
-
-            if (currentPackage != null &&
-                currentPackage == suppressPackageName &&
-                now < suppressPackageUntil
-            ) {
-                hideOverlay(force = true)
-                return
-            }
-
-            if (now >= suppressPackageUntil) {
-                suppressPackageName = null
-                suppressPackageUntil = 0L
-            }
-
-            val isOwnApp = currentPackage == null || currentPackage == packageName
-            val isSystemInterruption = currentPackage == "com.android.systemui"
-            val isBlockedApp = currentPackage != null && blockedPackages.contains(currentPackage)
-
-            if (isBlockedApp) {
-                lastShownPackage = currentPackage
-                showOverlay(currentReason)
-                return
-            }
-
-            if (isOwnApp) {
-                hideOverlay(force = true)
-                return
-            }
-
-            if ((requestInFlight || keepOverlayPinned || waitingAdResult) && !isSystemInterruption) {
-                if (lastShownPackage != null) {
-                    showOverlay(currentReason)
-                }
-                return
-            }
-
-            if (isSystemInterruption && lastShownPackage != null) {
-                showOverlay(currentReason)
-                return
-            }
-
-            if (currentPackage == null && overlayView != null && lastShownPackage != null) {
-                return
-            }
-
-            hideOverlay(force = false)
-            lastShownPackage = null
+        if (isOwnApp) {
+            hideOverlay(force = true)
+            return
         }
+
+        if ((requestInFlight || keepOverlayPinned || waitingAdResult) && !isSystemInterruption) {
+            if (lastShownPackage != null) {
+                showOverlay(currentReason)
+            }
+            return
+        }
+
+        if (isSystemInterruption && lastShownPackage != null) {
+            showOverlay(currentReason)
+            return
+        }
+
+        if (currentPackage == null && overlayView != null && lastShownPackage != null) {
+            return
+        }
+
+        hideOverlay(force = false)
+        lastShownPackage = null
+    }
+
 
     private fun queryForegroundPackage(): String? {
         return try {
@@ -388,6 +346,7 @@ class FocusBlockerService : Service() {
         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         ensureDailyPauseReset(prefs)
         val hasSponsor = prefs.getBoolean("has_sponsor", false)
+        val strictMode = prefs.getBoolean("strict_mode", false)
         requestAudioFocus()
 
         if (overlayView != null) {
@@ -524,8 +483,8 @@ class FocusBlockerService : Service() {
             }
             minHeight = dp(54)
             setPadding(dp(18), dp(14), dp(18), dp(14))
-            isEnabled = !requestInFlight && !waitingAdResult
-            text = primaryActionLabel(hasSponsor)
+            isEnabled = !strictMode && !requestInFlight && !waitingAdResult
+            text = if (strictMode) tr("Strict mode active", "Modo estricto activo") else primaryActionLabel(hasSponsor)
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -533,8 +492,11 @@ class FocusBlockerService : Service() {
                 bottomMargin = dp(12)
             }
 
+            isEnabled = !strictMode
+
             setOnClickListener {
-                if (requestInFlight || waitingAdResult) return@setOnClickListener
+                if (strictMode) return@setOnClickListener
+                if (strictMode || requestInFlight || waitingAdResult) return@setOnClickListener
 
                 val prefsNow = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 ensureDailyPauseReset(prefsNow)
@@ -601,6 +563,8 @@ class FocusBlockerService : Service() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
+
+            isEnabled = true
 
             setOnClickListener {
                 requestInFlight = false
@@ -717,32 +681,20 @@ class FocusBlockerService : Service() {
 
     private fun requestAd() {
         try {
-            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
-            if (launchIntent != null) {
-                suppressPackageName = packageName
-                suppressPackageUntil = System.currentTimeMillis() + 20_000L
+            suppressPackageName = packageName
+            suppressPackageUntil = System.currentTimeMillis() + 20_000L
 
-                hideOverlay(force = true)
-                keepOverlayPinned = false
+            hideOverlay(force = true)
+            keepOverlayPinned = false
 
-                launchIntent.addFlags(
+            val intent = Intent(this, RewardAdActivity::class.java).apply {
+                addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK or
                             Intent.FLAG_ACTIVITY_SINGLE_TOP or
                             Intent.FLAG_ACTIVITY_CLEAR_TOP
                 )
-                launchIntent.putExtra("open_rewarded_ad", true)
-                startActivity(launchIntent)
-            } else {
-                waitingAdResult = false
-                keepOverlayPinned = true
-                updateOverlayReason(
-                    tr(
-                        "Could not open the ad screen.",
-                        "No se pudo abrir la pantalla del anuncio."
-                    )
-                )
-                syncOverlayButtonState()
             }
+            startActivity(intent)
         } catch (_: Exception) {
             waitingAdResult = false
             keepOverlayPinned = true
@@ -1006,11 +958,12 @@ class FocusBlockerService : Service() {
         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         ensureDailyPauseReset(prefs)
         val hasSponsor = prefs.getBoolean("has_sponsor", false)
+        val strictMode = prefs.getBoolean("strict_mode", false)
         val canAct = canUseFreePause(prefs) || canUseAdPause(prefs) || hasSponsor
 
         val actionButton = overlayView?.findViewWithTag<Button>("actionButton") ?: return
-        actionButton.isEnabled = !requestInFlight && !waitingAdResult && canAct
-        actionButton.text = primaryActionLabel(hasSponsor)
+        actionButton.isEnabled = !strictMode && !requestInFlight && !waitingAdResult && canAct
+        actionButton.text = if (strictMode) tr("Strict mode active", "Modo estricto activo") else primaryActionLabel(hasSponsor)
     }
 
     private fun syncOverlayAppDetails() {
@@ -1039,8 +992,10 @@ class FocusBlockerService : Service() {
         val freePauseLeft = !prefs.getBoolean(KEY_PAUSE_FREE_USED, false)
         val adPauseLeft = !prefs.getBoolean(KEY_PAUSE_AD_USED, false)
         val hasSponsor = prefs.getBoolean("has_sponsor", false)
+        val strictMode = prefs.getBoolean("strict_mode", false)
 
         val suffix = when {
+            strictMode -> tr(" Strict mode is on: pauses and ads are disabled until the session ends. You can still return to focus.", " El modo estricto está activo: las pausas y los anuncios están deshabilitados hasta que termine la sesión. Aún puedes volver al enfoque.")
             requestInFlight -> ""
             waitingAdResult -> tr(
                 " Complete the ad to get 15 extra minutes.",

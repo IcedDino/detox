@@ -146,7 +146,7 @@ class LocationZoneService {
       final config = await _loadConfig(force: true);
       if (config.zones.where((e) => e.enabled).isEmpty) {
         await stopMonitoring();
-        await AppBlockingService.instance.stopShield();
+        await AppBlockingService.instance.stopShield(source: 'zone');
         return;
       }
 
@@ -171,7 +171,7 @@ class LocationZoneService {
         message: 'Concentration zones were reset after an error.',
       ));
       await stopMonitoring();
-      await AppBlockingService.instance.stopShield();
+      await AppBlockingService.instance.stopShield(source: 'zone');
     }
   }
 
@@ -244,7 +244,7 @@ class LocationZoneService {
         _activeShieldKey = null;
         _lastMatchedZoneId = null;
         _emit(const ZoneState(enabled: false, insideZone: false));
-        await AppBlockingService.instance.stopShield();
+        await AppBlockingService.instance.stopShield(source: 'zone');
         return;
       }
 
@@ -257,7 +257,7 @@ class LocationZoneService {
         if (overrideActive) {
           _scheduleOverrideRefresh();
           if (_activeShieldKey != null) {
-            await AppBlockingService.instance.stopShield();
+            await AppBlockingService.instance.stopShield(source: 'zone');
             _activeShieldKey = null;
           }
           _lastMatchedZoneId = matched.id;
@@ -284,10 +284,11 @@ class LocationZoneService {
             blockedPackages: packages,
             reason: 'Study zone: ${matched.name}',
             hasSponsor: hasSponsor,
+            source: 'zone',
           );
           _activeShieldKey = shieldKey;
         } else if (packages.isEmpty && _activeShieldKey != null) {
-          await AppBlockingService.instance.stopShield();
+          await AppBlockingService.instance.stopShield(source: 'zone');
           _activeShieldKey = null;
         }
 
@@ -302,7 +303,7 @@ class LocationZoneService {
         ));
       } else {
         if (_activeShieldKey != null) {
-          await AppBlockingService.instance.stopShield();
+          await AppBlockingService.instance.stopShield(source: 'zone');
           _activeShieldKey = null;
         }
         _lastMatchedZoneId = null;
@@ -318,7 +319,7 @@ class LocationZoneService {
         insideZone: false,
         message: 'Zone automation was paused after an error.',
       ));
-      await AppBlockingService.instance.stopShield();
+      await AppBlockingService.instance.stopShield(source: 'zone');
       _activeShieldKey = null;
     }
   }

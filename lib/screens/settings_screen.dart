@@ -12,6 +12,7 @@ import '../models/auth_user.dart';
 import '../models/concentration_zone.dart';
 import '../models/installed_app_entry.dart';
 import '../models/sponsor_profile.dart';
+import '../screens/automation_settings_screen.dart';
 import '../screens/sponsor_screen.dart';
 import '../services/app_blocking_service.dart';
 import '../services/app_catalog_service.dart';
@@ -542,6 +543,26 @@ class _SettingsScreenState extends State<SettingsScreen>
                   onTap: _openOverlaySettings,
                 ),
               ],
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(
+                  Icons.auto_awesome_motion_rounded,
+                  color: DetoxColors.accentSoft,
+                ),
+                title: const Text('Automation & hard mode'),
+                subtitle: const Text(
+                  'Schedules, strict mode, smart presets, and zone + schedule rules.',
+                  style: TextStyle(color: DetoxColors.muted),
+                ),
+                onTap: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const AutomationSettingsScreen(),
+                    ),
+                  );
+                  await _load();
+                },
+              ),
             ],
           ),
         ),

@@ -810,9 +810,8 @@ class _SponsorScreenState extends State<SponsorScreen>
                             Expanded(
                               child: FilledButton.icon(
                                 onPressed: () => _request('zone_override'),
-                                icon: const Icon(
-                                  Icons.pause_circle_outline,
-                                ),
+                                icon:
+                                const Icon(Icons.pause_circle_outline),
                                 label: Text(t.requestZonePause),
                               ),
                             ),
@@ -823,8 +822,7 @@ class _SponsorScreenState extends State<SponsorScreen>
                           children: [
                             Expanded(
                               child: OutlinedButton.icon(
-                                onPressed: () =>
-                                    _request('settings_unlock'),
+                                onPressed: () => _request('settings_unlock'),
                                 icon: const Icon(Icons.lock_open_rounded),
                                 label: Text(
                                   t.requestSettingsApproval,
@@ -926,7 +924,9 @@ class _SponsorScreenState extends State<SponsorScreen>
                     }
 
                     final requests =
-                    (snapshot.data ?? const []).take(6).toList();
+                    (snapshot.data ?? const <SponsorRequest>[])
+                        .take(6)
+                        .toList();
 
                     if (requests.isEmpty) {
                       return GlassCard(
@@ -1007,7 +1007,9 @@ class _SponsorScreenState extends State<SponsorScreen>
                     }
 
                     final requests =
-                    (snapshot.data ?? const []).take(12).toList();
+                    (snapshot.data ?? const <SponsorRequest>[])
+                        .take(12)
+                        .toList();
 
                     if (requests.isEmpty) {
                       return GlassCard(

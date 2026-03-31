@@ -38,6 +38,7 @@ class SponsorAlertService {
     stop();
     _started = true;
     _listenToUserProfile();
+    unawaited(AppBlockingService.instance.syncSponsorState(false));
     unawaited(_refreshStreams());
   }
 
@@ -53,6 +54,7 @@ class SponsorAlertService {
     _watchIncoming = false;
     _watchOutgoing = false;
     _seenStates.clear();
+    unawaited(AppBlockingService.instance.syncSponsorState(false));
   }
 
   void _listenToUserProfile() {
@@ -65,6 +67,7 @@ class SponsorAlertService {
       final hasSponsorNow = sponsorUid != null && sponsorUid.isNotEmpty;
       if (hasSponsorNow != _hasSponsor) {
         _hasSponsor = hasSponsorNow;
+        unawaited(AppBlockingService.instance.syncSponsorState(_hasSponsor));
         unawaited(_refreshStreams());
       }
     });

@@ -122,37 +122,25 @@ class UsageService {
     }
   }
 
+  Future<List<AppUsageEntry>> getTodayAppUsageEntries() async {
+    if (kIsWeb) return _fallbackSummary().topApps;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return _loadAndroidTodayEntries();
+    }
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      return const [];
+    }
+    return _fallbackSummary().topApps;
+  }
+
   Future<DailyUsageSummary> _loadAndroidTodaySummary() async {
     try {
       final now = DateTime.now();
       final start = DateTime(now.year, now.month, now.day);
       final usage = await AppUsage().getAppUsage(start, now);
 
-      final entries = <AppUsageEntry>[];
-      var totalMinutes = 0;
-
-      for (final item in usage) {
-        final minutes = item.usage.inMinutes;
-        if (minutes <= 0) continue;
-        totalMinutes += minutes;
-
-        final packageName = item.packageName;
-        final resolvedName = packageName.isNotEmpty
-            ? await AppMetadataService.instance.getLabel(packageName)
-            : null;
-
-        entries.add(
-          AppUsageEntry(
-            appName: (resolvedName?.trim().isNotEmpty ?? false)
-                ? resolvedName!.trim()
-                : (item.appName.isNotEmpty ? item.appName : item.packageName),
-            minutes: minutes,
-            packageName: packageName.isEmpty ? null : packageName,
-          ),
-        );
-      }
-
-      entries.sort((a, b) => b.minutes.compareTo(a.minutes));
+      final entries = await _loadAndroidTodayEntries();
+      final totalMinutes = entries.fold<int>(0, (sum, item) => sum + item.minutes);
 
       if (entries.isEmpty) return _fallbackSummary();
 
@@ -165,6 +153,37 @@ class UsageService {
     } catch (_) {
       return _fallbackSummary();
     }
+  }
+
+
+  Future<List<AppUsageEntry>> _loadAndroidTodayEntries() async {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day);
+    final usage = await AppUsage().getAppUsage(start, now);
+
+    final entries = <AppUsageEntry>[];
+    for (final item in usage) {
+      final minutes = item.usage.inMinutes;
+      if (minutes <= 0) continue;
+
+      final packageName = item.packageName;
+      final resolvedName = packageName.isNotEmpty
+          ? await AppMetadataService.instance.getLabel(packageName)
+          : null;
+
+      entries.add(
+        AppUsageEntry(
+          appName: (resolvedName?.trim().isNotEmpty ?? false)
+              ? resolvedName!.trim()
+              : (item.appName.isNotEmpty ? item.appName : item.packageName),
+          minutes: minutes,
+          packageName: packageName.isEmpty ? null : packageName,
+        ),
+      );
+    }
+
+    entries.sort((a, b) => b.minutes.compareTo(a.minutes));
+    return entries;
   }
 
   DailyUsageSummary _iosSummaryPlaceholder() {
