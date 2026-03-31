@@ -281,73 +281,31 @@ class FocusBlockerService : Service() {
             return
         }
 
-        private fun inspectForegroundApp() {
-            val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            val blockedPackages = prefs.getStringSet("blocked_packages", emptySet()) ?: emptySet()
-            currentReason = prefs.getString("block_reason", currentReason) ?: currentReason
-            val suspendedUntilMillis = prefs.getLong("suspend_until_millis", 0L)
-            val shieldSuspended = suspendedUntilMillis > System.currentTimeMillis()
-
-            if (blockedPackages.isEmpty()) {
-                hideOverlay(force = true)
-                return
-            }
-
-            if (shieldSuspended) {
-                hideOverlay(force = true)
-                return
-            }
-
-            val currentPackage = queryForegroundPackage()
-            val now = System.currentTimeMillis()
-
-            if (currentPackage != null &&
-                currentPackage == suppressPackageName &&
-                now < suppressPackageUntil
-            ) {
-                hideOverlay(force = true)
-                return
-            }
-
-            if (now >= suppressPackageUntil) {
-                suppressPackageName = null
-                suppressPackageUntil = 0L
-            }
-
-            val isOwnApp = currentPackage == null || currentPackage == packageName
-            val isSystemInterruption = currentPackage == "com.android.systemui"
-            val isBlockedApp = currentPackage != null && blockedPackages.contains(currentPackage)
-
-            if (isBlockedApp) {
-                lastShownPackage = currentPackage
-                showOverlay(currentReason)
-                return
-            }
-
-            if (isOwnApp) {
-                hideOverlay(force = true)
-                return
-            }
-
-            if ((requestInFlight || keepOverlayPinned || waitingAdResult) && !isSystemInterruption) {
-                if (lastShownPackage != null) {
-                    showOverlay(currentReason)
-                }
-                return
-            }
-
-            if (isSystemInterruption && lastShownPackage != null) {
-                showOverlay(currentReason)
-                return
-            }
-
-            if (currentPackage == null && overlayView != null && lastShownPackage != null) {
-                return
-            }
-
-            hideOverlay(force = false)
-            lastShownPackage = null
+        if (isOwnApp) {
+            hideOverlay(force = true)
+            return
         }
+
+        if ((requestInFlight || keepOverlayPinned || waitingAdResult) && !isSystemInterruption) {
+            if (lastShownPackage != null) {
+                showOverlay(currentReason)
+            }
+            return
+        }
+
+        if (isSystemInterruption && lastShownPackage != null) {
+            showOverlay(currentReason)
+            return
+        }
+
+        if (currentPackage == null && overlayView != null && lastShownPackage != null) {
+            return
+        }
+
+        hideOverlay(force = false)
+        lastShownPackage = null
+    }
+
 
     private fun queryForegroundPackage(): String? {
         return try {
@@ -717,32 +675,20 @@ class FocusBlockerService : Service() {
 
     private fun requestAd() {
         try {
-            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
-            if (launchIntent != null) {
-                suppressPackageName = packageName
-                suppressPackageUntil = System.currentTimeMillis() + 20_000L
+            suppressPackageName = packageName
+            suppressPackageUntil = System.currentTimeMillis() + 20_000L
 
-                hideOverlay(force = true)
-                keepOverlayPinned = false
+            hideOverlay(force = true)
+            keepOverlayPinned = false
 
-                launchIntent.addFlags(
+            val intent = Intent(this, RewardAdActivity::class.java).apply {
+                addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK or
                             Intent.FLAG_ACTIVITY_SINGLE_TOP or
                             Intent.FLAG_ACTIVITY_CLEAR_TOP
                 )
-                launchIntent.putExtra("open_rewarded_ad", true)
-                startActivity(launchIntent)
-            } else {
-                waitingAdResult = false
-                keepOverlayPinned = true
-                updateOverlayReason(
-                    tr(
-                        "Could not open the ad screen.",
-                        "No se pudo abrir la pantalla del anuncio."
-                    )
-                )
-                syncOverlayButtonState()
             }
+            startActivity(intent)
         } catch (_: Exception) {
             waitingAdResult = false
             keepOverlayPinned = true

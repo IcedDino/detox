@@ -15,7 +15,6 @@ import 'screens/habits_screen.dart';
 import 'screens/permission_setup_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/stats_screen.dart';
-import 'services/ad_service.dart';
 import 'services/app_blocking_service.dart';
 import 'services/auth_service.dart';
 import 'services/focus_notification_service.dart';
@@ -32,7 +31,6 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  await AdService.instance.init();
   final prefs = await SharedPreferences.getInstance();
   final darkMode = prefs.getBool('dark_mode') ?? true;
   final localeCode = prefs.getString('locale_code');
@@ -78,7 +76,7 @@ class DetoxApp extends StatefulWidget {
   State<DetoxApp> createState() => _DetoxAppState();
 }
 
-class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
+class _DetoxAppState extends State<DetoxApp> {
   int _index = 0;
   late bool _darkMode;
   late bool _onboardingDone;
@@ -93,8 +91,6 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-
     _darkMode = widget.initialDarkMode;
     _onboardingDone = widget.onboardingDone;
     _currentUser = widget.initialUser;
@@ -103,10 +99,6 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
         : Locale(widget.initialLocaleCode!);
 
     _initializePermissionGate();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _consumePendingRewardedAd();
-    });
 
     _authSubscription = AuthService.instance.authChanges().listen((user) async {
       if (!mounted) return;
@@ -124,13 +116,6 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
 
       await _syncSignedInUser(user);
     });
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      unawaited(_consumePendingRewardedAd());
-    }
   }
 
   Future<void> _initializePermissionGate() async {
@@ -160,12 +145,6 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _consumePendingRewardedAd() async {
-    try {
-      await AdService.instance.consumePendingRewardedAd();
-    } catch (_) {}
-  }
-
   Future<bool> _hasRequiredPermissions() async {
     final usageStatus = await _usageService.getPermissionStatus();
     final overlayReady = await AppBlockingService.instance.hasOverlayPermission();
@@ -179,7 +158,6 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     await SponsorService.instance.ensureCurrentUserInitialized(user);
     SponsorAlertService.instance.start();
     await _consumePendingBlockAction();
-    await _consumePendingRewardedAd();
 
     final onboardingDone = await StorageService().loadOnboardingDone();
     final permissionsReady = await _hasRequiredPermissions();
@@ -204,7 +182,6 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _authSubscription?.cancel();
     super.dispose();
   }
