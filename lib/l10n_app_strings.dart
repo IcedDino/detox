@@ -253,6 +253,24 @@ class AppStrings {
   String get settingsUnlockedLabel => isEs ? 'Desbloqueado' : 'Unlocked';
   String waitingForName(String name) => isEs ? 'Esperando que $name acepte tu solicitud.' : 'Waiting for $name to accept your request.';
 
+
+  String get progressTitle => isEs ? 'Progreso' : 'Progress';
+  String get progressSubtitle => isEs ? 'Tus rachas, retos y medallas viven aquí.' : 'Your streaks, challenges, and medals live here.';
+  String get startStreak => isEs ? 'Iniciar racha' : 'Start streak';
+  String get continueToday => isEs ? 'Continuar hoy' : 'Continue today';
+  String get currentStreak => isEs ? 'Racha actual' : 'Current streak';
+  String get longestStreak => isEs ? 'Mejor racha' : 'Longest streak';
+  String get achievements => isEs ? 'Logros' : 'Achievements';
+  String get dailyChallenges => isEs ? 'Retos de hoy' : "Today's challenges";
+  String get sponsorShowcase => isEs ? 'Visible para sponsor' : 'Visible to sponsor';
+  String get sponsorShowcaseBody => isEs ? 'Cuando tengas sponsor, aquí verá tu racha y tus medallas desbloqueadas.' : 'When you have a sponsor, they will see your streak and unlocked medals here.';
+  String get startConcentrationHour => isEs ? 'Empezar hora de concentración' : 'Start concentration hour';
+  String get deny => isEs ? 'Denegar' : 'Deny';
+  String get smartSuggestionTitle => isEs ? 'Detox te recomienda una pausa' : 'Detox recommends a pause';
+  String smartSuggestionNotification(String appName, String time) => isEs ? 'Hoy has usado $time horas $appName, ¿no crees que es momento de una pausa?' : "You have used $appName for $time today. Isn't it time for a pause?";
+  String get progressStartedSnack => isEs ? 'Tu racha quedó activa hoy.' : 'Your streak is active today.';
+  String get autoFocusStartedSnack => isEs ? 'Se inició una hora de concentración.' : 'A one-hour focus session started.';
+
   // HabitDetailScreen
   String get habitOverview => isEs ? 'RESUMEN' : 'OVERVIEW';
   String get thisWeek => isEs ? 'Esta semana' : 'This week';

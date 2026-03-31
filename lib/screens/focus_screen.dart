@@ -8,8 +8,8 @@ import '../models/permission_status.dart';
 import '../services/app_blocking_service.dart';
 import '../services/automation_service.dart';
 import '../services/focus_notification_service.dart';
+import '../services/focus_session_service.dart';
 import '../services/location_zone_service.dart';
-import '../services/sponsor_service.dart';
 import '../services/storage_service.dart';
 import '../services/usage_service.dart';
 import '../theme/app_theme.dart';
@@ -27,18 +27,17 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
   final UsageService _usageService = UsageService();
 
   int _selectedMinutes = 25;
-  Timer? _timer;
-  int _remainingSeconds = 25 * 60;
   List<AppLimit> _shieldedApps = const [];
   bool _overlayReady = true;
   bool _strictMode = false;
-  int _focusStreak = 0;
   bool _appInForeground = true;
   ZoneState _zoneState = LocationZoneService.instance.currentState;
   StreamSubscription<ZoneState>? _zoneSubscription;
+  StreamSubscription<FocusSessionSnapshot>? _focusSubscription;
+  FocusSessionSnapshot _focusSnapshot = FocusSessionService.instance.current;
   PermissionStatusModel? _permissionStatus;
 
-  bool get _running => _timer != null;
+  bool get _running => _focusSnapshot.isActive;
   bool get _hasConfiguredApps => _shieldedApps.any((e) => (e.packageName ?? '').isNotEmpty);
 
   @override
@@ -50,6 +49,10 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       setState(() => _zoneState = state);
     });
+    _focusSubscription = FocusSessionService.instance.snapshots.listen((snapshot) {
+      if (!mounted) return;
+      setState(() => _focusSnapshot = snapshot);
+    });
   }
 
   Future<void> _refreshData() async {
@@ -57,100 +60,49 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
     final overlay = await AppBlockingService.instance.hasOverlayPermission();
     final permissionStatus = await _usageService.getPermissionStatus();
     final strictMode = await _storageService.loadStrictModeEnabled();
-    final focusStreak = await _storageService.loadFocusStreak();
     if (!mounted) return;
     setState(() {
       _shieldedApps = limits.where((e) => e.useInFocusMode).toList();
       _overlayReady = overlay;
       _permissionStatus = permissionStatus;
       _strictMode = strictMode;
-      _focusStreak = focusStreak;
     });
   }
 
   Future<void> _start() async {
     await _refreshData();
     await FocusNotificationService.instance.resetSuppression();
-    _timer?.cancel();
-    setState(() => _remainingSeconds = _selectedMinutes * 60);
 
-    final packages = _shieldedApps
-        .where((e) => e.packageName?.isNotEmpty ?? false)
-        .map((e) => e.packageName!)
-        .toSet()
-        .toList();
-
-    final usageReady = _permissionStatus?.usageReady ?? true;
-    if (!usageReady) {
-      _showSnack(AppStrings.of(context).grantUsageSnack);
-      return;
-    }
-    if (!_overlayReady) {
-      _showSnack(AppStrings.of(context).grantOverlaySnack);
-      return;
-    }
-    if (packages.isEmpty) {
-      _showSnack(AppStrings.of(context).addAppsSnack);
-      return;
-    }
-
-    final hasSponsor =
-        (await SponsorService.instance.getCurrentSponsorProfile()) != null;
-
-    final blockedPackages = packages.toList(); // o la variable real que uses
-    const reason = 'focus_session';
-
-    await AppBlockingService.instance.startShield(
-      blockedPackages: blockedPackages,
-      reason: reason,
-      hasSponsor: hasSponsor,
-      source: 'focus',
-      strictModeOverride: _strictMode,
+    final result = await FocusSessionService.instance.startSession(
+      minutes: _selectedMinutes,
+      label: AppStrings.of(context).focusSessionLabel,
+      reason: 'focus_session',
     );
 
-    if (!_appInForeground) {
-      await FocusNotificationService.instance.showOrUpdateTimer(
-        remainingSeconds: _remainingSeconds,
-        label: AppStrings.of(context).focusSessionLabel,
-        force: true,
-      );
-    }
+    if (!mounted) return;
+    if (result.success) return;
 
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-      if (_remainingSeconds <= 1) {
-        timer.cancel();
-        _timer = null;
-        setState(() => _remainingSeconds = 0);
-        await FocusNotificationService.instance.cancel();
-        if (!_zoneState.insideZone) {
-          await AppBlockingService.instance.stopShield(source: 'focus');
-        }
-        final streak = await _storageService.registerCompletedFocusSession();
-        if (mounted) {
-          setState(() => _focusStreak = streak);
-        }
-        await AutomationService.instance.refresh();
-        _showSnack('${AppStrings.of(context).focusCompleteSnack} • 🔥 $streak');
-      } else {
-        setState(() => _remainingSeconds--);
-        if (!_appInForeground) {
-          await FocusNotificationService.instance.showOrUpdateTimer(
-            remainingSeconds: _remainingSeconds,
-            label: AppStrings.of(context).focusSessionLabel,
-          );
-        }
-      }
-    });
+    switch (result.code) {
+      case 'usage_permission_missing':
+        _showSnack(AppStrings.of(context).grantUsageSnack);
+        break;
+      case 'overlay_permission_missing':
+        _showSnack(AppStrings.of(context).grantOverlaySnack);
+        break;
+      case 'no_apps_configured':
+        _showSnack(AppStrings.of(context).addAppsSnack);
+        break;
+      default:
+        _showSnack('Could not start focus session.');
+    }
   }
 
   Future<void> _stop() async {
-    _timer?.cancel();
-    _timer = null;
-    await FocusNotificationService.instance.cancel();
-    setState(() => _remainingSeconds = _selectedMinutes * 60);
-    if (!_zoneState.insideZone) {
-      await AppBlockingService.instance.stopShield(source: 'focus');
-    }
+    await FocusSessionService.instance.stopSession();
+    if (!mounted) return;
+    setState(() {
+      _selectedMinutes = _selectedMinutes;
+    });
   }
 
   void _showSnack(String message) {
@@ -167,8 +119,8 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _timer?.cancel();
     _zoneSubscription?.cancel();
+    _focusSubscription?.cancel();
     super.dispose();
   }
 
@@ -184,7 +136,7 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
       _appInForeground = false;
       if (_running) {
         FocusNotificationService.instance.showOrUpdateTimer(
-          remainingSeconds: _remainingSeconds,
+          remainingSeconds: _focusSnapshot.remainingSeconds,
           label: AppStrings.of(context).focusSessionLabel,
           force: true,
         );
@@ -195,9 +147,9 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final t = AppStrings.of(context);
-    final progress = _selectedMinutes == 0
-        ? 0.0
-        : 1 - (_remainingSeconds / (_selectedMinutes * 60));
+    final totalSeconds = _running ? _focusSnapshot.totalSeconds : _selectedMinutes * 60;
+    final remainingSeconds = _running ? _focusSnapshot.remainingSeconds : _selectedMinutes * 60;
+    final progress = totalSeconds == 0 ? 0.0 : 1 - (remainingSeconds / totalSeconds);
 
     final androidNeedsUsage = Theme.of(context).platform == TargetPlatform.android &&
         !(_permissionStatus?.usageReady ?? true);
@@ -215,18 +167,24 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
         const SizedBox(height: 8),
         Text(
           t.focusSubtitle,
-          style: TextStyle(color: DetoxColors.muted),
+          style: const TextStyle(color: DetoxColors.muted),
         ),
         const SizedBox(height: 12),
         GlassCard(
           child: Row(
             children: [
-              const Icon(Icons.local_fire_department, color: Colors.orangeAccent),
+              const Icon(Icons.lock_clock_outlined, color: DetoxColors.accentSoft),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Focus streak: $_focusStreak day${_focusStreak == 1 ? '' : 's'}',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                  _strictMode
+                      ? (t.isEs
+                          ? 'Modo estricto activo. Las pausas y anuncios quedan bloqueados mientras dure el enfoque.'
+                          : 'Strict Mode is active. Pauses and ads stay blocked while focus is running.')
+                      : (t.isEs
+                          ? 'Modo normal. Puedes salir o pausar cuando el flujo lo permita.'
+                          : 'Normal mode. You can exit or pause when the flow allows it.'),
+                  style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ),
               Switch(
@@ -264,14 +222,14 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
                 if (androidNeedsUsage)
                   Text(
                     t.focusNeedUsage,
-                    style: TextStyle(color: DetoxColors.muted),
+                    style: const TextStyle(color: DetoxColors.muted),
                   ),
                 if (!_overlayReady)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
                       t.focusNeedOverlay,
-                      style: TextStyle(color: DetoxColors.muted),
+                      style: const TextStyle(color: DetoxColors.muted),
                     ),
                   ),
                 if (!_hasConfiguredApps)
@@ -279,7 +237,7 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
                       t.focusChooseApps,
-                      style: TextStyle(color: DetoxColors.muted),
+                      style: const TextStyle(color: DetoxColors.muted),
                     ),
                   ),
               ],
@@ -311,7 +269,7 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
                             FittedBox(
                               fit: BoxFit.scaleDown,
                               child: Text(
-                                _format(_remainingSeconds),
+                                _format(remainingSeconds),
                                 style: Theme.of(context)
                                     .textTheme
                                     .headlineMedium
@@ -349,7 +307,6 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
                         ? null
                         : (_) => setState(() {
                       _selectedMinutes = minutes;
-                      _remainingSeconds = minutes * 60;
                     }),
                   ),
                 )
@@ -393,7 +350,7 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
               if (_shieldedApps.isEmpty)
                 Text(
                   t.addAppsForFocus,
-                  style: TextStyle(color: DetoxColors.muted),
+                  style: const TextStyle(color: DetoxColors.muted),
                 )
               else
                 Wrap(
@@ -434,8 +391,7 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 12),
               Text(
-                _zoneState.message ??
-                    t.studyZoneAutomationBody,
+                _zoneState.message ?? t.studyZoneAutomationBody,
                 style: const TextStyle(color: DetoxColors.muted),
               ),
             ],
