@@ -18,14 +18,48 @@ import java.io.ByteArrayOutputStream
 
 class MainActivity : FlutterActivity() {
     private val channelName = "detox/device_control"
+    private lateinit var adsChannel: MethodChannel
 
     companion object {
         private const val PREFS = "detox_native"
         private const val KEY_PENDING_ACTION = "pending_action"
+        private const val KEY_PENDING_REWARDED_AD = "pending_rewarded_ad"
+        private const val ADS_CHANNEL = "detox/ads"
+    }
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        cacheRewardedAdRequest(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        cacheRewardedAdRequest(intent)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        adsChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ADS_CHANNEL)
+        adsChannel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "onAdResult" -> {
+                    val success = call.argument<Boolean>("success") ?: false
+                    FocusBlockerService.onAdResult(success)
+                    result.success(null)
+                }
+
+                "consumePendingRewardedAd" -> {
+                    val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                    val pending = prefs.getBoolean(KEY_PENDING_REWARDED_AD, false)
+                    prefs.edit().putBoolean(KEY_PENDING_REWARDED_AD, false).apply()
+                    result.success(pending)
+                }
+
+                else -> result.notImplemented()
+            }
+        }
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
             .setMethodCallHandler { call, result ->
@@ -170,6 +204,18 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    private fun cacheRewardedAdRequest(intent: Intent?) {
+        val shouldOpenRewardedAd = intent?.getBooleanExtra("open_rewarded_ad", false) ?: false
+        if (!shouldOpenRewardedAd) return
+
+        getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_PENDING_REWARDED_AD, true)
+            .apply()
+
+        intent.removeExtra("open_rewarded_ad")
     }
 
     private fun hasUsageAccess(): Boolean {

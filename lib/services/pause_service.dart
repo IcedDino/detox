@@ -14,7 +14,11 @@ class PauseService {
     await _ensureDailyReset(prefs);
     return !(prefs.getBool(_keyFreeUsed) ?? false);
   }
-
+  Future<bool> useAdPause() async {
+    if (!await canUseAdPause()) return false;
+    await markAdPauseUsed();
+    return true;
+  }
   Future<bool> canUseAdPause() async {
     final prefs = await SharedPreferences.getInstance();
     await _ensureDailyReset(prefs);

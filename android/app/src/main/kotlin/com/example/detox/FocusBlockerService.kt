@@ -33,6 +33,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import java.util.Locale
 
 class FocusBlockerService : Service() {
     companion object {
@@ -46,8 +47,15 @@ class FocusBlockerService : Service() {
         private const val KEY_PAUSE_FREE_USED = "pause_free_used"
         private const val KEY_PAUSE_AD_USED = "pause_ad_used"
         private const val KEY_PAUSE_LAST_RESET = "pause_last_reset"
+
+        var instance: FocusBlockerService? = null
+
+        fun onAdResult(success: Boolean) {
+            instance?.handleAdResult(success)
+        }
     }
 
+    private var waitingAdResult = false
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var windowManager: WindowManager
     private lateinit var audioManager: AudioManager
@@ -58,11 +66,14 @@ class FocusBlockerService : Service() {
     private var requestInFlight = false
     private var currentRequestId: String? = null
     private var keepOverlayPinned = false
-    private var currentReason: String = "Focus session active"
+    private var currentReason: String = tr("Focus session active", "Sesión de enfoque activa")
     private var audioFocusRequest: AudioFocusRequest? = null
     private var hasAudioFocus = false
     private var originalVolume: Int = -1
     private var isMutedByService = false
+    private var suppressPackageName: String? = null
+    private var suppressPackageUntil: Long = 0L
+
     @Volatile
     private var pollRunning = false
 
@@ -72,9 +83,20 @@ class FocusBlockerService : Service() {
             try {
                 inspectForegroundApp()
             } finally {
-                if (pollRunning) handler.postDelayed(this, 350)
+                if (pollRunning) {
+                    val delay = when {
+                        overlayView != null || requestInFlight || keepOverlayPinned || waitingAdResult -> 400L
+                        else -> 1000L
+                    }
+                    handler.postDelayed(this, delay)
+                }
             }
         }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        instance = this
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -120,8 +142,10 @@ class FocusBlockerService : Service() {
                     return START_NOT_STICKY
                 }
 
-                currentReason = prefs.getString("block_reason", "Focus session active")
-                    ?: "Focus session active"
+                currentReason = prefs.getString(
+                    "block_reason",
+                    tr("Focus session active", "Sesión de enfoque activa")
+                ) ?: tr("Focus session active", "Sesión de enfoque activa")
 
                 startShieldPauseWatcher()
 
@@ -141,6 +165,7 @@ class FocusBlockerService : Service() {
         requestListener = null
         abandonAudioFocus()
         hideOverlay(force = true)
+        if (instance === this) instance = null
         super.onDestroy()
     }
 
@@ -154,8 +179,13 @@ class FocusBlockerService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Detox focus shield")
-            .setContentText("Selected apps will be covered during your focus session.")
+            .setContentTitle(tr("Detox focus shield", "Escudo de enfoque Detox"))
+            .setContentText(
+                tr(
+                    "Selected apps will be covered during your focus session.",
+                    "Las apps seleccionadas se cubrirán durante tu sesión de enfoque."
+                )
+            )
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
@@ -167,7 +197,7 @@ class FocusBlockerService : Service() {
             val manager = getSystemService(NotificationManager::class.java)
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Detox Focus Shield",
+                tr("Detox Focus Shield", "Escudo de enfoque Detox"),
                 NotificationManager.IMPORTANCE_LOW
             )
             manager.createNotificationChannel(channel)
@@ -226,6 +256,19 @@ class FocusBlockerService : Service() {
         }
 
         val currentPackage = queryForegroundPackage()
+        val now = System.currentTimeMillis()
+
+        if (currentPackage != null &&
+            currentPackage == suppressPackageName &&
+            now < suppressPackageUntil
+        ) {
+            hideOverlay(force = true)
+            return
+        }
+        if (now >= suppressPackageUntil) {
+            suppressPackageName = null
+        }
+
         val isOwnApp = currentPackage == null || currentPackage == packageName
         val isSystemInterruption = currentPackage == "com.android.systemui"
         val isBlockedApp = currentPackage != null && blockedPackages.contains(currentPackage)
@@ -236,7 +279,10 @@ class FocusBlockerService : Service() {
             return
         }
 
-        if ((requestInFlight || keepOverlayPinned) && !isOwnApp && !isSystemInterruption) {
+        if ((requestInFlight || keepOverlayPinned || waitingAdResult) &&
+            !isOwnApp &&
+            !isSystemInterruption
+        ) {
             if (lastShownPackage != null) {
                 showOverlay(currentReason)
             }
@@ -258,7 +304,7 @@ class FocusBlockerService : Service() {
         }
 
         if (isOwnApp) {
-            if (!requestInFlight && !keepOverlayPinned) {
+            if (!requestInFlight && !keepOverlayPinned && !waitingAdResult) {
                 hideOverlay(force = false)
                 lastShownPackage = null
             }
@@ -287,7 +333,7 @@ class FocusBlockerService : Service() {
             }
 
             if (currentPkg == null) {
-                val beginLong = endTime - 60 * 60_000L
+                val beginLong = endTime - 5 * 60_000L
                 val longEvents = usageStatsManager.queryEvents(beginLong, endTime)
                 val longEvent = UsageEvents.Event()
                 while (longEvents.hasNextEvent()) {
@@ -364,7 +410,7 @@ class FocusBlockerService : Service() {
         }
 
         val badge = TextView(this).apply {
-            text = "Focus Shield Active"
+            text = tr("Focus Shield Active", "Escudo de enfoque activo")
             setTextColor(Color.parseColor("#8FD3FF"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
             setTypeface(typeface, Typeface.BOLD)
@@ -384,7 +430,7 @@ class FocusBlockerService : Service() {
         }
 
         val title = TextView(this).apply {
-            text = "Stay focused"
+            text = tr("Stay focused", "Mantente enfocado")
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
             setTypeface(typeface, Typeface.BOLD)
@@ -444,7 +490,7 @@ class FocusBlockerService : Service() {
             }
             minHeight = dp(54)
             setPadding(dp(18), dp(14), dp(18), dp(14))
-            isEnabled = !requestInFlight
+            isEnabled = !requestInFlight && !waitingAdResult
             text = primaryActionLabel(hasSponsor)
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -454,12 +500,28 @@ class FocusBlockerService : Service() {
             }
 
             setOnClickListener {
-                if (requestInFlight) return@setOnClickListener
+                if (requestInFlight || waitingAdResult) return@setOnClickListener
 
-                val latestHasSponsor = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                    .getBoolean("has_sponsor", false)
+                val prefsNow = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                ensureDailyPauseReset(prefsNow)
+                val latestHasSponsor = prefsNow.getBoolean("has_sponsor", false)
 
                 if (tryUseFreePause()) {
+                    return@setOnClickListener
+                }
+
+                if (canUseAdPause(prefsNow)) {
+                    waitingAdResult = true
+                    keepOverlayPinned = true
+                    isEnabled = false
+                    text = tr("Opening ad...", "Abriendo anuncio...")
+                    updateOverlayReason(
+                        tr(
+                            "Watch the full ad to unlock 15 minutes.",
+                            "Mira el anuncio completo para desbloquear 15 minutos."
+                        )
+                    )
+                    requestAd()
                     return@setOnClickListener
                 }
 
@@ -467,19 +529,29 @@ class FocusBlockerService : Service() {
                     requestInFlight = true
                     keepOverlayPinned = true
                     isEnabled = false
-                    text = "Waiting for response..."
-                    updateOverlayReason("Sending 15-minute pause request...")
+                    text = tr("Waiting for response...", "Esperando respuesta...")
+                    updateOverlayReason(
+                        tr(
+                            "Sending 15-minute pause request...",
+                            "Enviando solicitud de pausa de 15 minutos..."
+                        )
+                    )
                     requestShieldPauseFromSponsor()
                 } else {
                     keepOverlayPinned = true
-                    updateOverlayReason("You already used your free pause today.")
+                    updateOverlayReason(
+                        tr(
+                            "You already used all pauses for today.",
+                            "Ya usaste todas las pausas de hoy."
+                        )
+                    )
                     syncOverlayButtonState()
                 }
             }
         }
 
         val backButton = Button(this).apply {
-            text = "Back to focus"
+            text = tr("Back to focus", "Volver al enfoque")
             isAllCaps = false
             textSize = 15f
             setTextColor(Color.parseColor("#D7E3F0"))
@@ -498,23 +570,28 @@ class FocusBlockerService : Service() {
 
             setOnClickListener {
                 requestInFlight = false
+                waitingAdResult = false
                 keepOverlayPinned = false
                 currentRequestId = null
                 requestListener?.remove()
                 requestListener = null
-                lastShownPackage = null
-                hideOverlay(force = true)
+
+                suppressPackageName = lastShownPackage
+                suppressPackageUntil = System.currentTimeMillis() + 1500L
 
                 val homeIntent = Intent(Intent.ACTION_MAIN).apply {
                     addCategory(Intent.CATEGORY_HOME)
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 startActivity(homeIntent)
+
+                lastShownPackage = null
+                hideOverlay(force = true)
             }
         }
 
         val footer = TextView(this).apply {
-            text = "Protected by Detox"
+            text = tr("Protected by Detox", "Protegido por Detox")
             gravity = Gravity.CENTER
             setTextColor(Color.parseColor("#70839A"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
@@ -571,6 +648,7 @@ class FocusBlockerService : Service() {
             .apply()
 
         requestInFlight = false
+        waitingAdResult = false
         keepOverlayPinned = false
         hideOverlay(force = true)
     }
@@ -585,10 +663,77 @@ class FocusBlockerService : Service() {
             .putBoolean(KEY_PAUSE_FREE_USED, true)
             .apply()
 
-        updateOverlayReason("Using your free 15-minute pause for today.")
+        updateOverlayReason(
+            tr(
+                "Using your free 15-minute pause for today.",
+                "Usando tu pausa gratis de 15 minutos de hoy."
+            )
+        )
         syncOverlayButtonState()
         suspendLocallyForMinutes(15)
         return true
+    }
+
+    private fun canUseAdPause(prefs: android.content.SharedPreferences): Boolean {
+        ensureDailyPauseReset(prefs)
+        return !prefs.getBoolean(KEY_PAUSE_AD_USED, false)
+    }
+
+    private fun requestAd() {
+        try {
+            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                launchIntent.putExtra("open_rewarded_ad", true)
+                startActivity(launchIntent)
+            } else {
+                waitingAdResult = false
+                keepOverlayPinned = true
+                updateOverlayReason(
+                    tr(
+                        "Could not open the ad screen.",
+                        "No se pudo abrir la pantalla del anuncio."
+                    )
+                )
+                syncOverlayButtonState()
+            }
+        } catch (_: Exception) {
+            waitingAdResult = false
+            keepOverlayPinned = true
+            updateOverlayReason(
+                tr(
+                    "Could not open the ad screen.",
+                    "No se pudo abrir la pantalla del anuncio."
+                )
+            )
+            syncOverlayButtonState()
+        }
+    }
+
+    private fun handleAdResult(success: Boolean) {
+        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        waitingAdResult = false
+
+        if (success) {
+            prefs.edit().putBoolean(KEY_PAUSE_AD_USED, true).apply()
+            updateOverlayReason(
+                tr(
+                    "Ad completed. 15-minute pause granted.",
+                    "Anuncio completado. Pausa de 15 minutos activada."
+                )
+            )
+            syncOverlayButtonState()
+            suspendLocallyForMinutes(15)
+        } else {
+            keepOverlayPinned = true
+            updateOverlayReason(
+                tr(
+                    "The ad was not completed. No extra pause was granted.",
+                    "El anuncio no se completó. No se otorgó pausa extra."
+                )
+            )
+            syncOverlayButtonState()
+        }
     }
 
     private fun requestShieldPauseFromSponsor() {
@@ -596,7 +741,12 @@ class FocusBlockerService : Service() {
         if (user == null) {
             requestInFlight = false
             keepOverlayPinned = true
-            updateOverlayReason("Sign in again to request a pause.")
+            updateOverlayReason(
+                tr(
+                    "Sign in again to request a pause.",
+                    "Inicia sesión de nuevo para pedir una pausa."
+                )
+            )
             syncOverlayButtonState()
             return
         }
@@ -606,7 +756,12 @@ class FocusBlockerService : Service() {
 
         if (currentRequestId != null && requestListener != null) {
             keepOverlayPinned = true
-            updateOverlayReason("15-minute pause requested. Waiting for sponsor approval.")
+            updateOverlayReason(
+                tr(
+                    "15-minute pause requested. Waiting for sponsor approval.",
+                    "Pausa de 15 minutos solicitada. Esperando aprobación del sponsor."
+                )
+            )
             syncOverlayButtonState()
             return
         }
@@ -619,7 +774,12 @@ class FocusBlockerService : Service() {
                 if (sponsorUid.isNullOrBlank()) {
                     requestInFlight = false
                     keepOverlayPinned = true
-                    updateOverlayReason("No sponsor linked. Your free pause is already used for today.")
+                    updateOverlayReason(
+                        tr(
+                            "No sponsor linked. All pauses are already used for today.",
+                            "No hay sponsor vinculado. Todas las pausas de hoy ya fueron usadas."
+                        )
+                    )
                     syncOverlayButtonState()
                     return@addOnSuccessListener
                 }
@@ -637,7 +797,7 @@ class FocusBlockerService : Service() {
                 val requesterName = when {
                     !user.displayName.isNullOrBlank() -> user.displayName!!
                     !user.email.isNullOrBlank() -> user.email!!
-                    else -> "Detox user"
+                    else -> tr("Detox user", "Usuario de Detox")
                 }
 
                 requestRef.set(
@@ -664,19 +824,34 @@ class FocusBlockerService : Service() {
                     )
                 }.addOnSuccessListener {
                     keepOverlayPinned = true
-                    updateOverlayReason("15-minute pause requested. Waiting for sponsor approval.")
+                    updateOverlayReason(
+                        tr(
+                            "15-minute pause requested. Waiting for sponsor approval.",
+                            "Pausa de 15 minutos solicitada. Esperando aprobación del sponsor."
+                        )
+                    )
                     syncOverlayButtonState()
                 }.addOnFailureListener {
                     requestInFlight = false
                     keepOverlayPinned = true
-                    updateOverlayReason("Could not send pause request.")
+                    updateOverlayReason(
+                        tr(
+                            "Could not send pause request.",
+                            "No se pudo enviar la solicitud de pausa."
+                        )
+                    )
                     syncOverlayButtonState()
                 }
             }
             .addOnFailureListener {
                 requestInFlight = false
                 keepOverlayPinned = true
-                updateOverlayReason("Could not load sponsor information.")
+                updateOverlayReason(
+                    tr(
+                        "Could not load sponsor information.",
+                        "No se pudo cargar la información del sponsor."
+                    )
+                )
                 syncOverlayButtonState()
             }
     }
@@ -689,7 +864,12 @@ class FocusBlockerService : Service() {
                 "pending" -> {
                     requestInFlight = true
                     keepOverlayPinned = true
-                    updateOverlayReason("15-minute pause requested. Waiting for sponsor approval.")
+                    updateOverlayReason(
+                        tr(
+                            "15-minute pause requested. Waiting for sponsor approval.",
+                            "Pausa de 15 minutos solicitada. Esperando aprobación del sponsor."
+                        )
+                    )
                     syncOverlayButtonState()
                 }
 
@@ -714,7 +894,12 @@ class FocusBlockerService : Service() {
                     requestInFlight = false
                     keepOverlayPinned = true
                     currentRequestId = null
-                    updateOverlayReason("Pause request rejected by your sponsor.")
+                    updateOverlayReason(
+                        tr(
+                            "Pause request rejected by your sponsor.",
+                            "Tu sponsor rechazó la solicitud de pausa."
+                        )
+                    )
                     syncOverlayButtonState()
                 }
             }
@@ -725,10 +910,12 @@ class FocusBlockerService : Service() {
         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         ensureDailyPauseReset(prefs)
         return when {
-            requestInFlight -> "Waiting for response..."
-            canUseFreePause(prefs) -> "Use free 15-minute pause"
-            hasSponsor -> "Request sponsor approval"
-            else -> "Free pause used today"
+            requestInFlight -> tr("Waiting for response...", "Esperando respuesta...")
+            waitingAdResult -> tr("Opening ad...", "Abriendo anuncio...")
+            canUseFreePause(prefs) -> tr("Use free 15-minute pause", "Usar pausa gratis de 15 minutos")
+            canUseAdPause(prefs) -> tr("Watch ad for 15 minutes", "Ver anuncio para 15 minutos")
+            hasSponsor -> tr("Request sponsor approval", "Pedir aprobación al sponsor")
+            else -> tr("No pauses left today", "No quedan pausas hoy")
         }
     }
 
@@ -754,9 +941,10 @@ class FocusBlockerService : Service() {
         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         ensureDailyPauseReset(prefs)
         val hasSponsor = prefs.getBoolean("has_sponsor", false)
+        val canAct = canUseFreePause(prefs) || canUseAdPause(prefs) || hasSponsor
 
         val actionButton = overlayView?.findViewWithTag<Button>("actionButton") ?: return
-        actionButton.isEnabled = !requestInFlight && (canUseFreePause(prefs) || hasSponsor)
+        actionButton.isEnabled = !requestInFlight && !waitingAdResult && canAct
         actionButton.text = primaryActionLabel(hasSponsor)
     }
 
@@ -773,9 +961,9 @@ class FocusBlockerService : Service() {
     private fun buildBlockedAppTitle(): String {
         val label = getReadableAppLabel(lastShownPackage)
         return if (label != null) {
-            "$label is blocked right now"
+            tr("$label is blocked right now", "$label está bloqueada en este momento")
         } else {
-            "This app is blocked right now"
+            tr("This app is blocked right now", "Esta app está bloqueada en este momento")
         }
     }
 
@@ -784,19 +972,59 @@ class FocusBlockerService : Service() {
         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         ensureDailyPauseReset(prefs)
         val freePauseLeft = !prefs.getBoolean(KEY_PAUSE_FREE_USED, false)
+        val adPauseLeft = !prefs.getBoolean(KEY_PAUSE_AD_USED, false)
         val hasSponsor = prefs.getBoolean("has_sponsor", false)
+
         val suffix = when {
             requestInFlight -> ""
-            freePauseLeft -> " You still have 1 free 15-minute pause today."
-            hasSponsor -> " Your free pause is used. You can ask your sponsor for another 15 minutes."
-            else -> " Your free pause is already used for today."
+            waitingAdResult -> tr(
+                " Complete the ad to get 15 extra minutes.",
+                " Completa el anuncio para obtener 15 minutos extra."
+            )
+            freePauseLeft -> tr(
+                " You still have 1 free 15-minute pause today.",
+                " Aún tienes 1 pausa gratis de 15 minutos hoy."
+            )
+            adPauseLeft -> tr(
+                " Your free pause is used. You can still watch one ad for another 15 minutes.",
+                " Ya usaste tu pausa gratis. Aún puedes ver un anuncio para otros 15 minutos."
+            )
+            hasSponsor -> tr(
+                " Your free and ad pauses are used. You can ask your sponsor for another 15 minutes.",
+                " Ya usaste tu pausa gratis y la pausa con anuncio. Puedes pedirle a tu sponsor otros 15 minutos."
+            )
+            else -> tr(
+                " All pauses for today are already used.",
+                " Todas las pausas de hoy ya fueron usadas."
+            )
         }
 
         return when {
-            requestInFlight -> "15-minute pause requested for ${label ?: "this app"}. Waiting for sponsor approval."
-            label != null -> "$label is blocked during your focus session. $reason$suffix"
+            requestInFlight -> tr(
+                "15-minute pause requested for ${label ?: "this app"}. Waiting for sponsor approval.",
+                "Se solicitó una pausa de 15 minutos para ${label ?: "esta app"}. Esperando aprobación del sponsor."
+            )
+            label != null -> tr(
+                "$label is blocked during your focus session. $reason$suffix",
+                "$label está bloqueada durante tu sesión de enfoque. $reason$suffix"
+            )
             else -> "$reason$suffix"
         }
+    }
+
+    private fun tr(english: String, spanish: String): String {
+        val lang = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                resources.configuration.locales[0]?.language
+            } else {
+                @Suppress("DEPRECATION")
+                resources.configuration.locale?.language
+            }
+        } catch (_: Exception) {
+            Locale.getDefault().language
+        } ?: Locale.getDefault().language
+
+        return if (lang.startsWith("es", ignoreCase = true)) spanish else english
     }
 
     private fun getReadableAppLabel(packageNameValue: String?): String? {
@@ -811,7 +1039,7 @@ class FocusBlockerService : Service() {
     }
 
     private fun hideOverlay(force: Boolean) {
-        if (!force && (keepOverlayPinned || requestInFlight)) {
+        if (!force && (keepOverlayPinned || requestInFlight || waitingAdResult)) {
             return
         }
 
@@ -861,11 +1089,12 @@ class FocusBlockerService : Service() {
                 )
                 hasAudioFocus = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
             }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
 
-        // 🔥 MUTE FORZADO
         forceMuteAudio()
     }
+
     private fun forceMuteAudio() {
         try {
             if (!isMutedByService) {
@@ -879,8 +1108,10 @@ class FocusBlockerService : Service() {
 
                 isMutedByService = true
             }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
     }
+
     private fun abandonAudioFocus() {
         if (!hasAudioFocus && !isMutedByService) return
 
@@ -891,9 +1122,9 @@ class FocusBlockerService : Service() {
                 @Suppress("DEPRECATION")
                 audioManager.abandonAudioFocus(null)
             }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
 
-        // 🔥 RESTAURAR VOLUMEN
         try {
             if (isMutedByService && originalVolume >= 0) {
                 audioManager.setStreamVolume(
@@ -902,7 +1133,8 @@ class FocusBlockerService : Service() {
                     0
                 )
             }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
 
         audioFocusRequest = null
         hasAudioFocus = false
@@ -914,6 +1146,9 @@ class FocusBlockerService : Service() {
         pollRunning = false
         keepOverlayPinned = false
         requestInFlight = false
+        waitingAdResult = false
+        suppressPackageName = null
+        suppressPackageUntil = 0L
         currentRequestId = null
         requestListener?.remove()
         requestListener = null

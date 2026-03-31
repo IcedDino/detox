@@ -1,0 +1,8 @@
+<resources>
+    <string name="blocked_title">App bloqueada</string>
+    <string name="pause_15">Pausar 15 minutos</string>
+    <string name="free_pause_used">Ya usaste tu pausa diaria</string>
+    <string name="request_sponsor">Pedir aprobación al sponsor</string>
+    <string name="waiting_response">Esperando respuesta...</string>
+    <string name="continue_blocked">Continuar bloqueado</string>
+</resources>

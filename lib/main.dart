@@ -15,6 +15,7 @@ import 'screens/habits_screen.dart';
 import 'screens/permission_setup_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/stats_screen.dart';
+import 'services/ad_service.dart';
 import 'services/app_blocking_service.dart';
 import 'services/auth_service.dart';
 import 'services/focus_notification_service.dart';
@@ -31,14 +32,13 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  await AdService.instance.init();
   final prefs = await SharedPreferences.getInstance();
   final darkMode = prefs.getBool('dark_mode') ?? true;
   final localeCode = prefs.getString('locale_code');
   final currentUser = await AuthService.instance.getCurrentUser();
 
   if (currentUser != null) {
-    // Mark bootstrap as in-progress before any async work so the auth
-    // listener in _DetoxAppState does not run a second bootstrap concurrently.
     StorageService.bootstrapInProgress = true;
     await StorageService().bootstrapForSignedInUser();
     StorageService.bootstrapInProgress = false;
@@ -78,7 +78,7 @@ class DetoxApp extends StatefulWidget {
   State<DetoxApp> createState() => _DetoxAppState();
 }
 
-class _DetoxAppState extends State<DetoxApp> {
+class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   int _index = 0;
   late bool _darkMode;
   late bool _onboardingDone;
@@ -93,6 +93,8 @@ class _DetoxAppState extends State<DetoxApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
     _darkMode = widget.initialDarkMode;
     _onboardingDone = widget.onboardingDone;
     _currentUser = widget.initialUser;
@@ -101,6 +103,10 @@ class _DetoxAppState extends State<DetoxApp> {
         : Locale(widget.initialLocaleCode!);
 
     _initializePermissionGate();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _consumePendingRewardedAd();
+    });
 
     _authSubscription = AuthService.instance.authChanges().listen((user) async {
       if (!mounted) return;
@@ -118,6 +124,13 @@ class _DetoxAppState extends State<DetoxApp> {
 
       await _syncSignedInUser(user);
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_consumePendingRewardedAd());
+    }
   }
 
   Future<void> _initializePermissionGate() async {
@@ -147,6 +160,12 @@ class _DetoxAppState extends State<DetoxApp> {
     }
   }
 
+  Future<void> _consumePendingRewardedAd() async {
+    try {
+      await AdService.instance.consumePendingRewardedAd();
+    } catch (_) {}
+  }
+
   Future<bool> _hasRequiredPermissions() async {
     final usageStatus = await _usageService.getPermissionStatus();
     final overlayReady = await AppBlockingService.instance.hasOverlayPermission();
@@ -160,6 +179,7 @@ class _DetoxAppState extends State<DetoxApp> {
     await SponsorService.instance.ensureCurrentUserInitialized(user);
     SponsorAlertService.instance.start();
     await _consumePendingBlockAction();
+    await _consumePendingRewardedAd();
 
     final onboardingDone = await StorageService().loadOnboardingDone();
     final permissionsReady = await _hasRequiredPermissions();
@@ -184,6 +204,7 @@ class _DetoxAppState extends State<DetoxApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _authSubscription?.cancel();
     super.dispose();
   }
@@ -263,7 +284,8 @@ class _DetoxAppState extends State<DetoxApp> {
         onDarkModeChanged: _setDarkMode,
         currentUser: _currentUser,
         onSignOut: _signOut,
-        localeCode: (_locale ?? WidgetsBinding.instance.platformDispatcher.locale)
+        localeCode:
+        (_locale ?? WidgetsBinding.instance.platformDispatcher.locale)
             .languageCode,
         onLocaleChanged: _setLocale,
       ),
@@ -295,8 +317,7 @@ class _DetoxAppState extends State<DetoxApp> {
           child: NavigationBar(
             height: 74,
             selectedIndex: _index,
-            onDestinationSelected: (value) =>
-                setState(() => _index = value),
+            onDestinationSelected: (value) => setState(() => _index = value),
             destinations: [
               NavigationDestination(
                 icon: const Icon(Icons.home_outlined),
