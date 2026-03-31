@@ -43,6 +43,9 @@ class FocusBlockerService : Service() {
         private const val CHANNEL_ID = "detox_focus_shield"
         private const val NOTIFICATION_ID = 4812
         private const val PREFS = "detox_native"
+        private const val KEY_PAUSE_FREE_USED = "pause_free_used"
+        private const val KEY_PAUSE_AD_USED = "pause_ad_used"
+        private const val KEY_PAUSE_LAST_RESET = "pause_last_reset"
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -60,10 +63,6 @@ class FocusBlockerService : Service() {
     private var hasAudioFocus = false
     private var originalVolume: Int = -1
     private var isMutedByService = false
-    private var lastForegroundPackage: String? = null
-    private var lastForegroundResolveAt: Long = 0L
-    private var lastLongFallbackAt: Long = 0L
-    private var lastInspectionAt: Long = 0L
     @Volatile
     private var pollRunning = false
 
@@ -73,9 +72,7 @@ class FocusBlockerService : Service() {
             try {
                 inspectForegroundApp()
             } finally {
-                if (pollRunning) {
-                    handler.postDelayed(this, computeNextPollDelay())
-                }
+                if (pollRunning) handler.postDelayed(this, 350)
             }
         }
     }
@@ -212,7 +209,6 @@ class FocusBlockerService : Service() {
     }
 
     private fun inspectForegroundApp() {
-        lastInspectionAt = System.currentTimeMillis()
         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val blockedPackages = prefs.getStringSet("blocked_packages", emptySet()) ?: emptySet()
         currentReason = prefs.getString("block_reason", currentReason) ?: currentReason
@@ -278,13 +274,8 @@ class FocusBlockerService : Service() {
             val usageStatsManager =
                 getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             val endTime = System.currentTimeMillis()
-            val canReuseRecent =
-                lastForegroundPackage != null && (endTime - lastForegroundResolveAt) <= 1_500L
-            if (canReuseRecent) {
-                return lastForegroundPackage
-            }
 
-            val beginShort = endTime - 10_000L
+            val beginShort = endTime - 10_000
             val events = usageStatsManager.queryEvents(beginShort, endTime)
             val event = UsageEvents.Event()
             var currentPkg: String? = null
@@ -296,51 +287,26 @@ class FocusBlockerService : Service() {
             }
 
             if (currentPkg == null) {
-                val shouldRunLongFallback =
-                    lastForegroundPackage == null || (endTime - lastLongFallbackAt) >= 15_000L
-                if (shouldRunLongFallback) {
-                    val beginLong = endTime - 5 * 60_000L
-                    val longEvents = usageStatsManager.queryEvents(beginLong, endTime)
-                    val longEvent = UsageEvents.Event()
-                    while (longEvents.hasNextEvent()) {
-                        longEvents.getNextEvent(longEvent)
-                        if (longEvent.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
-                            currentPkg = longEvent.packageName
-                        }
+                val beginLong = endTime - 60 * 60_000L
+                val longEvents = usageStatsManager.queryEvents(beginLong, endTime)
+                val longEvent = UsageEvents.Event()
+                while (longEvents.hasNextEvent()) {
+                    longEvents.getNextEvent(longEvent)
+                    if (longEvent.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                        currentPkg = longEvent.packageName
                     }
-                    lastLongFallbackAt = endTime
                 }
             }
 
-            if (currentPkg != null) {
-                lastForegroundPackage = currentPkg
-                lastForegroundResolveAt = endTime
-                return currentPkg
-            }
-
-            if ((endTime - lastForegroundResolveAt) <= 5_000L) {
-                return lastForegroundPackage
-            }
-
-            null
+            currentPkg
         } catch (e: Exception) {
             null
         }
     }
 
-    private fun computeNextPollDelay(): Long {
-        val now = System.currentTimeMillis()
-        val sinceLastInspection = now - lastInspectionAt
-        return when {
-            overlayView != null -> 400L
-            requestInFlight || keepOverlayPinned -> 450L
-            lastShownPackage != null && sinceLastInspection < 5_000L -> 650L
-            else -> 1_000L
-        }
-    }
-
     private fun showOverlay(reason: String) {
         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        ensureDailyPauseReset(prefs)
         val hasSponsor = prefs.getBoolean("has_sponsor", false)
         requestAudioFocus()
 
@@ -479,11 +445,7 @@ class FocusBlockerService : Service() {
             minHeight = dp(54)
             setPadding(dp(18), dp(14), dp(18), dp(14))
             isEnabled = !requestInFlight
-            text = when {
-                requestInFlight -> "Waiting for response..."
-                hasSponsor -> "Request 15-minute pause"
-                else -> "Pause for 15 minutes"
-            }
+            text = primaryActionLabel(hasSponsor)
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -497,6 +459,10 @@ class FocusBlockerService : Service() {
                 val latestHasSponsor = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                     .getBoolean("has_sponsor", false)
 
+                if (tryUseFreePause()) {
+                    return@setOnClickListener
+                }
+
                 if (latestHasSponsor) {
                     requestInFlight = true
                     keepOverlayPinned = true
@@ -505,7 +471,9 @@ class FocusBlockerService : Service() {
                     updateOverlayReason("Sending 15-minute pause request...")
                     requestShieldPauseFromSponsor()
                 } else {
-                    suspendLocallyForMinutes(15)
+                    keepOverlayPinned = true
+                    updateOverlayReason("You already used your free pause today.")
+                    syncOverlayButtonState()
                 }
             }
         }
@@ -607,6 +575,22 @@ class FocusBlockerService : Service() {
         hideOverlay(force = true)
     }
 
+    private fun tryUseFreePause(): Boolean {
+        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        ensureDailyPauseReset(prefs)
+        val alreadyUsed = prefs.getBoolean(KEY_PAUSE_FREE_USED, false)
+        if (alreadyUsed) return false
+
+        prefs.edit()
+            .putBoolean(KEY_PAUSE_FREE_USED, true)
+            .apply()
+
+        updateOverlayReason("Using your free 15-minute pause for today.")
+        syncOverlayButtonState()
+        suspendLocallyForMinutes(15)
+        return true
+    }
+
     private fun requestShieldPauseFromSponsor() {
         val user = FirebaseAuth.getInstance().currentUser
         if (user == null) {
@@ -634,10 +618,9 @@ class FocusBlockerService : Service() {
                 val sponsorUid = userSnap.getString("sponsorUid")
                 if (sponsorUid.isNullOrBlank()) {
                     requestInFlight = false
-                    keepOverlayPinned = false
-                    updateOverlayReason("No sponsor linked. Pausing locally for 15 minutes.")
+                    keepOverlayPinned = true
+                    updateOverlayReason("No sponsor linked. Your free pause is already used for today.")
                     syncOverlayButtonState()
-                    suspendLocallyForMinutes(15)
                     return@addOnSuccessListener
                 }
 
@@ -738,17 +721,43 @@ class FocusBlockerService : Service() {
         }
     }
 
+    private fun primaryActionLabel(hasSponsor: Boolean): String {
+        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        ensureDailyPauseReset(prefs)
+        return when {
+            requestInFlight -> "Waiting for response..."
+            canUseFreePause(prefs) -> "Use free 15-minute pause"
+            hasSponsor -> "Request sponsor approval"
+            else -> "Free pause used today"
+        }
+    }
+
+    private fun canUseFreePause(prefs: android.content.SharedPreferences): Boolean {
+        ensureDailyPauseReset(prefs)
+        return !prefs.getBoolean(KEY_PAUSE_FREE_USED, false)
+    }
+
+    private fun ensureDailyPauseReset(prefs: android.content.SharedPreferences) {
+        val today = java.text.SimpleDateFormat("yyyy-M-d", java.util.Locale.US)
+            .format(java.util.Date())
+        val lastReset = prefs.getString(KEY_PAUSE_LAST_RESET, null)
+        if (lastReset == today) return
+
+        prefs.edit()
+            .putBoolean(KEY_PAUSE_FREE_USED, false)
+            .putBoolean(KEY_PAUSE_AD_USED, false)
+            .putString(KEY_PAUSE_LAST_RESET, today)
+            .apply()
+    }
+
     private fun syncOverlayButtonState() {
-        val hasSponsor = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getBoolean("has_sponsor", false)
+        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        ensureDailyPauseReset(prefs)
+        val hasSponsor = prefs.getBoolean("has_sponsor", false)
 
         val actionButton = overlayView?.findViewWithTag<Button>("actionButton") ?: return
-        actionButton.isEnabled = !requestInFlight
-        actionButton.text = when {
-            requestInFlight -> "Waiting for response..."
-            hasSponsor -> "Request 15-minute pause"
-            else -> "Pause for 15 minutes"
-        }
+        actionButton.isEnabled = !requestInFlight && (canUseFreePause(prefs) || hasSponsor)
+        actionButton.text = primaryActionLabel(hasSponsor)
     }
 
     private fun syncOverlayAppDetails() {
@@ -772,10 +781,21 @@ class FocusBlockerService : Service() {
 
     private fun buildBodyText(reason: String): String {
         val label = getReadableAppLabel(lastShownPackage)
+        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        ensureDailyPauseReset(prefs)
+        val freePauseLeft = !prefs.getBoolean(KEY_PAUSE_FREE_USED, false)
+        val hasSponsor = prefs.getBoolean("has_sponsor", false)
+        val suffix = when {
+            requestInFlight -> ""
+            freePauseLeft -> " You still have 1 free 15-minute pause today."
+            hasSponsor -> " Your free pause is used. You can ask your sponsor for another 15 minutes."
+            else -> " Your free pause is already used for today."
+        }
+
         return when {
             requestInFlight -> "15-minute pause requested for ${label ?: "this app"}. Waiting for sponsor approval."
-            label != null -> "$label is blocked during your focus session. $reason"
-            else -> reason
+            label != null -> "$label is blocked during your focus session. $reason$suffix"
+            else -> "$reason$suffix"
         }
     }
 
