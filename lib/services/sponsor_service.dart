@@ -55,12 +55,6 @@ class SponsorService {
     return _linkRequestsRef.doc(_linkRequestId(requesterUid, targetUid));
   }
 
-  DocumentReference<Map<String, dynamic>> _linkRequestRefEitherDirection(
-      String uidA,
-      String uidB,
-      ) {
-    return _linkRequestRefForPair(uidA, uidB);
-  }
   Future<void> ensureCurrentUserInitialized([AuthUser? user]) async {
     final doc = _userDoc;
     if (doc == null) return;

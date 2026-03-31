@@ -258,12 +258,33 @@ class _SettingsScreenState extends State<SettingsScreen>
       builder: (context) => _ZoneEditorSheet(appLimits: _appLimits),
     );
 
-    if (zone != null) {
-      final next = [..._zones, zone];
-      setState(() => _zones = next);
-      await _storageService.saveConcentrationZones(_zones);
-      await LocationZoneService.instance.refresh();
-    }
+    if (zone == null) return;
+
+    final next = [..._zones, zone];
+    setState(() => _zones = next);
+    await _storageService.saveConcentrationZones(next);
+    await LocationZoneService.instance.refresh();
+  }
+
+  Future<void> _editZone(ConcentrationZone zone) async {
+    final updatedZone = await showModalBottomSheet<ConcentrationZone>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _ZoneEditorSheet(
+        appLimits: _appLimits,
+        initialZone: zone,
+      ),
+    );
+
+    if (updatedZone == null) return;
+
+    final next = _zones
+        .map((e) => e.id == zone.id ? updatedZone : e)
+        .toList();
+    setState(() => _zones = next);
+    await _storageService.saveConcentrationZones(next);
+    await LocationZoneService.instance.refresh();
   }
 
   Future<void> _toggleZone(ConcentrationZone zone, bool value) async {
@@ -278,7 +299,7 @@ class _SettingsScreenState extends State<SettingsScreen>
         .toList();
 
     setState(() => _zones = next);
-    await _storageService.saveConcentrationZones(_zones);
+    await _storageService.saveConcentrationZones(next);
     await LocationZoneService.instance.refresh();
   }
 
@@ -286,7 +307,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     if (!await _ensureProtectedSettingsAccess()) return;
     final next = _zones.where((e) => e.id != zone.id).toList();
     setState(() => _zones = next);
-    await _storageService.saveConcentrationZones(_zones);
+    await _storageService.saveConcentrationZones(next);
     await LocationZoneService.instance.refresh();
   }
 
@@ -681,12 +702,24 @@ class _SettingsScreenState extends State<SettingsScreen>
                             color: DetoxColors.muted,
                           ),
                         ),
-                        trailing: IconButton(
-                          onPressed: () => _removeZone(zone),
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            color: DetoxColors.muted,
-                          ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              onPressed: () => _editZone(zone),
+                              icon: const Icon(
+                                Icons.edit_outlined,
+                                color: DetoxColors.muted,
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => _removeZone(zone),
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                color: DetoxColors.muted,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       if (zone.blockedAppNames.isNotEmpty)
@@ -898,9 +931,13 @@ class _AppPickerSheetState extends State<_AppPickerSheet> {
 }
 
 class _ZoneEditorSheet extends StatefulWidget {
-  const _ZoneEditorSheet({required this.appLimits});
+  const _ZoneEditorSheet({
+    required this.appLimits,
+    this.initialZone,
+  });
 
   final List<AppLimit> appLimits;
+  final ConcentrationZone? initialZone;
 
   @override
   State<_ZoneEditorSheet> createState() => _ZoneEditorSheetState();
@@ -910,8 +947,8 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
   late final TextEditingController _nameController;
   final MapController _mapController = MapController();
 
-  LatLng _center = const LatLng(21.8853, -102.2916);
-  double _radius = 180;
+  late LatLng _center;
+  late double _radius;
   bool _loading = true;
   final Set<String> _selectedPackages = <String>{};
   final Set<String> _selectedNames = <String>{};
@@ -919,7 +956,15 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: 'Universidad');
+    final initialZone = widget.initialZone;
+    _nameController = TextEditingController(text: initialZone?.name ?? '');
+    _center = initialZone != null
+        ? LatLng(initialZone.latitude, initialZone.longitude)
+        : const LatLng(21.8853, -102.2916);
+    _radius = initialZone?.radiusMeters ?? 180;
+    _selectedPackages.addAll(initialZone?.blockedPackages ?? const <String>[]);
+    _selectedNames.addAll(initialZone?.blockedAppNames ?? const <String>[]);
+    _syncSelectedNamesWithApps();
     _loadCurrentPosition();
   }
 
@@ -933,9 +978,13 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
         return;
       }
 
-      final position = await Geolocator.getCurrentPosition();
-      _center = LatLng(position.latitude, position.longitude);
-      _mapController.move(_center, 15);
+      if (widget.initialZone == null) {
+        final position = await Geolocator.getCurrentPosition();
+        _center = LatLng(position.latitude, position.longitude);
+        _mapController.move(_center, 15);
+      } else {
+        _mapController.move(_center, 15);
+      }
     } catch (_) {
       // Keep default center.
     }
@@ -948,6 +997,25 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
   void dispose() {
     _nameController.dispose();
     super.dispose();
+  }
+
+  void _syncSelectedNamesWithApps() {
+    final packageToName = <String, String>{
+      for (final app in widget.appLimits)
+        if (app.packageName != null && app.packageName!.isNotEmpty)
+          app.packageName!: app.appName,
+    };
+
+    final syncedNames = _selectedPackages
+        .map((pkg) => packageToName[pkg])
+        .whereType<String>()
+        .toSet();
+
+    if (syncedNames.isNotEmpty) {
+      _selectedNames
+        ..clear()
+        ..addAll(syncedNames);
+    }
   }
 
   void _toggleZoneApp(AppLimit app, bool selected) {
@@ -987,7 +1055,9 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                t.newConcentrationZone,
+                widget.initialZone == null
+                    ? t.newConcentrationZone
+                    : (t.isEs ? 'Editar zona de concentración' : 'Edit concentration zone'),
                 style: Theme.of(context)
                     .textTheme
                     .titleLarge
@@ -1026,7 +1096,7 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
                               setState(
                                     () => _center = position.center,
                               );
-                                                        },
+                            },
                             onTap: (_, point) {
                               _mapController.move(point, 15);
                               setState(() => _center = point);
@@ -1149,20 +1219,22 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
                       ? t.studyZoneDefaultName
                       : _nameController.text.trim();
 
+                  final initialZone = widget.initialZone;
+                  final sortedPackages = _selectedPackages.toList()..sort();
+                  final sortedNames = _selectedNames.toList()..sort();
+
                   Navigator.pop(
                     context,
                     ConcentrationZone(
-                      id: DateTime.now()
-                          .microsecondsSinceEpoch
-                          .toString(),
+                      id: initialZone?.id ??
+                          DateTime.now().microsecondsSinceEpoch.toString(),
                       name: name,
                       latitude: _center.latitude,
                       longitude: _center.longitude,
                       radiusMeters: _radius,
-                      blockedPackages:
-                      _selectedPackages.toList()..sort(),
-                      blockedAppNames: _selectedNames.toList()
-                        ..sort(),
+                      enabled: initialZone?.enabled ?? true,
+                      blockedPackages: sortedPackages,
+                      blockedAppNames: sortedNames,
                     ),
                   );
                 },

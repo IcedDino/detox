@@ -32,7 +32,7 @@ Future<void> main() async {
 
   final prefs = await SharedPreferences.getInstance();
   final darkMode = prefs.getBool('dark_mode') ?? true;
-  final localeCode = prefs.getString('locale_code') ?? 'en';
+  final localeCode = prefs.getString('locale_code');
   final currentUser = await AuthService.instance.getCurrentUser();
 
   if (currentUser != null) {
@@ -49,7 +49,6 @@ Future<void> main() async {
   final onboardingDone = await StorageService().loadOnboardingDone();
 
   await FocusNotificationService.instance.initialize();
-
   runApp(
     DetoxApp(
       initialDarkMode: darkMode,
@@ -72,7 +71,7 @@ class DetoxApp extends StatefulWidget {
   final bool initialDarkMode;
   final bool onboardingDone;
   final AuthUser? initialUser;
-  final String initialLocaleCode;
+  final String? initialLocaleCode;
 
   @override
   State<DetoxApp> createState() => _DetoxAppState();
@@ -84,7 +83,7 @@ class _DetoxAppState extends State<DetoxApp> {
   late bool _onboardingDone;
   AuthUser? _currentUser;
   StreamSubscription<AuthUser?>? _authSubscription;
-  late Locale _locale;
+  Locale? _locale;
 
   @override
   void initState() {
@@ -92,7 +91,9 @@ class _DetoxAppState extends State<DetoxApp> {
     _darkMode = widget.initialDarkMode;
     _onboardingDone = widget.onboardingDone;
     _currentUser = widget.initialUser;
-    _locale = Locale(widget.initialLocaleCode);
+    _locale = widget.initialLocaleCode == null
+        ? null
+        : Locale(widget.initialLocaleCode!);
 
     _authSubscription =
         AuthService.instance.authChanges().listen((user) async {
@@ -226,7 +227,9 @@ class _DetoxAppState extends State<DetoxApp> {
 
   @override
   Widget build(BuildContext context) {
-    final t = AppStrings(_locale);
+    final resolvedLocale =
+        _locale ?? WidgetsBinding.instance.platformDispatcher.locale;
+    final t = AppStrings(resolvedLocale);
 
     final screens = [
       const DashboardScreen(),
@@ -238,7 +241,8 @@ class _DetoxAppState extends State<DetoxApp> {
         onDarkModeChanged: _setDarkMode,
         currentUser: _currentUser,
         onSignOut: _signOut,
-        localeCode: _locale.languageCode,
+        localeCode: (_locale ?? WidgetsBinding.instance.platformDispatcher.locale)
+            .languageCode,
         onLocaleChanged: _setLocale,
       ),
     ];
@@ -250,8 +254,9 @@ class _DetoxAppState extends State<DetoxApp> {
       theme: DetoxTheme.light,
       darkTheme: DetoxTheme.dark,
       locale: _locale,
-      supportedLocales: const [Locale('en'), Locale('es')],
+      supportedLocales: const [Locale('es'), Locale('en')],
       localizationsDelegates: const [
+
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
