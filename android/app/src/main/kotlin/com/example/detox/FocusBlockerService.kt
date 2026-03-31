@@ -13,6 +13,7 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Build
@@ -57,7 +58,8 @@ class FocusBlockerService : Service() {
     private var currentReason: String = "Focus session active"
     private var audioFocusRequest: AudioFocusRequest? = null
     private var hasAudioFocus = false
-
+    private var originalVolume: Int = -1
+    private var isMutedByService = false
     @Volatile
     private var pollRunning = false
 
@@ -771,11 +773,19 @@ class FocusBlockerService : Service() {
 
     private fun requestAudioFocus() {
         if (hasAudioFocus) return
+
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
-                    .setAcceptsDelayedFocusGain(true)
-                    .setWillPauseWhenDucked(false)
+                val request = AudioFocusRequest.Builder(
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
+                )
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build()
+                    )
+                    .setWillPauseWhenDucked(true)
                     .setOnAudioFocusChangeListener { }
                     .build()
 
@@ -789,16 +799,33 @@ class FocusBlockerService : Service() {
                 val result = audioManager.requestAudioFocus(
                     null,
                     AudioManager.STREAM_MUSIC,
-                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
                 )
                 hasAudioFocus = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
             }
-        } catch (_: Exception) {
-        }
-    }
+        } catch (_: Exception) {}
 
+        // 🔥 MUTE FORZADO
+        forceMuteAudio()
+    }
+    private fun forceMuteAudio() {
+        try {
+            if (!isMutedByService) {
+                originalVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+
+                audioManager.setStreamVolume(
+                    AudioManager.STREAM_MUSIC,
+                    0,
+                    0
+                )
+
+                isMutedByService = true
+            }
+        } catch (_: Exception) {}
+    }
     private fun abandonAudioFocus() {
-        if (!hasAudioFocus) return
+        if (!hasAudioFocus && !isMutedByService) return
+
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
@@ -806,11 +833,23 @@ class FocusBlockerService : Service() {
                 @Suppress("DEPRECATION")
                 audioManager.abandonAudioFocus(null)
             }
-        } catch (_: Exception) {
-        } finally {
-            audioFocusRequest = null
-            hasAudioFocus = false
-        }
+        } catch (_: Exception) {}
+
+        // 🔥 RESTAURAR VOLUMEN
+        try {
+            if (isMutedByService && originalVolume >= 0) {
+                audioManager.setStreamVolume(
+                    AudioManager.STREAM_MUSIC,
+                    originalVolume,
+                    0
+                )
+            }
+        } catch (_: Exception) {}
+
+        audioFocusRequest = null
+        hasAudioFocus = false
+        isMutedByService = false
+        originalVolume = -1
     }
 
     private fun stopSelfSafely() {
