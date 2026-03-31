@@ -251,13 +251,6 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
                 label: Text(t.allowLocationForZones),
               ),
               const SizedBox(height: 10),
-              TextButton(
-                onPressed: () async {
-                  await _storageService.saveOnboardingDone(true);
-                  if (mounted) widget.onFinished();
-                },
-                child: Text(t.skipForNow),
-              ),
             ],
           ),
         ),

@@ -15,6 +15,10 @@ class StorageService {
   static const _onboardingDoneKey = 'onboarding_done_v1';
   static const _zonesKey = 'concentration_zones_v1';
 
+  static final StorageService instance = StorageService._internal();
+  factory StorageService() => instance;
+  StorageService._internal();
+
   List<Habit> _defaultHabits() => [
     Habit(
       id: '1',
@@ -41,11 +45,26 @@ class StorageService {
 
   Future<void> bootstrapForSignedInUser() async {
     if (!CloudSyncService.instance.isSignedIn) return;
-    final prefs = await SharedPreferences.getInstance();
-    final hasRemote = await CloudSyncService.instance.hasRemoteData();
 
-    if (hasRemote) {
-      final remoteHabits = await CloudSyncService.instance.loadHabits();
+    final prefs = await SharedPreferences.getInstance();
+
+    // Fresh install protection:
+    // if remote data exists, ALWAYS hydrate local from cloud first.
+    // Never overwrite cloud with empty/default local values right after reinstall.
+    final remoteHabits = await CloudSyncService.instance.loadHabits();
+    final remoteDaily = await CloudSyncService.instance.loadDailyLimitMinutes();
+    final remoteLimits = await CloudSyncService.instance.loadAppLimits();
+    final remoteZones = await CloudSyncService.instance.loadConcentrationZones();
+    final remoteOnboarding = await CloudSyncService.instance.loadOnboardingDone();
+
+    final hasAnyRemoteData =
+        remoteHabits != null ||
+            remoteDaily != null ||
+            remoteLimits != null ||
+            remoteZones != null ||
+            remoteOnboarding != null;
+
+    if (hasAnyRemoteData) {
       if (remoteHabits != null) {
         await prefs.setStringList(
           _habitsKey,
@@ -53,12 +72,10 @@ class StorageService {
         );
       }
 
-      final remoteDaily = await CloudSyncService.instance.loadDailyLimitMinutes();
       if (remoteDaily != null) {
         await prefs.setInt(_dailyLimitKey, remoteDaily);
       }
 
-      final remoteLimits = await CloudSyncService.instance.loadAppLimits();
       if (remoteLimits != null) {
         await prefs.setStringList(
           _limitsKey,
@@ -66,7 +83,6 @@ class StorageService {
         );
       }
 
-      final remoteZones = await CloudSyncService.instance.loadConcentrationZones();
       if (remoteZones != null) {
         await prefs.setStringList(
           _zonesKey,
@@ -74,6 +90,30 @@ class StorageService {
         );
       }
 
+      if (remoteOnboarding != null) {
+        await prefs.setBool(_onboardingDoneKey, remoteOnboarding);
+      }
+
+      return;
+    }
+
+    // Only seed cloud from local when local really has user-created data.
+    final localHabitsRaw = prefs.getStringList(_habitsKey);
+    final localLimitsRaw = prefs.getStringList(_limitsKey);
+    final localZonesRaw = prefs.getStringList(_zonesKey);
+    final hasLocalDaily = prefs.containsKey(_dailyLimitKey);
+    final hasLocalOnboarding = prefs.containsKey(_onboardingDoneKey);
+
+    final hasMeaningfulLocalData =
+        (localHabitsRaw != null && localHabitsRaw.isNotEmpty) ||
+            (localLimitsRaw != null && localLimitsRaw.isNotEmpty) ||
+            (localZonesRaw != null && localZonesRaw.isNotEmpty) ||
+            hasLocalDaily ||
+            hasLocalOnboarding;
+
+    if (!hasMeaningfulLocalData) {
+      // Fresh install + empty local + no readable remote.
+      // Do nothing to avoid wiping cloud with defaults/empty arrays.
       return;
     }
 
@@ -86,19 +126,56 @@ class StorageService {
     await CloudSyncService.instance.saveDailyLimitMinutes(localDaily);
     await CloudSyncService.instance.saveAppLimits(localLimits);
     await CloudSyncService.instance.saveConcentrationZones(localZones);
+
+    if (hasLocalOnboarding) {
+      await CloudSyncService.instance.saveOnboardingDone(
+        prefs.getBool(_onboardingDoneKey) ?? false,
+      );
+    }
+  }
+
+  Future<void> refreshFromCloud() async {
+    if (!CloudSyncService.instance.isSignedIn) return;
+
+    final prefs = await SharedPreferences.getInstance();
+
+    final remoteHabits = await CloudSyncService.instance.loadHabits();
+    if (remoteHabits != null) {
+      await prefs.setStringList(
+        _habitsKey,
+        remoteHabits.map((e) => e.toJson()).toList(),
+      );
+    }
+
+    final remoteDaily = await CloudSyncService.instance.loadDailyLimitMinutes();
+    if (remoteDaily != null) {
+      await prefs.setInt(_dailyLimitKey, remoteDaily);
+    }
+
+    final remoteLimits = await CloudSyncService.instance.loadAppLimits();
+    if (remoteLimits != null) {
+      await prefs.setStringList(
+        _limitsKey,
+        remoteLimits.map((e) => e.toJson()).toList(),
+      );
+    }
+
+    final remoteZones = await CloudSyncService.instance.loadConcentrationZones();
+    if (remoteZones != null) {
+      await prefs.setStringList(
+        _zonesKey,
+        remoteZones.map((e) => e.toJson()).toList(),
+      );
+    }
+
+    final remoteOnboarding = await CloudSyncService.instance.loadOnboardingDone();
+    if (remoteOnboarding != null) {
+      await prefs.setBool(_onboardingDoneKey, remoteOnboarding);
+    }
   }
 
   Future<List<Habit>> loadHabits() async {
     final prefs = await SharedPreferences.getInstance();
-    if (CloudSyncService.instance.isSignedIn) {
-      try {
-        final remote = await CloudSyncService.instance.loadHabits();
-        if (remote != null) {
-          await prefs.setStringList(_habitsKey, remote.map((e) => e.toJson()).toList());
-          return remote.isEmpty ? _defaultHabits() : remote;
-        }
-      } catch (_) {}
-    }
     final raw = prefs.getStringList(_habitsKey);
     if (raw == null || raw.isEmpty) return _defaultHabits();
     return raw.map(Habit.fromJson).toList();
@@ -114,15 +191,6 @@ class StorageService {
 
   Future<int> loadDailyLimitMinutes() async {
     final prefs = await SharedPreferences.getInstance();
-    if (CloudSyncService.instance.isSignedIn) {
-      try {
-        final remote = await CloudSyncService.instance.loadDailyLimitMinutes();
-        if (remote != null) {
-          await prefs.setInt(_dailyLimitKey, remote);
-          return remote;
-        }
-      } catch (_) {}
-    }
     return prefs.getInt(_dailyLimitKey) ?? 180;
   }
 
@@ -136,15 +204,6 @@ class StorageService {
 
   Future<List<AppLimit>> loadAppLimits() async {
     final prefs = await SharedPreferences.getInstance();
-    if (CloudSyncService.instance.isSignedIn) {
-      try {
-        final remote = await CloudSyncService.instance.loadAppLimits();
-        if (remote != null) {
-          await prefs.setStringList(_limitsKey, remote.map((e) => e.toJson()).toList());
-          return remote.isEmpty ? _defaultAppLimits() : remote;
-        }
-      } catch (_) {}
-    }
     final raw = prefs.getStringList(_limitsKey);
     if (raw == null || raw.isEmpty) return _defaultAppLimits();
     return raw.map(AppLimit.fromJson).toList();
@@ -160,15 +219,6 @@ class StorageService {
 
   Future<List<ConcentrationZone>> loadConcentrationZones() async {
     final prefs = await SharedPreferences.getInstance();
-    if (CloudSyncService.instance.isSignedIn) {
-      try {
-        final remote = await CloudSyncService.instance.loadConcentrationZones();
-        if (remote != null) {
-          await prefs.setStringList(_zonesKey, remote.map((e) => e.toJson()).toList());
-          return remote;
-        }
-      } catch (_) {}
-    }
     final raw = prefs.getStringList(_zonesKey);
     if (raw == null || raw.isEmpty) return const [];
 
@@ -203,4 +253,8 @@ class StorageService {
   Future<void> saveOnboardingDone(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_onboardingDoneKey, value);
-  }}
+    try {
+      await CloudSyncService.instance.saveOnboardingDone(value);
+    } catch (_) {}
+  }
+}

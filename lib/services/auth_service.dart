@@ -176,6 +176,14 @@ class AuthService {
   }
 
   Future<void> signOut() async {
+    try {
+      await CloudSyncService.instance.flushPendingWrites();
+    } catch (_) {
+      // Best effort: local data is already saved, so do not block sign out.
+    } finally {
+      CloudSyncService.instance.cancelPendingWrites();
+    }
+
     await Future.wait([
       _auth.signOut(),
       // ignore: body_might_complete_normally_catch_error
@@ -193,8 +201,8 @@ class AuthService {
       displayName: user.displayName?.trim().isNotEmpty == true
           ? user.displayName!.trim()
           : (user.phoneNumber?.trim().isNotEmpty == true
-              ? 'Detox user'
-              : (user.email?.split('@').first ?? 'Detox user')),
+          ? 'Detox user'
+          : (user.email?.split('@').first ?? 'Detox user')),
       provider: provider,
       phoneNumber: user.phoneNumber,
     );

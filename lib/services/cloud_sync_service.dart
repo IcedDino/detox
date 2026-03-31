@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -12,6 +15,14 @@ class CloudSyncService {
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  static const Duration _writeDebounce = Duration(seconds: 2);
+
+  Timer? _flushTimer;
+  String? _queuedUid;
+  final Map<String, dynamic> _pendingPatch = <String, dynamic>{};
+  final Map<String, String> _lastQueuedFieldHashes = <String, String>{};
+  Future<void> _flushChain = Future<void>.value();
 
   String? get _uid => _auth.currentUser?.uid;
   bool get isSignedIn => _uid != null;
@@ -50,12 +61,7 @@ class CloudSyncService {
   }
 
   Future<void> saveHabits(List<Habit> habits) async {
-    final doc = _userDoc;
-    if (doc == null) return;
-    await doc.set({
-      'habits': habits.map((e) => e.toMap()).toList(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    _queueFieldWrite('habits', habits.map((e) => e.toMap()).toList());
   }
 
   Future<List<Habit>?> loadHabits() async {
@@ -69,12 +75,7 @@ class CloudSyncService {
   }
 
   Future<void> saveAppLimits(List<AppLimit> limits) async {
-    final doc = _userDoc;
-    if (doc == null) return;
-    await doc.set({
-      'appLimits': limits.map((e) => e.toMap()).toList(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    _queueFieldWrite('appLimits', limits.map((e) => e.toMap()).toList());
   }
 
   Future<List<AppLimit>?> loadAppLimits() async {
@@ -88,12 +89,10 @@ class CloudSyncService {
   }
 
   Future<void> saveConcentrationZones(List<ConcentrationZone> zones) async {
-    final doc = _userDoc;
-    if (doc == null) return;
-    await doc.set({
-      'concentrationZones': zones.map((e) => e.toMap()).toList(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    _queueFieldWrite(
+      'concentrationZones',
+      zones.map((e) => e.toMap()).toList(),
+    );
   }
 
   Future<List<ConcentrationZone>?> loadConcentrationZones() async {
@@ -107,12 +106,7 @@ class CloudSyncService {
   }
 
   Future<void> saveDailyLimitMinutes(int minutes) async {
-    final doc = _userDoc;
-    if (doc == null) return;
-    await doc.set({
-      'dailyLimitMinutes': minutes,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    _queueFieldWrite('dailyLimitMinutes', minutes);
   }
 
   Future<int?> loadDailyLimitMinutes() async {
@@ -124,17 +118,107 @@ class CloudSyncService {
   }
 
   Future<void> saveOnboardingDone(bool done) async {
-    final doc = _userDoc;
-    if (doc == null) return;
-    await doc.set({
-      'onboardingDone': done,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    _queueFieldWrite('onboardingDone', done);
   }
 
   Future<bool?> loadOnboardingDone() async {
     final data = await loadSnapshot();
     final value = data?['onboardingDone'];
     return value is bool ? value : null;
+  }
+
+  Future<void> flushPendingWrites() async {
+    _flushTimer?.cancel();
+    _flushTimer = null;
+    await _enqueueFlush();
+  }
+
+  void cancelPendingWrites() {
+    _flushTimer?.cancel();
+    _flushTimer = null;
+    _pendingPatch.clear();
+    _lastQueuedFieldHashes.clear();
+    _queuedUid = null;
+  }
+
+  void _queueFieldWrite(String field, dynamic value) {
+    final uid = _uid;
+    if (uid == null) return;
+
+    if (_queuedUid != null && _queuedUid != uid) {
+      cancelPendingWrites();
+    }
+    _queuedUid = uid;
+
+    final hash = _stableHash(value);
+    final pendingHash = _lastQueuedFieldHashes[field];
+    if (pendingHash == hash) {
+      return;
+    }
+
+    _pendingPatch[field] = value;
+    _lastQueuedFieldHashes[field] = hash;
+
+    _flushTimer?.cancel();
+    _flushTimer = Timer(_writeDebounce, () {
+      unawaited(_enqueueFlush());
+    });
+  }
+
+  Future<void> _enqueueFlush() {
+    _flushChain = _flushChain.then((_) => _flushNow());
+    return _flushChain;
+  }
+
+  Future<void> _flushNow() async {
+    if (_pendingPatch.isEmpty) return;
+
+    final currentUid = _uid;
+    final queuedUid = _queuedUid;
+    if (currentUid == null || queuedUid == null || currentUid != queuedUid) {
+      cancelPendingWrites();
+      return;
+    }
+
+    final doc = _userDoc;
+    if (doc == null) return;
+
+    final patch = Map<String, dynamic>.from(_pendingPatch);
+    _pendingPatch.clear();
+
+    try {
+      await doc.set({
+        ...patch,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      for (final entry in patch.entries) {
+        _lastQueuedFieldHashes[entry.key] = _stableHash(entry.value);
+      }
+    } catch (_) {
+      _pendingPatch.addAll(patch);
+      _flushTimer?.cancel();
+      _flushTimer = Timer(_writeDebounce, () {
+        unawaited(_enqueueFlush());
+      });
+      rethrow;
+    }
+  }
+
+  String _stableHash(dynamic value) {
+    return jsonEncode(_canonicalize(value));
+  }
+
+  dynamic _canonicalize(dynamic value) {
+    if (value is Map) {
+      final keys = value.keys.map((e) => e.toString()).toList()..sort();
+      return {
+        for (final key in keys) key: _canonicalize(value[key]),
+      };
+    }
+    if (value is Iterable) {
+      return value.map(_canonicalize).toList();
+    }
+    return value;
   }
 }

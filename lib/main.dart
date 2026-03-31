@@ -19,9 +19,10 @@ import 'services/app_blocking_service.dart';
 import 'services/auth_service.dart';
 import 'services/focus_notification_service.dart';
 import 'services/location_zone_service.dart';
-import 'services/storage_service.dart';
 import 'services/sponsor_alert_service.dart';
 import 'services/sponsor_service.dart';
+import 'services/storage_service.dart';
+import 'services/usage_service.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
@@ -85,6 +86,10 @@ class _DetoxAppState extends State<DetoxApp> {
   StreamSubscription<AuthUser?>? _authSubscription;
   Locale? _locale;
 
+  final UsageService _usageService = UsageService();
+  bool _permissionsChecked = false;
+  bool _permissionsReady = false;
+
   @override
   void initState() {
     super.initState();
@@ -95,46 +100,80 @@ class _DetoxAppState extends State<DetoxApp> {
         ? null
         : Locale(widget.initialLocaleCode!);
 
-    _authSubscription =
-        AuthService.instance.authChanges().listen((user) async {
-          if (!mounted) return;
+    _initializePermissionGate();
 
-          if (user == null) {
-            SponsorAlertService.instance.stop();
-            setState(() {
-              _currentUser = null;
-              _index = 0;
-            });
-            return;
-          }
+    _authSubscription = AuthService.instance.authChanges().listen((user) async {
+      if (!mounted) return;
 
-          // Guard against concurrent bootstrap from main() startup
-          if (!StorageService.bootstrapInProgress) {
-            await StorageService().bootstrapForSignedInUser();
-          }
-          await SponsorService.instance.ensureCurrentUserInitialized(user);
-          SponsorAlertService.instance.start();
-          await _consumePendingBlockAction();
-
-          final onboardingDone = await StorageService().loadOnboardingDone();
-
-          if (!mounted) return;
-
-          setState(() {
-            _currentUser = user;
-            _onboardingDone = onboardingDone;
-          });
-
-          if (_onboardingDone) {
-            WidgetsBinding.instance.addPostFrameCallback((_) async {
-              try {
-                await LocationZoneService.instance.refresh();
-              } catch (_) {}
-            });
-          }
+      if (user == null) {
+        SponsorAlertService.instance.stop();
+        setState(() {
+          _currentUser = null;
+          _index = 0;
+          _permissionsChecked = false;
+          _permissionsReady = false;
         });
+        return;
+      }
 
-    if (_currentUser != null && _onboardingDone) {
+      await _syncSignedInUser(user);
+    });
+  }
+
+  Future<void> _initializePermissionGate() async {
+    if (_currentUser == null) {
+      if (!mounted) return;
+      setState(() {
+        _permissionsChecked = false;
+        _permissionsReady = false;
+      });
+      return;
+    }
+
+    final permissionsReady = await _hasRequiredPermissions();
+    if (!mounted) return;
+
+    setState(() {
+      _permissionsChecked = true;
+      _permissionsReady = permissionsReady;
+    });
+
+    if (permissionsReady) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {
+          await LocationZoneService.instance.refresh();
+        } catch (_) {}
+      });
+    }
+  }
+
+  Future<bool> _hasRequiredPermissions() async {
+    final usageStatus = await _usageService.getPermissionStatus();
+    final overlayReady = await AppBlockingService.instance.hasOverlayPermission();
+    return usageStatus.usageReady && overlayReady;
+  }
+
+  Future<void> _syncSignedInUser(AuthUser user) async {
+    if (!StorageService.bootstrapInProgress) {
+      await StorageService().bootstrapForSignedInUser();
+    }
+    await SponsorService.instance.ensureCurrentUserInitialized(user);
+    SponsorAlertService.instance.start();
+    await _consumePendingBlockAction();
+
+    final onboardingDone = await StorageService().loadOnboardingDone();
+    final permissionsReady = await _hasRequiredPermissions();
+
+    if (!mounted) return;
+
+    setState(() {
+      _currentUser = user;
+      _onboardingDone = onboardingDone;
+      _permissionsChecked = true;
+      _permissionsReady = permissionsReady;
+    });
+
+    if (_permissionsReady) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         try {
           await LocationZoneService.instance.refresh();
@@ -148,7 +187,6 @@ class _DetoxAppState extends State<DetoxApp> {
     _authSubscription?.cancel();
     super.dispose();
   }
-
 
   Future<void> _consumePendingBlockAction() async {
     final action = await AppBlockingService.instance.consumePendingNativeAction();
@@ -181,8 +219,12 @@ class _DetoxAppState extends State<DetoxApp> {
     setState(() => _locale = Locale(code));
   }
 
-  void _finishOnboarding() {
-    setState(() => _onboardingDone = true);
+  Future<void> _finishOnboarding() async {
+    setState(() {
+      _onboardingDone = true;
+      _permissionsChecked = true;
+      _permissionsReady = true;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
         await LocationZoneService.instance.refresh();
@@ -191,29 +233,7 @@ class _DetoxAppState extends State<DetoxApp> {
   }
 
   Future<void> _handleAuthenticated(AuthUser user) async {
-    if (!StorageService.bootstrapInProgress) {
-      await StorageService().bootstrapForSignedInUser();
-    }
-    await SponsorService.instance.ensureCurrentUserInitialized(user);
-    SponsorAlertService.instance.start();
-    await _consumePendingBlockAction();
-
-    final onboardingDone = await StorageService().loadOnboardingDone();
-
-    if (!mounted) return;
-
-    setState(() {
-      _currentUser = user;
-      _onboardingDone = onboardingDone;
-    });
-
-    if (_onboardingDone) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        try {
-          await LocationZoneService.instance.refresh();
-        } catch (_) {}
-      });
-    }
+    await _syncSignedInUser(user);
   }
 
   Future<void> _signOut() async {
@@ -222,6 +242,8 @@ class _DetoxAppState extends State<DetoxApp> {
     setState(() {
       _currentUser = null;
       _index = 0;
+      _permissionsChecked = false;
+      _permissionsReady = false;
     });
   }
 
@@ -247,25 +269,17 @@ class _DetoxAppState extends State<DetoxApp> {
       ),
     ];
 
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Detox',
-      themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
-      theme: DetoxTheme.light,
-      darkTheme: DetoxTheme.dark,
-      locale: _locale,
-      supportedLocales: const [Locale('es'), Locale('en')],
-      localizationsDelegates: const [
-
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      home: _currentUser == null
-          ? AuthScreen(onAuthenticated: _handleAuthenticated)
-          : !_onboardingDone
-          ? PermissionSetupScreen(onFinished: _finishOnboarding)
-          : Scaffold(
+    Widget home;
+    if (_currentUser == null) {
+      home = AuthScreen(onAuthenticated: _handleAuthenticated);
+    } else if (!_permissionsChecked) {
+      home = const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    } else if (!_permissionsReady) {
+      home = PermissionSetupScreen(onFinished: _finishOnboarding);
+    } else {
+      home = Scaffold(
         body: DetoxBackground(
           child: SafeArea(
             child: IndexedStack(
@@ -312,7 +326,23 @@ class _DetoxAppState extends State<DetoxApp> {
             ],
           ),
         ),
-      ),
+      );
+    }
+
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Detox',
+      themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
+      theme: DetoxTheme.light,
+      darkTheme: DetoxTheme.dark,
+      locale: _locale,
+      supportedLocales: const [Locale('es'), Locale('en')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      home: home,
     );
   }
 }
