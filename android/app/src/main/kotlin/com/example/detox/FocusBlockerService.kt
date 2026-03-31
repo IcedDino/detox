@@ -265,8 +265,10 @@ class FocusBlockerService : Service() {
             hideOverlay(force = true)
             return
         }
+
         if (now >= suppressPackageUntil) {
             suppressPackageName = null
+            suppressPackageUntil = 0L
         }
 
         val isOwnApp = currentPackage == null || currentPackage == packageName
@@ -279,41 +281,73 @@ class FocusBlockerService : Service() {
             return
         }
 
-        if ((requestInFlight || keepOverlayPinned || waitingAdResult) &&
-            !isOwnApp &&
-            !isSystemInterruption
-        ) {
-            if (lastShownPackage != null) {
+        private fun inspectForegroundApp() {
+            val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val blockedPackages = prefs.getStringSet("blocked_packages", emptySet()) ?: emptySet()
+            currentReason = prefs.getString("block_reason", currentReason) ?: currentReason
+            val suspendedUntilMillis = prefs.getLong("suspend_until_millis", 0L)
+            val shieldSuspended = suspendedUntilMillis > System.currentTimeMillis()
+
+            if (blockedPackages.isEmpty()) {
+                hideOverlay(force = true)
+                return
+            }
+
+            if (shieldSuspended) {
+                hideOverlay(force = true)
+                return
+            }
+
+            val currentPackage = queryForegroundPackage()
+            val now = System.currentTimeMillis()
+
+            if (currentPackage != null &&
+                currentPackage == suppressPackageName &&
+                now < suppressPackageUntil
+            ) {
+                hideOverlay(force = true)
+                return
+            }
+
+            if (now >= suppressPackageUntil) {
+                suppressPackageName = null
+                suppressPackageUntil = 0L
+            }
+
+            val isOwnApp = currentPackage == null || currentPackage == packageName
+            val isSystemInterruption = currentPackage == "com.android.systemui"
+            val isBlockedApp = currentPackage != null && blockedPackages.contains(currentPackage)
+
+            if (isBlockedApp) {
+                lastShownPackage = currentPackage
                 showOverlay(currentReason)
+                return
             }
-            return
-        }
 
-        if (keepOverlayPinned && lastShownPackage != null) {
-            showOverlay(currentReason)
-            return
-        }
-
-        if (isSystemInterruption && lastShownPackage != null) {
-            showOverlay(currentReason)
-            return
-        }
-
-        if (currentPackage == null && overlayView != null && lastShownPackage != null) {
-            return
-        }
-
-        if (isOwnApp) {
-            if (!requestInFlight && !keepOverlayPinned && !waitingAdResult) {
-                hideOverlay(force = false)
-                lastShownPackage = null
+            if (isOwnApp) {
+                hideOverlay(force = true)
+                return
             }
-            return
-        }
 
-        hideOverlay(force = false)
-        lastShownPackage = null
-    }
+            if ((requestInFlight || keepOverlayPinned || waitingAdResult) && !isSystemInterruption) {
+                if (lastShownPackage != null) {
+                    showOverlay(currentReason)
+                }
+                return
+            }
+
+            if (isSystemInterruption && lastShownPackage != null) {
+                showOverlay(currentReason)
+                return
+            }
+
+            if (currentPackage == null && overlayView != null && lastShownPackage != null) {
+                return
+            }
+
+            hideOverlay(force = false)
+            lastShownPackage = null
+        }
 
     private fun queryForegroundPackage(): String? {
         return try {
@@ -642,14 +676,16 @@ class FocusBlockerService : Service() {
 
     private fun suspendLocallyForMinutes(minutes: Int) {
         val untilMillis = System.currentTimeMillis() + minutes * 60_000L
-        getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
+        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+        prefs.edit()
             .putLong("suspend_until_millis", untilMillis)
             .apply()
 
-        requestInFlight = false
-        waitingAdResult = false
         keepOverlayPinned = false
+        waitingAdResult = false
+        lastShownPackage = null
+
         hideOverlay(force = true)
     }
 
@@ -683,7 +719,17 @@ class FocusBlockerService : Service() {
         try {
             val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
             if (launchIntent != null) {
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                suppressPackageName = packageName
+                suppressPackageUntil = System.currentTimeMillis() + 20_000L
+
+                hideOverlay(force = true)
+                keepOverlayPinned = false
+
+                launchIntent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP
+                )
                 launchIntent.putExtra("open_rewarded_ad", true)
                 startActivity(launchIntent)
             } else {
@@ -714,8 +760,21 @@ class FocusBlockerService : Service() {
         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         waitingAdResult = false
 
+        // No bloquear Detox inmediatamente al cerrar el anuncio.
+        suppressPackageName = packageName
+        suppressPackageUntil = System.currentTimeMillis() + 3_000L
+
         if (success) {
-            prefs.edit().putBoolean(KEY_PAUSE_AD_USED, true).apply()
+            val untilMillis = System.currentTimeMillis() + 15 * 60_000L
+
+            prefs.edit()
+                .putBoolean(KEY_PAUSE_AD_USED, true)
+                .putLong("suspend_until_millis", untilMillis)
+                .apply()
+
+            keepOverlayPinned = false
+            lastShownPackage = null
+
             updateOverlayReason(
                 tr(
                     "Ad completed. 15-minute pause granted.",
@@ -723,9 +782,14 @@ class FocusBlockerService : Service() {
                 )
             )
             syncOverlayButtonState()
-            suspendLocallyForMinutes(15)
+
+            hideOverlay(force = true)
+
+            // Fuerza que el servicio ya tome la suspensión recién guardada.
+            inspectForegroundApp()
         } else {
-            keepOverlayPinned = true
+            keepOverlayPinned = false
+
             updateOverlayReason(
                 tr(
                     "The ad was not completed. No extra pause was granted.",
@@ -733,6 +797,7 @@ class FocusBlockerService : Service() {
                 )
             )
             syncOverlayButtonState()
+            hideOverlay(force = true)
         }
     }
 
