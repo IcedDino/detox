@@ -109,10 +109,14 @@ class FocusBlockerService : Service() {
             }
 
             ACTION_SYNC_SPONSOR_STATE -> {
-                val hasSponsor = intent.getBooleanExtra("has_sponsor", false)
-                getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                val extras = intent.extras
+                val hasSponsor = if (extras != null && extras.containsKey("has_sponsor")) intent.getBooleanExtra("has_sponsor", false) else prefs.getBoolean("has_sponsor", false)
+                val strictMode = if (extras != null && extras.containsKey("strict_mode")) intent.getBooleanExtra("strict_mode", false) else prefs.getBoolean("strict_mode", false)
+                prefs
                     .edit()
                     .putBoolean("has_sponsor", hasSponsor)
+                    .putBoolean("strict_mode", strictMode)
                     .apply()
 
                 if (overlayView != null) {
@@ -134,6 +138,18 @@ class FocusBlockerService : Service() {
                 windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
                 audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
                 val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                intent?.getStringArrayListExtra("blockedPackages")?.let {
+                    prefs.edit().putStringSet("blocked_packages", it.toSet()).apply()
+                }
+                if (intent?.hasExtra("reason") == true) {
+                    prefs.edit().putString("block_reason", intent.getStringExtra("reason")).apply()
+                }
+                if (intent?.hasExtra("hasSponsor") == true) {
+                    prefs.edit().putBoolean("has_sponsor", intent.getBooleanExtra("hasSponsor", false)).apply()
+                }
+                if (intent?.hasExtra("strictMode") == true) {
+                    prefs.edit().putBoolean("strict_mode", intent.getBooleanExtra("strictMode", false)).apply()
+                }
                 val blockedPackages =
                     prefs.getStringSet("blocked_packages", emptySet()) ?: emptySet()
 
@@ -492,10 +508,9 @@ class FocusBlockerService : Service() {
                 bottomMargin = dp(12)
             }
 
-            isEnabled = !strictMode
+            isEnabled = true
 
             setOnClickListener {
-                if (strictMode) return@setOnClickListener
                 if (strictMode || requestInFlight || waitingAdResult) return@setOnClickListener
 
                 val prefsNow = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -575,7 +590,7 @@ class FocusBlockerService : Service() {
                 requestListener = null
 
                 suppressPackageName = lastShownPackage
-                suppressPackageUntil = System.currentTimeMillis() + 1500L
+                suppressPackageUntil = System.currentTimeMillis() + 2500L
 
                 val homeIntent = Intent(Intent.ACTION_MAIN).apply {
                     addCategory(Intent.CATEGORY_HOME)
@@ -995,7 +1010,7 @@ class FocusBlockerService : Service() {
         val strictMode = prefs.getBoolean("strict_mode", false)
 
         val suffix = when {
-            strictMode -> tr(" Strict mode is on: pauses and ads are disabled until the session ends. You can still return to focus.", " El modo estricto está activo: las pausas y los anuncios están deshabilitados hasta que termine la sesión. Aún puedes volver al enfoque.")
+            strictMode -> tr(" Strict mode is on: no pauses or ads until the session ends. You can still go back to focus.", " El modo estricto está activo: sin pausas ni anuncios hasta que termine la sesión. Aun así puedes volver al enfoque.")
             requestInFlight -> ""
             waitingAdResult -> tr(
                 " Complete the ad to get 15 extra minutes.",

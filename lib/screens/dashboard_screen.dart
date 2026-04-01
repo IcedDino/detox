@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import '../l10n_app_strings.dart';
 import '../models/dashboard_data.dart';
 import '../services/storage_service.dart';
+import '../services/smart_usage_recommendation_service.dart';
 import '../services/usage_service.dart';
 import '../theme/app_theme.dart';
-import '../services/smart_usage_recommendation_service.dart';
 import '../widgets/app_icon_badge.dart';
 import '../widgets/detox_logo.dart';
 import '../widgets/metric_card.dart';
@@ -48,11 +48,9 @@ class _DashboardScreenState extends State<DashboardScreen>
   Future<DashboardData> _load() async {
     final summary = await _usageService.getTodaySummary();
     final limit = await _storageService.loadDailyLimitMinutes();
-    if (summary.fromRealUsage) {
-      await SmartUsageRecommendationService.instance.maybeNotifyTopApp(
-        topApp: summary.topApps.isEmpty ? null : summary.topApps.first,
-        strings: AppStrings(WidgetsBinding.instance.platformDispatcher.locale),
-      );
+    final strings = AppStrings(Localizations.maybeLocaleOf(context) ?? WidgetsBinding.instance.platformDispatcher.locale);
+    if (summary.topApps.isNotEmpty) {
+      await SmartUsageRecommendationService.instance.evaluateTopApp(entry: summary.topApps.first, strings: strings);
     }
     return DashboardData(summary: summary, dailyLimit: limit);
   }

@@ -10,7 +10,7 @@ class AppStrings {
 
   String get home => isEs ? 'Inicio' : 'Home';
   String get focus => isEs ? 'Enfoque' : 'Focus';
-  String get habits => isEs ? 'Hábitos' : 'Habits';
+  String get habits => isEs ? 'Progreso' : 'Progress';
   String get stats => isEs ? 'Estadísticas' : 'Stats';
   String get settings => isEs ? 'Configuración' : 'Settings';
 
@@ -317,4 +317,47 @@ class AppStrings {
       'July','August','September','October','November','December'];
     return isEs ? es[month] : en[month];
   }
+
+
+  // Automation, Pomodoro, limits, anti-bypass
+  String get automationSubtitle => isEs ? 'Horarios normales o estrictos, límites y reglas combinadas.' : 'Clean normal or strict schedules, limits, and combined rules.';
+  String get automationAndHardModeSubtitle => isEs ? 'Horarios, modo estricto, presets y reglas por zona + horario.' : 'Schedules, strict mode, presets, and zone + schedule rules.';
+  String get noSchedulesYet => isEs ? 'Aún no hay horarios automáticos.' : 'No automatic schedules yet.';
+  String get normalMode => isEs ? 'Normal' : 'Normal';
+  String get strictModeLabel => isEs ? 'Estricto' : 'Strict';
+  String get deleteText => isEs ? 'Eliminar' : 'Delete';
+  String get createSchedule => isEs ? 'Crear horario' : 'Create schedule';
+  String get editSchedule => isEs ? 'Editar horario' : 'Edit schedule';
+  String get startTime => isEs ? 'Inicio' : 'Start';
+  String get endTime => isEs ? 'Fin' : 'End';
+  String get weekdays => isEs ? 'Días' : 'Weekdays';
+  String get chooseApps => isEs ? 'Apps a bloquear' : 'Apps to block';
+  String get saveText => isEs ? 'Guardar' : 'Save';
+  String get normalSchedulesBody => isEs ? 'Los horarios normales bloquean apps automáticamente sin obligar modo estricto.' : 'Normal schedules automatically block apps without forcing strict mode.';
+  String get hardModeGlobal => isEs ? 'Modo estricto global' : 'Global hard mode';
+  String get hardModeGlobalSubtitle => isEs ? 'Hace que foco manual y reglas activas no permitan pausas ni bypass.' : 'Makes manual focus and active rules disallow pauses and bypass.';
+  String get antiBypassTitle => isEs ? 'Protección anti-bypass' : 'Anti-bypass protection';
+  String get antiBypassBody => isEs ? 'Detox vigila permisos clave, conserva reglas activas tras reinicio y vuelve a levantar el escudo si sigue habiendo bloqueo pendiente.' : 'Detox watches key permissions, preserves active rules after reboot, and restores the shield when blocking is still pending.';
+  String get antiBypassHealthy => isEs ? 'Protección activa' : 'Protection active';
+  String get antiBypassNeedsAttention => isEs ? 'Requiere atención' : 'Needs attention';
+  String get pomodoroTitle => isEs ? 'Pomodoro integrado' : 'Integrated Pomodoro';
+  String get pomodoroSubtitle => isEs ? 'Alterna bloques de trabajo y descanso usando el mismo escudo de enfoque.' : 'Alternate work and break blocks using the same focus shield.';
+  String get pomodoroStart => isEs ? 'Iniciar Pomodoro' : 'Start Pomodoro';
+  String get pomodoroWork => isEs ? 'Trabajo' : 'Work';
+  String get pomodoroBreak => isEs ? 'Descanso' : 'Break';
+  String pomodoroCycleLabel(int current, int total) => isEs ? 'Ciclo $current de $total' : 'Cycle $current of $total';
+  String get appLimitReached => isEs ? 'Límite diario alcanzado' : 'Daily limit reached';
+  String limitReachedForApp(String appName) => isEs ? 'Has alcanzado el límite diario de $appName.' : 'You reached the daily limit for $appName.';
+  String get startHourFocus => isEs ? 'Empezar hora de concentración' : 'Start concentration hour';
+  String get denyText => isEs ? 'Denegar' : 'Deny';
+  String get automationSaved => isEs ? 'Automatización actualizada.' : 'Automation updated.';
+  String get progressMedalsSubtitle => isEs ? 'Convierte tus decisiones diarias en rachas, logros y medallas visibles.' : 'Turn your daily decisions into streaks, achievements, and visible medals.';
+  String get startTodayProgress => isEs ? 'Activar progreso hoy' : 'Activate progress today';
+  String get sessionsCompleted => isEs ? 'Sesiones completadas' : 'Completed sessions';
+  String get suggestionsAccepted => isEs ? 'Sugerencias aceptadas' : 'Accepted suggestions';
+  String get suggestionsShown => isEs ? 'Sugerencias mostradas' : 'Suggestions shown';
+  String get pomodoroCycles => isEs ? 'Ciclos Pomodoro' : 'Pomodoro cycles';
+  String get extraPauseAd => isEs ? 'Pausa extra con anuncio' : 'Extra pause with ad';
+  String get extraPauseAdSubtitle => isEs ? 'Mantienes 1 pausa gratis diaria y 1 pausa adicional al completar un anuncio.' : 'Keep 1 free daily pause and 1 extra pause after completing an ad.';
+
 }

@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-
 import 'storage_service.dart';
 
 class NativeBlockAction {
@@ -8,14 +7,16 @@ class NativeBlockAction {
   static const String suspendShield15 = 'suspend_shield_15';
 }
 
-class _ShieldSourceState {
-  const _ShieldSourceState({
+class _ShieldRequest {
+  const _ShieldRequest({
+    required this.source,
     required this.blockedPackages,
     required this.reason,
     required this.hasSponsor,
     required this.strictMode,
   });
 
+  final String source;
   final List<String> blockedPackages;
   final String reason;
   final bool hasSponsor;
@@ -24,25 +25,19 @@ class _ShieldSourceState {
 
 class AppBlockingService {
   static const MethodChannel _channel = MethodChannel('detox/device_control');
-
   static final AppBlockingService instance = AppBlockingService._();
-
   AppBlockingService._();
 
   final StorageService _storage = StorageService();
-  final Map<String, _ShieldSourceState> _activeSources =
-  <String, _ShieldSourceState>{};
+  final Map<String, _ShieldRequest> _requests = <String, _ShieldRequest>{};
 
-  bool get _isAndroid =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  bool get _isAndroid => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   Future<bool> hasOverlayPermission() async {
     if (!_isAndroid) return true;
     try {
-      final result = await _channel.invokeMethod<bool>('hasOverlayPermission');
-      return result ?? false;
-    } catch (e) {
-      debugPrint('hasOverlayPermission error: $e');
+      return await _channel.invokeMethod<bool>('hasOverlayPermission') ?? false;
+    } catch (_) {
       return false;
     }
   }
@@ -51,9 +46,7 @@ class AppBlockingService {
     if (!_isAndroid) return;
     try {
       await _channel.invokeMethod('openOverlayPermissionSettings');
-    } catch (e) {
-      debugPrint('openOverlayPermissionSettings error: $e');
-    }
+    } catch (_) {}
   }
 
   Future<void> startShield({
@@ -64,124 +57,95 @@ class AppBlockingService {
     bool? strictModeOverride,
   }) async {
     if (!_isAndroid) return;
+    final normalized = blockedPackages.toSet().where((e) => e.isNotEmpty).toList()..sort();
+    if (normalized.isEmpty) return;
+    final strictMode = strictModeOverride ?? await _storage.getStrictMode();
+    _requests[source] = _ShieldRequest(
+      source: source,
+      blockedPackages: normalized,
+      reason: reason,
+      hasSponsor: hasSponsor,
+      strictMode: strictMode,
+    );
+    await _syncMergedState();
+  }
 
-    final normalized = blockedPackages
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
+  Future<void> stopShield({String? source}) async {
+    if (!_isAndroid) return;
+    if (source == null) {
+      _requests.clear();
+    } else {
+      _requests.remove(source);
+    }
+    await _syncMergedState();
+  }
 
-    if (normalized.isEmpty) {
-      await stopShield(source: source);
+  Future<void> _syncMergedState() async {
+    if (!_isAndroid) return;
+    if (_requests.isEmpty) {
+      try {
+        await _channel.invokeMethod('stopBlocking');
+      } catch (_) {}
       return;
     }
 
+    final mergedPackages = _requests.values.expand((e) => e.blockedPackages).toSet().toList()..sort();
+    final strictMode = _requests.values.any((e) => e.strictMode);
+    final hasSponsor = _requests.values.any((e) => e.hasSponsor);
+    final reasons = _requests.values.map((e) => e.reason).toSet().toList();
+
     try {
-      final strictMode = strictModeOverride ?? await _storage.getStrictMode();
-      _activeSources[source] = _ShieldSourceState(
-        blockedPackages: normalized,
-        reason: reason,
-        hasSponsor: hasSponsor,
-        strictMode: strictMode,
-      );
-      await _applyMergedShieldState();
+      await _channel.invokeMethod('startBlocking', {
+        'blockedPackages': mergedPackages,
+        'reason': reasons.join(', '),
+        'hasSponsor': hasSponsor,
+        'strictMode': strictMode,
+      });
     } catch (e) {
       debugPrint('startShield error: $e');
-    }
-  }
-
-  Future<void> stopShield({String source = 'default'}) async {
-    if (!_isAndroid) return;
-    try {
-      _activeSources.remove(source);
-      await _applyMergedShieldState();
-    } catch (e) {
-      debugPrint('stopShield error: $e');
     }
   }
 
   Future<void> suspendForMinutes(int minutes) async {
     if (!_isAndroid) return;
     try {
-      await _channel.invokeMethod('suspendBlockingForMinutes', {
-        'minutes': minutes,
-      });
-    } catch (e) {
-      debugPrint('suspendForMinutes error: $e');
-    }
+      await _channel.invokeMethod('suspendBlockingForMinutes', {'minutes': minutes});
+    } catch (_) {}
   }
 
   Future<String?> consumePendingNativeAction() async {
     if (!_isAndroid) return null;
     try {
       return await _channel.invokeMethod<String>('consumePendingBlockAction');
-    } catch (e) {
-      debugPrint('consumePendingNativeAction error: $e');
+    } catch (_) {
       return null;
     }
   }
 
   Future<void> syncSponsorState(bool hasSponsor) async {
     if (!_isAndroid) return;
+    final strictMode = await _storage.getStrictMode();
     try {
-      final strictMode = await _storage.getStrictMode();
-
       await _channel.invokeMethod('syncSponsorState', {
         'hasSponsor': hasSponsor,
         'strictMode': strictMode,
       });
-
-      if (_activeSources.isNotEmpty) {
-        final keys = _activeSources.keys.toList(growable: false);
-        for (final key in keys) {
-          final current = _activeSources[key];
-          if (current == null) continue;
-          _activeSources[key] = _ShieldSourceState(
-            blockedPackages: current.blockedPackages,
-            reason: current.reason,
+      if (_requests.isNotEmpty) {
+        final updated = <String, _ShieldRequest>{};
+        for (final entry in _requests.entries) {
+          updated[entry.key] = _ShieldRequest(
+            source: entry.value.source,
+            blockedPackages: entry.value.blockedPackages,
+            reason: entry.value.reason,
             hasSponsor: hasSponsor,
-            strictMode: current.strictMode,
+            strictMode: entry.value.strictMode,
           );
         }
-        await _applyMergedShieldState();
+        _requests
+          ..clear()
+          ..addAll(updated);
+        await _syncMergedState();
       }
-    } catch (e) {
-      debugPrint('syncSponsorState error: $e');
-    }
-  }
-
-  Future<void> _applyMergedShieldState() async {
-    if (_activeSources.isEmpty) {
-      await _channel.invokeMethod('stopBlocking');
-      return;
-    }
-
-    final mergedPackages = <String>{};
-    var hasSponsor = false;
-    var strictMode = false;
-    final reasons = <String>[];
-
-    for (final state in _activeSources.values) {
-      mergedPackages.addAll(state.blockedPackages);
-      hasSponsor = hasSponsor || state.hasSponsor;
-      strictMode = strictMode || state.strictMode;
-      if (state.reason.trim().isNotEmpty) {
-        reasons.add(state.reason.trim());
-      }
-    }
-
-    final normalizedPackages = mergedPackages.toList()..sort();
-    if (normalizedPackages.isEmpty) {
-      await _channel.invokeMethod('stopBlocking');
-      return;
-    }
-
-    await _channel.invokeMethod('startBlocking', {
-      'blockedPackages': normalizedPackages,
-      'reason': reasons.isEmpty ? 'focus_session' : reasons.join(' • '),
-      'hasSponsor': hasSponsor,
-      'strictMode': strictMode,
-    });
+    } catch (_) {}
   }
 }

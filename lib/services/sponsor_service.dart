@@ -7,7 +7,7 @@ import '../models/auth_user.dart';
 import '../models/link_requests.dart';
 import '../models/sponsor_profile.dart';
 import '../models/sponsor_request.dart';
-import 'progress_service.dart';
+import 'storage_service.dart';
 
 class SponsorException implements Exception {
   SponsorException(this.message);
@@ -128,8 +128,6 @@ class SponsorService {
 
     final ref = _requestsCollectionRef.doc(requestId);
 
-    String? requestType;
-
     await _firestore.runTransaction((tx) async {
       final snap = await tx.get(ref);
       final data = snap.data();
@@ -139,7 +137,6 @@ class SponsorService {
       }
 
       final request = SponsorRequest.fromDoc(snap.id, data);
-      requestType = request.requestType;
 
       if (request.sponsorUid != uid) {
         throw SponsorException('That request does not belong to you.');
@@ -201,12 +198,7 @@ class SponsorService {
         SetOptions(merge: true),
       );
     });
-
-    final approvedSnap = await ref.get();
-    final approvedData = approvedSnap.data();
-    if ((approvedData?['requestType'] as String?) == 'shield_pause') {
-      await ProgressService.instance.recordPauseApproved();
-    }
+    await StorageService().incrementPauseApproved();
   }
 
   Future<void> rejectRequest(String requestId) async {
@@ -217,8 +209,6 @@ class SponsorService {
 
     final ref = _requestsCollectionRef.doc(requestId);
 
-    String? requestType;
-
     await _firestore.runTransaction((tx) async {
       final snap = await tx.get(ref);
       final data = snap.data();
@@ -228,7 +218,6 @@ class SponsorService {
       }
 
       final request = SponsorRequest.fromDoc(snap.id, data);
-      requestType = request.requestType;
 
       if (request.sponsorUid != uid) {
         throw SponsorException('That request does not belong to you.');
@@ -248,10 +237,7 @@ class SponsorService {
         SetOptions(merge: true),
       );
     });
-
-    if (requestType == 'shield_pause') {
-      await ProgressService.instance.recordPauseDenied();
-    }
+    await StorageService().incrementPauseRejected();
   }
 
 
@@ -805,10 +791,7 @@ class SponsorService {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     });
-
-    if (requestType == 'shield_pause') {
-      await ProgressService.instance.recordPauseRequested();
-    }
+    await StorageService().incrementPauseRequests();
   }
 
   Stream<List<SponsorRequest>> incomingRequests() {

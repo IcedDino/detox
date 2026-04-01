@@ -15,6 +15,7 @@ import '../models/sponsor_profile.dart';
 import '../screens/automation_settings_screen.dart';
 import '../screens/sponsor_screen.dart';
 import '../services/app_blocking_service.dart';
+import '../services/anti_bypass_service.dart';
 import '../services/app_catalog_service.dart';
 import '../services/location_zone_service.dart';
 import '../services/sponsor_service.dart';
@@ -65,6 +66,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   DateTime? _settingsUnlockUntil;
   ZoneState _zoneState = LocationZoneService.instance.currentState;
   StreamSubscription<ZoneState>? _zoneSubscription;
+  bool _antiBypassHealthy = true;
 
   @override
   void initState() {
@@ -108,6 +110,7 @@ class _SettingsScreenState extends State<SettingsScreen>
       SponsorService.instance.hasActiveSettingsUnlock(),
       SponsorService.instance.getSettingsUnlockUntil(),
       SponsorService.instance.getMySponsorCode(),
+      AntiBypassService.instance.getStatus(),
     ]);
 
     if (!mounted) return;
@@ -123,6 +126,7 @@ class _SettingsScreenState extends State<SettingsScreen>
       _settingsUnlockActive = results[7] as bool;
       _settingsUnlockUntil = results[8] as DateTime?;
       _mySponsorCode = results[9] as String;
+      _antiBypassHealthy = (results[10] as AntiBypassStatus).healthy;
       _loading = false;
     });
   }
@@ -551,7 +555,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                 ),
                 title: Text(t.automationAndHardMode),
                 subtitle: Text(
-                  t.automationAndHardModeBody,
+                  t.automationAndHardModeSubtitle,
                   style: const TextStyle(color: DetoxColors.muted),
                 ),
                 onTap: () async {
@@ -564,6 +568,21 @@ class _SettingsScreenState extends State<SettingsScreen>
                 },
               ),
             ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        GlassCard(
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              _antiBypassHealthy ? Icons.verified_user_outlined : Icons.warning_amber_rounded,
+              color: _antiBypassHealthy ? Colors.greenAccent : Colors.orangeAccent,
+            ),
+            title: Text(t.antiBypassTitle),
+            subtitle: Text(
+              _antiBypassHealthy ? t.antiBypassBody : t.antiBypassNeedsAttention,
+              style: const TextStyle(color: DetoxColors.muted),
+            ),
           ),
         ),
         const SizedBox(height: 14),

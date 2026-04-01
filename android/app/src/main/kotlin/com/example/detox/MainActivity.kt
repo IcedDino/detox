@@ -73,9 +73,8 @@ class MainActivity : FlutterActivity() {
                             val intent = Intent(
                                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                                 Uri.parse("package:$packageName")
-                            ).apply {
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
+                            )
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             startActivity(intent)
                         }
                         result.success(null)
@@ -88,23 +87,17 @@ class MainActivity : FlutterActivity() {
                         hasSponsor = call.argument<Boolean>("hasSponsor") ?: false
                         strictMode = call.argument<Boolean>("strictMode") ?: false
 
-                        val normalizedPackages = blockedPackages
-                            .map { it.trim() }
-                            .filter { it.isNotEmpty() }
-                            .toSet()
-                            .toList()
-
                         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                         prefs.edit()
-                            .putStringSet("blocked_packages", normalizedPackages.toSet())
+                            .putStringSet("blocked_packages", blockedPackages.toSet())
                             .putString("block_reason", reason)
                             .putBoolean("has_sponsor", hasSponsor)
                             .putBoolean("strict_mode", strictMode)
                             .apply()
 
                         val intent = Intent(this, FocusBlockerService::class.java).apply {
-                            action = FocusBlockerService.ACTION_START
-                            putStringArrayListExtra("blockedPackages", ArrayList(normalizedPackages))
+                            action = "START_BLOCKING"
+                            putStringArrayListExtra("blockedPackages", ArrayList(blockedPackages))
                             putExtra("reason", reason)
                             putExtra("hasSponsor", hasSponsor)
                             putExtra("strictMode", strictMode)
@@ -119,9 +112,8 @@ class MainActivity : FlutterActivity() {
                             prefs.edit()
                                 .remove("blocked_packages")
                                 .remove("block_reason")
-                                .remove("strict_mode")
+                                .putBoolean("strict_mode", false)
                                 .apply()
-
                             val intent = Intent(this, FocusBlockerService::class.java).apply {
                                 action = FocusBlockerService.ACTION_STOP
                             }
@@ -158,17 +150,13 @@ class MainActivity : FlutterActivity() {
                     "syncSponsorState" -> {
                         hasSponsor = call.argument<Boolean>("hasSponsor") ?: false
                         strictMode = call.argument<Boolean>("strictMode") ?: false
-
                         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                        prefs.edit()
-                            .putBoolean("has_sponsor", hasSponsor)
-                            .putBoolean("strict_mode", strictMode)
-                            .apply()
+                        prefs.edit().putBoolean("has_sponsor", hasSponsor).putBoolean("strict_mode", strictMode).apply()
 
                         val intent = Intent(this, FocusBlockerService::class.java).apply {
-                            action = FocusBlockerService.ACTION_SYNC_SPONSOR_STATE
-                            putExtra("has_sponsor", hasSponsor)
-                            putExtra("strict_mode", strictMode)
+                            action = "SYNC_SPONSOR_STATE"
+                            putExtra("hasSponsor", hasSponsor)
+                            putExtra("strictMode", strictMode)
                         }
                         startService(intent)
                         result.success(true)

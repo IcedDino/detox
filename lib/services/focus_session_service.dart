@@ -1,250 +1,205 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/app_limit.dart';
 import 'app_blocking_service.dart';
 import 'automation_service.dart';
-import 'focus_notification_service.dart';
-import 'location_zone_service.dart';
-import 'progress_service.dart';
 import 'sponsor_service.dart';
 import 'storage_service.dart';
-import 'usage_service.dart';
 
 class FocusSessionSnapshot {
   const FocusSessionSnapshot({
     required this.isActive,
-    required this.remainingSeconds,
-    required this.totalSeconds,
+    required this.isPomodoro,
+    required this.isBreak,
+    required this.endsAt,
+    required this.minutes,
     required this.label,
-    required this.reason,
+    required this.currentCycle,
+    required this.totalCycles,
+    required this.breakMinutes,
   });
 
   final bool isActive;
-  final int remainingSeconds;
-  final int totalSeconds;
+  final bool isPomodoro;
+  final bool isBreak;
+  final DateTime? endsAt;
+  final int minutes;
   final String label;
-  final String reason;
-}
+  final int currentCycle;
+  final int totalCycles;
+  final int breakMinutes;
 
-class FocusStartResult {
-  const FocusStartResult._(this.success, this.code);
-
-  final bool success;
-  final String code;
-
-  static const ok = FocusStartResult._(true, 'ok');
-  static const usagePermissionMissing = FocusStartResult._(false, 'usage_permission_missing');
-  static const overlayPermissionMissing = FocusStartResult._(false, 'overlay_permission_missing');
-  static const noAppsConfigured = FocusStartResult._(false, 'no_apps_configured');
+  int get remainingSeconds {
+    final end = endsAt;
+    if (!isActive || end == null) return 0;
+    final diff = end.difference(DateTime.now()).inSeconds;
+    return diff < 0 ? 0 : diff;
+  }
 }
 
 class FocusSessionService {
   FocusSessionService._();
   static final FocusSessionService instance = FocusSessionService._();
 
-  static const _endAtKey = 'focus_session_end_at_v1';
-  static const _totalSecondsKey = 'focus_session_total_v1';
-  static const _labelKey = 'focus_session_label_v1';
-  static const _reasonKey = 'focus_session_reason_v1';
+  static const _activeKey = 'focus_session_active_v2';
+  static const _endsAtKey = 'focus_session_ends_at_v2';
+  static const _minutesKey = 'focus_session_minutes_v2';
+  static const _labelKey = 'focus_session_label_v2';
+  static const _isPomodoroKey = 'focus_session_is_pomodoro_v2';
+  static const _isBreakKey = 'focus_session_is_break_v2';
+  static const _cycleKey = 'focus_session_cycle_v2';
+  static const _cyclesTotalKey = 'focus_session_cycles_total_v2';
+  static const _breakMinutesKey = 'focus_session_break_minutes_v2';
 
   final StorageService _storage = StorageService();
-  final UsageService _usage = UsageService();
-  final StreamController<FocusSessionSnapshot> _controller =
-      StreamController<FocusSessionSnapshot>.broadcast();
 
-  Timer? _timer;
-  FocusSessionSnapshot _snapshot = const FocusSessionSnapshot(
-    isActive: false,
-    remainingSeconds: 0,
-    totalSeconds: 0,
-    label: '',
-    reason: '',
-  );
-
-  Stream<FocusSessionSnapshot> get snapshots => _controller.stream;
-  FocusSessionSnapshot get current => _snapshot;
-
-  Future<void> initialize() async {
+  Future<FocusSessionSnapshot> loadSnapshot() async {
     final prefs = await SharedPreferences.getInstance();
-    final rawEndAt = prefs.getString(_endAtKey);
-    if (rawEndAt == null || rawEndAt.isEmpty) {
-      _emitInactive();
-      return;
-    }
-
-    final endAt = DateTime.tryParse(rawEndAt);
-    if (endAt == null) {
-      await _clearPersisted();
-      _emitInactive();
-      return;
-    }
-
-    final remaining = endAt.difference(DateTime.now()).inSeconds;
-    if (remaining <= 0) {
-      await _finishSession(expired: true);
-      return;
-    }
-
-    _snapshot = FocusSessionSnapshot(
-      isActive: true,
-      remainingSeconds: remaining,
-      totalSeconds: prefs.getInt(_totalSecondsKey) ?? remaining,
-      label: prefs.getString(_labelKey) ?? 'Focus session',
-      reason: prefs.getString(_reasonKey) ?? 'focus_session',
+    final active = prefs.getBool(_activeKey) ?? false;
+    final endsAt = DateTime.tryParse(prefs.getString(_endsAtKey) ?? '');
+    final snap = FocusSessionSnapshot(
+      isActive: active,
+      isPomodoro: prefs.getBool(_isPomodoroKey) ?? false,
+      isBreak: prefs.getBool(_isBreakKey) ?? false,
+      endsAt: endsAt,
+      minutes: prefs.getInt(_minutesKey) ?? 0,
+      label: prefs.getString(_labelKey) ?? 'Focus',
+      currentCycle: prefs.getInt(_cycleKey) ?? 1,
+      totalCycles: prefs.getInt(_cyclesTotalKey) ?? 1,
+      breakMinutes: prefs.getInt(_breakMinutesKey) ?? 5,
     );
-    _controller.add(_snapshot);
-    _startTicker(endAt);
+    if (snap.isActive && snap.remainingSeconds == 0) {
+      return tickAndAdvance();
+    }
+    return snap;
   }
 
-  Future<FocusStartResult> startSession({
-    required int minutes,
-    required String label,
-    required String reason,
-    bool fromSuggestion = false,
-  }) async {
-    final usageReady = (await _usage.getPermissionStatus()).usageReady;
-    if (!usageReady) return FocusStartResult.usagePermissionMissing;
-
-    final overlayReady = await AppBlockingService.instance.hasOverlayPermission();
-    if (!overlayReady) return FocusStartResult.overlayPermissionMissing;
-
+  Future<List<String>> _loadShieldPackages() async {
     final limits = await _storage.loadAppLimits();
-    final packages = limits
-        .where((AppLimit e) => e.useInFocusMode && (e.packageName?.isNotEmpty ?? false))
+    return limits
+        .where((e) => e.useInFocusMode && (e.packageName ?? '').isNotEmpty)
         .map((e) => e.packageName!)
         .toSet()
         .toList();
+  }
 
-    if (packages.isEmpty) return FocusStartResult.noAppsConfigured;
+  Future<void> startQuickFocusHour() => startFocus(minutes: 60, label: 'Focus hour');
 
+  Future<void> startFocus({required int minutes, String label = 'Focus session'}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final packages = await _loadShieldPackages();
     final hasSponsor = (await SponsorService.instance.getCurrentSponsorProfile()) != null;
+    await _storage.incrementFocusSessionsStarted();
+    await _storage.markProgressStartedToday();
 
-    await AppBlockingService.instance.startShield(
-      blockedPackages: packages,
-      reason: reason,
-      hasSponsor: hasSponsor,
-    );
-
-    if (fromSuggestion) {
-      await ProgressService.instance.recordSuggestionAccepted();
-    }
-    await ProgressService.instance.recordFocusStarted();
-
-    final totalSeconds = minutes * 60;
-    final endAt = DateTime.now().add(Duration(seconds: totalSeconds));
-    await _persistSession(
-      endAt: endAt,
-      totalSeconds: totalSeconds,
-      label: label,
-      reason: reason,
-    );
-
-    _snapshot = FocusSessionSnapshot(
-      isActive: true,
-      remainingSeconds: totalSeconds,
-      totalSeconds: totalSeconds,
-      label: label,
-      reason: reason,
-    );
-    _controller.add(_snapshot);
-
-    await FocusNotificationService.instance.showOrUpdateTimer(
-      remainingSeconds: totalSeconds,
-      label: label,
-      force: true,
-    );
-    _startTicker(endAt);
-    return FocusStartResult.ok;
-  }
-
-  Future<void> stopSession({bool countAsCompleted = false}) async {
-    _timer?.cancel();
-    _timer = null;
-    await FocusNotificationService.instance.cancel();
-    await _clearPersisted();
-    await AppBlockingService.instance.stopShield();
-    await LocationZoneService.instance.refresh();
-    await AutomationService.instance.refresh();
-    if (countAsCompleted) {
-      await ProgressService.instance.recordFocusCompleted();
-      await _storage.registerCompletedFocusSession();
-    }
-    _emitInactive();
-  }
-
-  void _startTicker(DateTime endAt) {
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-      final remaining = endAt.difference(DateTime.now()).inSeconds;
-      if (remaining <= 0) {
-        timer.cancel();
-        _timer = null;
-        await _finishSession(expired: true);
-        return;
-      }
-
-      _snapshot = FocusSessionSnapshot(
-        isActive: true,
-        remainingSeconds: remaining,
-        totalSeconds: _snapshot.totalSeconds,
-        label: _snapshot.label,
-        reason: _snapshot.reason,
-      );
-      _controller.add(_snapshot);
-      await FocusNotificationService.instance.showOrUpdateTimer(
-        remainingSeconds: remaining,
-        label: _snapshot.label,
-      );
-    });
-  }
-
-  Future<void> _finishSession({required bool expired}) async {
-    _timer?.cancel();
-    _timer = null;
-    await FocusNotificationService.instance.cancel();
-    await _clearPersisted();
-    await AppBlockingService.instance.stopShield();
-    await LocationZoneService.instance.refresh();
-    await AutomationService.instance.refresh();
-    if (expired) {
-      await ProgressService.instance.recordFocusCompleted();
-      await _storage.registerCompletedFocusSession();
-    }
-    _emitInactive();
-  }
-
-  Future<void> _persistSession({
-    required DateTime endAt,
-    required int totalSeconds,
-    required String label,
-    required String reason,
-  }) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_endAtKey, endAt.toIso8601String());
-    await prefs.setInt(_totalSecondsKey, totalSeconds);
+    await prefs.setBool(_activeKey, true);
+    await prefs.setString(_endsAtKey, DateTime.now().add(Duration(minutes: minutes)).toIso8601String());
+    await prefs.setInt(_minutesKey, minutes);
     await prefs.setString(_labelKey, label);
-    await prefs.setString(_reasonKey, reason);
+    await prefs.setBool(_isPomodoroKey, false);
+    await prefs.setBool(_isBreakKey, false);
+    await prefs.setInt(_cycleKey, 1);
+    await prefs.setInt(_cyclesTotalKey, 1);
+    await prefs.setInt(_breakMinutesKey, 5);
+
+    if (packages.isNotEmpty) {
+      await AppBlockingService.instance.startShield(
+        blockedPackages: packages,
+        reason: 'focus_session',
+        hasSponsor: hasSponsor,
+        source: 'focus',
+      );
+    }
   }
 
-  Future<void> _clearPersisted() async {
+  Future<void> startPomodoro({int workMinutes = 25, int breakMinutes = 5, int cycles = 4}) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_endAtKey);
-    await prefs.remove(_totalSecondsKey);
-    await prefs.remove(_labelKey);
-    await prefs.remove(_reasonKey);
+    final packages = await _loadShieldPackages();
+    final hasSponsor = (await SponsorService.instance.getCurrentSponsorProfile()) != null;
+    await _storage.incrementFocusSessionsStarted();
+    await _storage.markProgressStartedToday();
+
+    await prefs.setBool(_activeKey, true);
+    await prefs.setString(_endsAtKey, DateTime.now().add(Duration(minutes: workMinutes)).toIso8601String());
+    await prefs.setInt(_minutesKey, workMinutes);
+    await prefs.setString(_labelKey, 'Pomodoro');
+    await prefs.setBool(_isPomodoroKey, true);
+    await prefs.setBool(_isBreakKey, false);
+    await prefs.setInt(_cycleKey, 1);
+    await prefs.setInt(_cyclesTotalKey, cycles);
+    await prefs.setInt(_breakMinutesKey, breakMinutes);
+
+    if (packages.isNotEmpty) {
+      await AppBlockingService.instance.startShield(
+        blockedPackages: packages,
+        reason: 'pomodoro_work',
+        hasSponsor: hasSponsor,
+        source: 'focus',
+      );
+    }
   }
 
-  void _emitInactive() {
-    _snapshot = const FocusSessionSnapshot(
-      isActive: false,
-      remainingSeconds: 0,
-      totalSeconds: 0,
-      label: '',
-      reason: '',
-    );
-    _controller.add(_snapshot);
+  Future<FocusSessionSnapshot> tickAndAdvance() async {
+    final prefs = await SharedPreferences.getInstance();
+    final active = prefs.getBool(_activeKey) ?? false;
+    if (!active) return loadSnapshot();
+    final isPomodoro = prefs.getBool(_isPomodoroKey) ?? false;
+    final isBreak = prefs.getBool(_isBreakKey) ?? false;
+    final cycle = prefs.getInt(_cycleKey) ?? 1;
+    final total = prefs.getInt(_cyclesTotalKey) ?? 1;
+    final breakMinutes = prefs.getInt(_breakMinutesKey) ?? 5;
+    final workMinutes = prefs.getInt(_minutesKey) ?? 25;
+
+    if (!isPomodoro) {
+      await stopSession(markCompleted: true);
+      return loadSnapshot();
+    }
+
+    if (!isBreak) {
+      await _storage.incrementPomodoroCyclesCompleted();
+      if (cycle >= total) {
+        await stopSession(markCompleted: true);
+        return loadSnapshot();
+      }
+      await prefs.setBool(_isBreakKey, true);
+      await prefs.setString(_endsAtKey, DateTime.now().add(Duration(minutes: breakMinutes)).toIso8601String());
+      await AppBlockingService.instance.stopShield(source: 'focus');
+      return loadSnapshot();
+    }
+
+    final packages = await _loadShieldPackages();
+    final hasSponsor = (await SponsorService.instance.getCurrentSponsorProfile()) != null;
+    await prefs.setBool(_isBreakKey, false);
+    await prefs.setInt(_cycleKey, cycle + 1);
+    await prefs.setString(_endsAtKey, DateTime.now().add(Duration(minutes: workMinutes)).toIso8601String());
+    if (packages.isNotEmpty) {
+      await AppBlockingService.instance.startShield(
+        blockedPackages: packages,
+        reason: 'pomodoro_work',
+        hasSponsor: hasSponsor,
+        source: 'focus',
+      );
+    }
+    return loadSnapshot();
+  }
+
+  Future<void> stopSession({bool markCompleted = false}) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_activeKey);
+    await prefs.remove(_endsAtKey);
+    await prefs.remove(_minutesKey);
+    await prefs.remove(_labelKey);
+    await prefs.remove(_isPomodoroKey);
+    await prefs.remove(_isBreakKey);
+    await prefs.remove(_cycleKey);
+    await prefs.remove(_cyclesTotalKey);
+    await prefs.remove(_breakMinutesKey);
+    await AppBlockingService.instance.stopShield(source: 'focus');
+    if (markCompleted) {
+      await _storage.registerCompletedFocusSession();
+    }
+    await AutomationService.instance.refresh();
   }
 }

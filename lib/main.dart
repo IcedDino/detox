@@ -16,11 +16,11 @@ import 'screens/permission_setup_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/stats_screen.dart';
 import 'services/app_blocking_service.dart';
+import 'services/anti_bypass_service.dart';
 import 'services/automation_service.dart';
 import 'services/auth_service.dart';
 import 'services/focus_notification_service.dart';
 import 'services/focus_session_service.dart';
-import 'services/progress_service.dart';
 import 'services/location_zone_service.dart';
 import 'services/sponsor_alert_service.dart';
 import 'services/sponsor_service.dart';
@@ -46,27 +46,14 @@ Future<void> main() async {
     await SponsorService.instance.ensureCurrentUserInitialized(currentUser);
     SponsorAlertService.instance.start();
     await AppBlockingService.instance.consumePendingNativeAction();
-    final pendingNotificationAction = await FocusNotificationService.instance.consumePendingAction();
-    if (pendingNotificationAction == FocusNotificationService.denySuggestionAction) {
-      await ProgressService.instance.recordSuggestionDenied();
-      await FocusNotificationService.instance.cancelSmartSuggestion();
-    } else if (pendingNotificationAction == FocusNotificationService.startFocusAction) {
-      await FocusSessionService.instance.startSession(
-        minutes: 60,
-        label: 'Focus session',
-        reason: 'smart_suggestion_focus',
-        fromSuggestion: true,
-      );
-      await FocusNotificationService.instance.cancelSmartSuggestion();
-    }
   }
 
   await AutomationService.instance.start();
+  await AntiBypassService.instance.start();
 
   final onboardingDone = await StorageService().loadOnboardingDone();
 
   await FocusNotificationService.instance.initialize();
-  await FocusSessionService.instance.initialize();
   runApp(
     DetoxApp(
       initialDarkMode: darkMode,
@@ -118,6 +105,7 @@ class _DetoxAppState extends State<DetoxApp> {
         : Locale(widget.initialLocaleCode!);
 
     _initializePermissionGate();
+    _consumePendingNotificationAction();
 
     _authSubscription = AuthService.instance.authChanges().listen((user) async {
       if (!mounted) return;
@@ -177,8 +165,8 @@ class _DetoxAppState extends State<DetoxApp> {
     }
     await SponsorService.instance.ensureCurrentUserInitialized(user);
     SponsorAlertService.instance.start();
-    await _consumePendingBlockAction();
     await _consumePendingNotificationAction();
+    await _consumePendingBlockAction();
 
     final onboardingDone = await StorageService().loadOnboardingDone();
     final permissionsReady = await _hasRequiredPermissions();
@@ -206,6 +194,20 @@ class _DetoxAppState extends State<DetoxApp> {
   void dispose() {
     _authSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _consumePendingNotificationAction() async {
+    final action = await FocusNotificationService.instance.consumePendingAction();
+    if (action == null) return;
+    if (action == 'start_focus_hour') {
+      await StorageService().incrementSuggestionsAccepted();
+      await StorageService().markProgressStartedToday();
+      await FocusSessionService.instance.startQuickFocusHour();
+      return;
+    }
+    if (action == 'deny_focus_hour') {
+      await StorageService().incrementSuggestionsDenied();
+    }
   }
 
   Future<void> _consumePendingBlockAction() async {
@@ -254,28 +256,6 @@ class _DetoxAppState extends State<DetoxApp> {
 
   Future<void> _handleAuthenticated(AuthUser user) async {
     await _syncSignedInUser(user);
-  }
-
-
-  Future<void> _consumePendingNotificationAction() async {
-    final action = await FocusNotificationService.instance.consumePendingAction();
-    if (action == null) return;
-
-    if (action == FocusNotificationService.denySuggestionAction) {
-      await ProgressService.instance.recordSuggestionDenied();
-      await FocusNotificationService.instance.cancelSmartSuggestion();
-      return;
-    }
-
-    if (action == FocusNotificationService.startFocusAction) {
-      await FocusSessionService.instance.startSession(
-        minutes: 60,
-        label: AppStrings((_locale ?? WidgetsBinding.instance.platformDispatcher.locale)).focusSessionLabel,
-        reason: 'smart_suggestion_focus',
-        fromSuggestion: true,
-      );
-      await FocusNotificationService.instance.cancelSmartSuggestion();
-    }
   }
 
   Future<void> _signOut() async {
