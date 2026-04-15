@@ -1,0 +1,12 @@
+workflows:
+  ios-test:
+    name: iOS Test Build
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+    scripts:
+      - flutter pub get
+      - flutter build ipa --release --no-codesign
+    artifacts:
+      - build/ios/ipa/*.ipa
