@@ -10,7 +10,7 @@ class AppStrings {
 
   String get home => isEs ? 'Inicio' : 'Home';
   String get focus => isEs ? 'Enfoque' : 'Focus';
-  String get habits => isEs ? 'Hábitos' : 'Habits';
+  String get habits => isEs ? 'Progreso' : 'Progress';
   String get stats => isEs ? 'Estadísticas' : 'Stats';
   String get settings => isEs ? 'Configuración' : 'Settings';
 
@@ -86,6 +86,10 @@ class AppStrings {
   String get concentrationZones => isEs ? 'Zonas de concentración' : 'Concentration zones';
 
   String get orUseEmail => isEs ? 'O usa correo' : 'Or use email';
+  String get useEmailFirst => isEs ? 'Accede con tu correo' : 'Sign in with your email';
+  String get otherWaysToContinue => isEs ? 'Otras formas de acceso' : 'Other ways to continue';
+  String get noAccountYet => isEs ? '¿No tienes cuenta aún?' : "Don't have an account yet?";
+  String get alreadyHaveAccount => isEs ? '¿Ya tienes cuenta?' : 'Already have an account?';
   String get permissionsOverview => isEs ? 'Resumen de permisos' : 'Permissions overview';
   String get iosSeparatePath => isEs ? 'En iOS esto usa una ruta nativa separada de Screen Time.' : 'iOS support uses a separate native Screen Time path.';
   String get iosAppsBody => isEs ? 'En iOS aún no se pueden listar apps instaladas de la misma manera.' : 'On iOS, installed apps cannot be listed the same way yet.';
@@ -166,6 +170,36 @@ class AppStrings {
   String get zoneAppsHelp => isEs ? 'Primero agrega apps en la sección de límites por app. Si dejas esto vacío, la zona usará todas las apps marcadas para enfoque.' : 'Add apps in the Per-app limits section first. If you leave this empty, the zone will use all apps marked for focus mode.';
   String get studyZoneDefaultName => isEs ? 'Zona de estudio' : 'Study Zone';
   String get saveZone => isEs ? 'Guardar zona' : 'Save zone';
+
+  // Automation settings
+  String get automationAndHardMode => isEs ? 'Automatización y modo estricto' : 'Automation & hard mode';
+  String get automationAndHardModeBody => isEs ? 'Horarios, modo estricto, presets inteligentes y reglas de zona + horario.' : 'Schedules, strict mode, smart presets, and zone + schedule rules.';
+  String get automationTitle => isEs ? 'Automatización' : 'Automation';
+  String get hardModeStrictMode => isEs ? 'Modo estricto' : 'Hard mode / Strict mode';
+  String get hardModeStrictModeBody => isEs ? 'Desactiva pausas, anuncios y salidas mientras el bloqueo de enfoque esté activo.' : 'Disables pauses, ads, and exit buttons while focus blocking is active.';
+  String get smartPresets => isEs ? 'Presets inteligentes' : 'Smart presets';
+  String get addSocialPreset => isEs ? 'Agregar preset de redes' : 'Add social preset';
+  String get addEntertainmentPreset => isEs ? 'Agregar preset de entretenimiento' : 'Add entertainment preset';
+  String get automationPresetsBody => isEs ? 'Tus límites diarios por app ahora bloquean automáticamente cuando se alcanza el límite. Las reglas por horario también pueden restringirse para funcionar solo dentro de zonas de concentración.' : 'Your per-app daily limits now auto-block when the limit is reached. Schedule rules can also be restricted to work only inside concentration zones.';
+  String get scheduleRules => isEs ? 'Reglas por horario' : 'Schedule rules';
+  String get noAutomaticSchedulesYet => isEs ? 'Aún no hay horarios automáticos.' : 'No automatic schedules yet.';
+  String get zoneAndSchedule => isEs ? 'Zona + horario' : 'Zone + schedule';
+  String get scheduleOnly => isEs ? 'Solo horario' : 'Schedule only';
+  String get strictLabel => isEs ? 'Estricto' : 'Strict';
+  String get normalLabel => isEs ? 'Normal' : 'Normal';
+  String get deleteLabel => isEs ? 'Eliminar' : 'Delete';
+  String get ruleName => isEs ? 'Nombre de la regla' : 'Rule name';
+  String get newSchedule => isEs ? 'Nuevo horario' : 'New schedule';
+  String get startLabel => isEs ? 'Inicio' : 'Start';
+  String get endLabel => isEs ? 'Fin' : 'End';
+  List<String> get automationWeekdayShort => isEs ? ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  String get useStrictModeInSchedule => isEs ? 'Usar modo estricto en este horario' : 'Use strict mode in this schedule';
+  String get onlyApplyInsideZones => isEs ? 'Aplicar solo dentro de zonas de concentración' : 'Only apply inside concentration zones';
+  String get appsToBlock => isEs ? 'Apps a bloquear' : 'Apps to block';
+  String get saveRule => isEs ? 'Guardar regla' : 'Save rule';
+  String get scheduleRuleDefaultName => isEs ? 'Regla de horario' : 'Schedule rule';
+  String get socialPresetName => isEs ? 'Redes sociales 08:00-14:00' : 'Social media 08:00-14:00';
+  String get entertainmentPresetName => isEs ? 'Entretenimiento 22:00-07:00' : 'Entertainment 22:00-07:00';
 
   // Stats screen
   String get statsWeeklyTitle => isEs ? 'Estadísticas semanales' : 'Weekly Stats';
@@ -253,6 +287,25 @@ class AppStrings {
   String get settingsUnlockedLabel => isEs ? 'Desbloqueado' : 'Unlocked';
   String waitingForName(String name) => isEs ? 'Esperando que $name acepte tu solicitud.' : 'Waiting for $name to accept your request.';
 
+
+
+  String get progressTitle => isEs ? 'Progreso' : 'Progress';
+  String get progressSubtitle => isEs ? 'Tus rachas, retos y medallas viven aquí.' : 'Your streaks, challenges, and medals live here.';
+  String get startStreak => isEs ? 'Iniciar racha' : 'Start streak';
+  String get continueToday => isEs ? 'Continuar hoy' : 'Continue today';
+  String get currentStreak => isEs ? 'Racha actual' : 'Current streak';
+  String get longestStreak => isEs ? 'Mejor racha' : 'Longest streak';
+  String get achievements => isEs ? 'Logros' : 'Achievements';
+  String get dailyChallenges => isEs ? 'Retos de hoy' : "Today's challenges";
+  String get sponsorShowcase => isEs ? 'Visible para sponsor' : 'Visible to sponsor';
+  String get sponsorShowcaseBody => isEs ? 'Cuando tengas sponsor, aquí verá tu racha y tus medallas desbloqueadas.' : 'When you have a sponsor, they will see your streak and unlocked medals here.';
+  String get startConcentrationHour => isEs ? 'Empezar hora de concentración' : 'Start concentration hour';
+  String get deny => isEs ? 'Denegar' : 'Deny';
+  String get smartSuggestionTitle => isEs ? 'Detox te recomienda una pausa' : 'Detox recommends a pause';
+  String smartSuggestionNotification(String appName, String time) => isEs ? 'Hoy has usado $time horas $appName, ¿no crees que es momento de una pausa?' : "You have used $appName for $time today. Isn't it time for a pause?";
+  String get progressStartedSnack => isEs ? 'Tu racha quedó activa hoy.' : 'Your streak is active today.';
+  String get autoFocusStartedSnack => isEs ? 'Se inició una hora de concentración.' : 'A one-hour focus session started.';
+
   // HabitDetailScreen
   String get habitOverview => isEs ? 'RESUMEN' : 'OVERVIEW';
   String get thisWeek => isEs ? 'Esta semana' : 'This week';
@@ -268,4 +321,53 @@ class AppStrings {
       'July','August','September','October','November','December'];
     return isEs ? es[month] : en[month];
   }
+
+
+  // Automation, Pomodoro, limits, anti-bypass
+  String get automationSubtitle => isEs ? 'Horarios normales o estrictos, límites y reglas combinadas.' : 'Clean normal or strict schedules, limits, and combined rules.';
+  String get automationAndHardModeSubtitle => isEs ? 'Horarios, modo estricto, presets y reglas por zona + horario.' : 'Schedules, strict mode, presets, and zone + schedule rules.';
+  String get noSchedulesYet => isEs ? 'Aún no hay horarios automáticos.' : 'No automatic schedules yet.';
+  String get normalMode => isEs ? 'Normal' : 'Normal';
+  String get strictModeLabel => isEs ? 'Estricto' : 'Strict';
+  String get deleteText => isEs ? 'Eliminar' : 'Delete';
+  String get createSchedule => isEs ? 'Crear horario' : 'Create schedule';
+  String get editSchedule => isEs ? 'Editar horario' : 'Edit schedule';
+  String get startTime => isEs ? 'Inicio' : 'Start';
+  String get endTime => isEs ? 'Fin' : 'End';
+  String get weekdays => isEs ? 'Días' : 'Weekdays';
+  String get chooseApps => isEs ? 'Apps a bloquear' : 'Apps to block';
+  String get saveText => isEs ? 'Guardar' : 'Save';
+  String get normalSchedulesBody => isEs ? 'Los horarios normales bloquean apps automáticamente sin obligar modo estricto.' : 'Normal schedules automatically block apps without forcing strict mode.';
+  String get hardModeGlobal => isEs ? 'Modo estricto global' : 'Global hard mode';
+  String get hardModeGlobalSubtitle => isEs ? 'Hace que foco manual y reglas activas no permitan pausas ni bypass.' : 'Makes manual focus and active rules disallow pauses and bypass.';
+  String get antiBypassTitle => isEs ? 'Protección anti-bypass' : 'Anti-bypass protection';
+  String get antiBypassBody => isEs ? 'Detox vigila permisos clave, conserva reglas activas tras reinicio y vuelve a levantar el escudo si sigue habiendo bloqueo pendiente.' : 'Detox watches key permissions, preserves active rules after reboot, and restores the shield when blocking is still pending.';
+  String get antiBypassHealthy => isEs ? 'Protección activa' : 'Protection active';
+  String get antiBypassNeedsAttention => isEs ? 'Requiere atención' : 'Needs attention';
+  String get pomodoroTitle => isEs ? 'Pomodoro integrado' : 'Integrated Pomodoro';
+  String get pomodoroSubtitle => isEs ? 'Alterna bloques de trabajo y descanso usando el mismo escudo de enfoque.' : 'Alternate work and break blocks using the same focus shield.';
+  String get pomodoroStart => isEs ? 'Iniciar Pomodoro' : 'Start Pomodoro';
+  String get pomodoroWork => isEs ? 'Trabajo' : 'Work';
+  String get pomodoroBreak => isEs ? 'Descanso' : 'Break';
+  String pomodoroCycleLabel(int current, int total) => isEs ? 'Ciclo $current de $total' : 'Cycle $current of $total';
+  String get appLimitReached => isEs ? 'Límite diario alcanzado' : 'Daily limit reached';
+  String limitReachedForApp(String appName) => isEs ? 'Has alcanzado el límite diario de $appName.' : 'You reached the daily limit for $appName.';
+  String get startHourFocus => isEs ? 'Empezar hora de concentración' : 'Start concentration hour';
+  String get denyText => isEs ? 'Denegar' : 'Deny';
+  String get automationSaved => isEs ? 'Automatización actualizada.' : 'Automation updated.';
+  String get progressMedalsSubtitle => isEs ? 'Convierte tus decisiones diarias en rachas, logros y medallas visibles.' : 'Turn your daily decisions into streaks, achievements, and visible medals.';
+  String get startTodayProgress => isEs ? 'Activar progreso hoy' : 'Activate progress today';
+  String get sessionsCompleted => isEs ? 'Sesiones completadas' : 'Completed sessions';
+  String get suggestionsAccepted => isEs ? 'Sugerencias aceptadas' : 'Accepted suggestions';
+  String get suggestionsShown => isEs ? 'Sugerencias mostradas' : 'Suggestions shown';
+  String get pomodoroCycles => isEs ? 'Ciclos Pomodoro' : 'Pomodoro cycles';
+  String get extraPauseAd => isEs ? 'Pausa extra con anuncio' : 'Extra pause with ad';
+  String get extraPauseAdSubtitle => isEs ? 'Mantienes 1 pausa gratis diaria y 1 pausa adicional al completar un anuncio.' : 'Keep 1 free daily pause and 1 extra pause after completing an ad.';
+  String get progressStats => isEs ? 'Resumen de progreso' : 'Progress summary';
+  String get progressStatsBody => isEs
+      ? 'Aquí ves tu resumen personal. El sponsor sigue recibiendo tu progreso sin mostrar esta sección como un panel especial.'
+      : 'This is your personal summary. Your sponsor still receives your progress without showing this section as a special panel.';
+  String get topApps => isEs ? 'Apps más usadas' : 'Top apps';
+
+
 }

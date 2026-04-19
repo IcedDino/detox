@@ -38,6 +38,7 @@ class SponsorAlertService {
     stop();
     _started = true;
     _listenToUserProfile();
+    unawaited(AppBlockingService.instance.syncSponsorState(false));
     unawaited(_refreshStreams());
   }
 
@@ -53,6 +54,7 @@ class SponsorAlertService {
     _watchIncoming = false;
     _watchOutgoing = false;
     _seenStates.clear();
+    unawaited(AppBlockingService.instance.syncSponsorState(false));
   }
 
   void _listenToUserProfile() {
@@ -65,6 +67,7 @@ class SponsorAlertService {
       final hasSponsorNow = sponsorUid != null && sponsorUid.isNotEmpty;
       if (hasSponsorNow != _hasSponsor) {
         _hasSponsor = hasSponsorNow;
+        unawaited(AppBlockingService.instance.syncSponsorState(_hasSponsor));
         unawaited(_refreshStreams());
       }
     });
@@ -138,11 +141,13 @@ class SponsorAlertService {
       _seenStates[key] = signature;
 
       if (request.isPending) {
-        FocusNotificationService.instance.showSponsorAlert(
-          id: request.id.hashCode & 0x7fffffff,
-          title: 'Sponsor request',
-          body:
-          '${request.requesterName} requested ${request.prettyType.toLowerCase()}.',
+        unawaited(
+          FocusNotificationService.instance.showSponsorAlert(
+            id: request.id.hashCode & 0x7fffffff,
+            title: 'Sponsor request',
+            body:
+            '${request.requesterName} requested ${request.prettyType.toLowerCase()}.',
+          ),
         );
       }
     }
@@ -167,26 +172,32 @@ class SponsorAlertService {
         unawaited(
           AppBlockingService.instance.suspendForMinutes(request.durationMinutes),
         );
-        FocusNotificationService.instance.showSponsorAlert(
-          id: (request.id.hashCode + 150000) & 0x7fffffff,
-          title: '15-minute pause approved',
-          body: 'Your sponsor approved an app shield pause.',
+        unawaited(
+          FocusNotificationService.instance.showSponsorAlert(
+            id: (request.id.hashCode + 150000) & 0x7fffffff,
+            title: '15-minute pause approved',
+            body: 'Your sponsor approved an app shield pause.',
+          ),
         );
       } else if (request.isApproved &&
           !request.isExpired &&
           (request.code?.isNotEmpty ?? false)) {
-        FocusNotificationService.instance.showSponsorAlert(
-          id: (request.id.hashCode + 100000) & 0x7fffffff,
-          title: 'Your sponsor code is ready',
-          body: '${request.prettyType} code received. It expires in 3 minutes.',
+        unawaited(
+          FocusNotificationService.instance.showSponsorAlert(
+            id: (request.id.hashCode + 100000) & 0x7fffffff,
+            title: 'Your sponsor code is ready',
+            body: '${request.prettyType} code received. It expires in 3 minutes.',
+          ),
         );
       }
 
       if (request.isEmailed) {
-        FocusNotificationService.instance.showSponsorAlert(
-          id: (request.id.hashCode + 200000) & 0x7fffffff,
-          title: 'Unlink code email requested',
-          body: 'Check your email for the Detox unlink code.',
+        unawaited(
+          FocusNotificationService.instance.showSponsorAlert(
+            id: (request.id.hashCode + 200000) & 0x7fffffff,
+            title: 'Unlink code email requested',
+            body: 'Check your email for the Detox unlink code.',
+          ),
         );
       }
     }

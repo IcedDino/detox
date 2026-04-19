@@ -23,7 +23,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final _signUpName = TextEditingController();
   final _signUpEmail = TextEditingController();
   final _signUpPassword = TextEditingController();
-  final _tab = ValueNotifier<int>(1);
+  final _tab = ValueNotifier<int>(0);
   bool _busy = false;
 
   @override
@@ -104,104 +104,111 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? DetoxColors.text : DetoxColors.lightText;
-    final mutedColor = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final t = AppStrings.of(context);
+    final mutedColor = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
+
     return Scaffold(
       body: DetoxBackground(
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) => SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
               child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight - 40),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const DetoxLogo(size: 84, showLabel: true),
-                    const SizedBox(height: 18),
-                    Text(
-                      t.ownYourAttention,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      t.authSubtitle,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: mutedColor, height: 1.45),
-                    ),
-                    const SizedBox(height: 18),
-                    GlassCard(
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                constraints: BoxConstraints(minHeight: constraints.maxHeight - 42),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 430),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _AuthHeader(
+                          title: 'Detox',
+                          subtitle: t.useEmailFirst,
+                        ),
+                        const SizedBox(height: 24),
+                        GlassCard(
+                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              _AuthIconButton(
-                                icon: Icons.g_mobiledata_rounded,
-                                label: 'G',
-                                onTap: _busy ? null : _signInWithGoogle,
+                              ValueListenableBuilder<int>(
+                                valueListenable: _tab,
+                                builder: (context, value, _) => Container(
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? Colors.white.withOpacity(0.045)
+                                        : Colors.white.withOpacity(0.82),
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(
+                                      color: isDark
+                                          ? DetoxColors.cardBorder
+                                          : DetoxColors.lightCardBorder,
+                                    ),
+                                  ),
+                                  padding: const EdgeInsets.all(4),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: _SegmentButton(
+                                          label: t.signIn,
+                                          selected: value == 0,
+                                          onTap: () => _tab.value = 0,
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: _SegmentButton(
+                                          label: t.createAccount,
+                                          selected: value == 1,
+                                          onTap: () => _tab.value = 1,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
-                              const SizedBox(width: 14),
-                              _AuthIconButton(
-                                icon: Icons.phone_iphone_rounded,
-                                label: '📱',
-                                onTap: _busy ? null : _showPhoneSheet,
+                              const SizedBox(height: 22),
+                              ValueListenableBuilder<int>(
+                                valueListenable: _tab,
+                                builder: (context, value, _) => AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 220),
+                                  switchInCurve: Curves.easeOut,
+                                  switchOutCurve: Curves.easeIn,
+                                  child: value == 0
+                                      ? _buildSignInPanel(mutedColor)
+                                      : _buildSignUpPanel(mutedColor),
+                                ),
+                              ),
+                              const SizedBox(height: 18),
+                              _DividerLabel(label: t.otherWaysToContinue),
+                              const SizedBox(height: 14),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _SecondaryAuthButton(
+                                      icon: Icons.g_mobiledata_rounded,
+                                      label: 'Google',
+                                      onTap: _busy ? null : _signInWithGoogle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: _SecondaryAuthButton(
+                                      icon: Icons.phone_iphone_rounded,
+                                      label: t.phoneSignIn,
+                                      onTap: _busy ? null : _showPhoneSheet,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                          const SizedBox(height: 16),
-                          Text(
-                            t.orUseEmail,
-                            style: TextStyle(color: mutedColor, fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    ValueListenableBuilder<int>(
-                      valueListenable: _tab,
-                      builder: (context, value, _) => Container(
-                        decoration: BoxDecoration(
-                          color: isDark ? Colors.white.withOpacity(0.05) : Colors.white.withOpacity(0.72),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder,
-                          ),
                         ),
-                        padding: const EdgeInsets.all(4),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: _SegmentButton(
-                                label: t.signIn,
-                                selected: value == 0,
-                                onTap: () => _tab.value = 0,
-                              ),
-                            ),
-                            Expanded(
-                              child: _SegmentButton(
-                                label: t.createAccount,
-                                selected: value == 1,
-                                onTap: () => _tab.value = 1,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      ],
                     ),
-                    const SizedBox(height: 14),
-                    ValueListenableBuilder<int>(
-                      valueListenable: _tab,
-                      builder: (context, value, _) => AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 220),
-                        child: value == 0 ? _buildSignInCard(textColor, mutedColor) : _buildSignUpCard(textColor, mutedColor),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -211,37 +218,67 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  Widget _buildSignInCard(Color textColor, Color mutedColor) {
+  Widget _buildSignInPanel(Color mutedColor) {
     final t = AppStrings.of(context);
-    return GlassCard(
-      key: const ValueKey('signin'),
-      child: Form(
-        key: _signInFormKey,
+    return Form(
+      key: _signInFormKey,
+      child: AutofillGroup(
+        key: const ValueKey('signin'),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(t.welcomeBack, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            Text(
+              t.welcomeBack,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
             const SizedBox(height: 6),
-            Text(t.signInSubtitle, style: TextStyle(color: mutedColor)),
-            const SizedBox(height: 14),
+            Text(t.signInSubtitle, style: TextStyle(color: mutedColor, height: 1.35)),
+            const SizedBox(height: 18),
             TextFormField(
               controller: _signInEmail,
               keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(labelText: t.email),
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.username, AutofillHints.email],
+              decoration: InputDecoration(
+                labelText: t.email,
+                prefixIcon: const Icon(Icons.alternate_email_rounded),
+              ),
               validator: (value) => (value == null || !value.contains('@')) ? t.enterValidEmail : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _signInPassword,
               obscureText: true,
-              decoration: InputDecoration(labelText: t.password),
+              textInputAction: TextInputAction.done,
+              autofillHints: const [AutofillHints.password],
+              decoration: InputDecoration(
+                labelText: t.password,
+                prefixIcon: const Icon(Icons.lock_outline_rounded),
+              ),
               validator: (value) => (value == null || value.length < 6) ? t.useSixChars : null,
+              onFieldSubmitted: (_) {
+                if (!_busy) _signIn();
+              },
             ),
             const SizedBox(height: 18),
-            FilledButton.icon(
+            FilledButton(
               onPressed: _busy ? null : _signIn,
-              icon: _busy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.login_rounded),
-              label: Text(t.signIn),
+              child: _busy
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2.2),
+                    )
+                  : Text(t.signIn),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: TextButton(
+                onPressed: _busy ? null : () => _tab.value = 1,
+                child: Text('${t.noAccountYet} ${t.createAccount}'),
+              ),
             ),
           ],
         ),
@@ -249,43 +286,78 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  Widget _buildSignUpCard(Color textColor, Color mutedColor) {
+  Widget _buildSignUpPanel(Color mutedColor) {
     final t = AppStrings.of(context);
-    return GlassCard(
-      key: const ValueKey('signup'),
-      child: Form(
-        key: _signUpFormKey,
+    return Form(
+      key: _signUpFormKey,
+      child: AutofillGroup(
+        key: const ValueKey('signup'),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(t.createAccountTitle, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            Text(
+              t.createAccountTitle,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
             const SizedBox(height: 6),
-            Text(t.createAccountSubtitle, style: TextStyle(color: mutedColor)),
-            const SizedBox(height: 14),
+            Text(t.createAccountSubtitle, style: TextStyle(color: mutedColor, height: 1.35)),
+            const SizedBox(height: 18),
             TextFormField(
               controller: _signUpName,
-              decoration: InputDecoration(labelText: t.name),
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.name],
+              decoration: InputDecoration(
+                labelText: t.name,
+                prefixIcon: const Icon(Icons.person_outline_rounded),
+              ),
               validator: (value) => (value == null || value.trim().length < 2) ? t.enterName : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _signUpEmail,
               keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(labelText: t.email),
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.username, AutofillHints.email],
+              decoration: InputDecoration(
+                labelText: t.email,
+                prefixIcon: const Icon(Icons.alternate_email_rounded),
+              ),
               validator: (value) => (value == null || !value.contains('@')) ? t.enterValidEmail : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _signUpPassword,
               obscureText: true,
-              decoration: InputDecoration(labelText: t.password),
+              textInputAction: TextInputAction.done,
+              autofillHints: const [AutofillHints.newPassword],
+              decoration: InputDecoration(
+                labelText: t.password,
+                prefixIcon: const Icon(Icons.lock_outline_rounded),
+              ),
               validator: (value) => (value == null || value.length < 6) ? t.useSixChars : null,
+              onFieldSubmitted: (_) {
+                if (!_busy) _signUp();
+              },
             ),
             const SizedBox(height: 18),
-            FilledButton.icon(
+            FilledButton(
               onPressed: _busy ? null : _signUp,
-              icon: _busy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.person_add_alt_1_rounded),
-              label: Text(t.createAccount),
+              child: _busy
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2.2),
+                    )
+                  : Text(t.createAccount),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: TextButton(
+                onPressed: _busy ? null : () => _tab.value = 0,
+                child: Text('${t.alreadyHaveAccount} ${t.signIn}'),
+              ),
             ),
           ],
         ),
@@ -294,8 +366,83 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 }
 
-class _AuthIconButton extends StatelessWidget {
-  const _AuthIconButton({required this.icon, required this.label, required this.onTap});
+class _AuthHeader extends StatelessWidget {
+  const _AuthHeader({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mutedColor = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
+
+    return Row(
+      children: [
+        const DetoxLogo(size: 44),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: mutedColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _DividerLabel extends StatelessWidget {
+  const _DividerLabel({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder;
+    final mutedColor = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
+
+    return Row(
+      children: [
+        Expanded(child: Divider(color: borderColor, height: 1)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: mutedColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        Expanded(child: Divider(color: borderColor, height: 1)),
+      ],
+    );
+  }
+}
+
+class _SecondaryAuthButton extends StatelessWidget {
+  const _SecondaryAuthButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String label;
@@ -304,24 +451,21 @@ class _AuthIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Expanded(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder,
-            ),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, size: 34),
-            ],
-          ),
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 22),
+      label: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size.fromHeight(50),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        side: BorderSide(
+          color: isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder,
         ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
     );
   }
@@ -341,10 +485,10 @@ class _SegmentButton extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 13),
         decoration: BoxDecoration(
           color: selected
-              ? DetoxColors.accent.withOpacity(isDark ? 0.28 : 0.16)
+              ? DetoxColors.accent.withOpacity(isDark ? 0.26 : 0.12)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(14),
         ),
@@ -391,7 +535,9 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
         onCodeSent: () {
           if (!mounted) return;
           setState(() => _codeSent = true);
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppStrings.of(context).smsCodeSent)));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(AppStrings.of(context).smsCodeSent)),
+          );
         },
         onVerified: (user) {
           if (!mounted) return;
@@ -435,21 +581,32 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(t.phoneSignIn, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            Text(
+              t.phoneSignIn,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
             const SizedBox(height: 10),
-            Text(t.phoneInstructions, style: TextStyle(color: DetoxColors.muted)),
+            Text(t.phoneInstructions, style: const TextStyle(color: DetoxColors.muted)),
             const SizedBox(height: 14),
             TextField(
               controller: _phoneController,
               keyboardType: TextInputType.phone,
-              decoration: InputDecoration(labelText: t.phoneNumber),
+              decoration: InputDecoration(
+                labelText: t.phoneNumber,
+                prefixIcon: const Icon(Icons.phone_rounded),
+              ),
             ),
             if (_codeSent) ...[
               const SizedBox(height: 12),
               TextField(
                 controller: _codeController,
                 keyboardType: TextInputType.number,
-                decoration: InputDecoration(labelText: t.smsCode),
+                decoration: InputDecoration(
+                  labelText: t.smsCode,
+                  prefixIcon: const Icon(Icons.verified_user_outlined),
+                ),
               ),
             ],
             const SizedBox(height: 16),

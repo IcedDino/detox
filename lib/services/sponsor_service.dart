@@ -7,6 +7,7 @@ import '../models/auth_user.dart';
 import '../models/link_requests.dart';
 import '../models/sponsor_profile.dart';
 import '../models/sponsor_request.dart';
+import 'storage_service.dart';
 
 class SponsorException implements Exception {
   SponsorException(this.message);
@@ -34,6 +35,14 @@ class SponsorService {
       _firestore.collection('mail');
 
   String? get _uid => _auth.currentUser?.uid;
+
+  static const List<String> _pairScopedRequestTypes = <String>[
+    'settings_unlock',
+    'zone_override',
+    'shield_pause',
+    'unlink_sponsor',
+    'unlink_email',
+  ];
 
   bool get isSignedIn => _uid != null;
 
@@ -197,6 +206,7 @@ class SponsorService {
         SetOptions(merge: true),
       );
     });
+    await StorageService().incrementPauseApproved();
   }
 
   Future<void> rejectRequest(String requestId) async {
@@ -235,6 +245,7 @@ class SponsorService {
         SetOptions(merge: true),
       );
     });
+    await StorageService().incrementPauseRejected();
   }
 
 
@@ -515,6 +526,8 @@ class SponsorService {
       throw SponsorException('Sign in first.');
     }
 
+    String? unlinkedSponsorUid;
+
     await _firestore.runTransaction((tx) async {
       final meSnap = await tx.get(meDoc);
       final meData = meSnap.data() ?? <String, dynamic>{};
@@ -524,6 +537,7 @@ class SponsorService {
         return;
       }
 
+      unlinkedSponsorUid = sponsorUid;
       final sponsorRef = _firestore.collection('users').doc(sponsorUid);
       final sponsorSnap = await tx.get(sponsorRef);
       final sponsorData = sponsorSnap.data() ?? <String, dynamic>{};
@@ -541,29 +555,14 @@ class SponsorService {
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       }
-
-      final forwardRef = _linkRequestRefForPair(uid, sponsorUid);
-      final reverseRef = _linkRequestRefForPair(sponsorUid, uid);
-
-      final forwardSnap = await tx.get(forwardRef);
-      final reverseSnap = await tx.get(reverseRef);
-
-      if (forwardSnap.exists) {
-        tx.set(forwardRef, {
-          'status': 'ended',
-          'endedAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      }
-
-      if (reverseSnap.exists) {
-        tx.set(reverseRef, {
-          'status': 'ended',
-          'endedAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      }
     });
+
+    if (unlinkedSponsorUid != null) {
+      await _purgeSponsorPairState(
+        requesterUid: uid,
+        sponsorUid: unlinkedSponsorUid!,
+      );
+    }
   }
   Future<void> requestUnlinkSponsorCode() async {
     await createUnlockRequest(
@@ -656,6 +655,8 @@ class SponsorService {
       throw SponsorException('Enter the email code.');
     }
 
+    String? unlinkedSponsorUid;
+
     await _firestore.runTransaction((tx) async {
       final userSnap = await tx.get(userDoc);
       final userData = userSnap.data() ?? <String, dynamic>{};
@@ -681,6 +682,7 @@ class SponsorService {
 
       final sponsorUid = userData['sponsorUid'] as String?;
       if (sponsorUid != null && sponsorUid.isNotEmpty) {
+        unlinkedSponsorUid = sponsorUid;
         final sponsorRef = _firestore.collection('users').doc(sponsorUid);
         final sponsorSnap = await tx.get(sponsorRef);
         final sponsorData = sponsorSnap.data() ?? <String, dynamic>{};
@@ -701,28 +703,6 @@ class SponsorService {
             'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
         }
-
-        final forwardRef = _linkRequestRefForPair(uid, sponsorUid);
-        final reverseRef = _linkRequestRefForPair(sponsorUid, uid);
-
-        final forwardSnap = await tx.get(forwardRef);
-        final reverseSnap = await tx.get(reverseRef);
-
-        if (forwardSnap.exists) {
-          tx.set(forwardRef, {
-            'status': 'ended',
-            'endedAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
-        }
-
-        if (reverseSnap.exists) {
-          tx.set(reverseRef, {
-            'status': 'ended',
-            'endedAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
-        }
       } else {
         tx.set(userDoc, {
           'unlinkEmailCode': FieldValue.delete(),
@@ -732,6 +712,52 @@ class SponsorService {
         }, SetOptions(merge: true));
       }
     });
+
+    if (unlinkedSponsorUid != null) {
+      await _purgeSponsorPairState(
+        requesterUid: uid,
+        sponsorUid: unlinkedSponsorUid!,
+      );
+    }
+  }
+
+
+  Future<void> _purgeSponsorPairState({
+    required String requesterUid,
+    required String sponsorUid,
+  }) async {
+    final batch = _firestore.batch();
+
+    for (final requestType in _pairScopedRequestTypes) {
+      batch.delete(_requestsCollectionRef.doc(_unlockRequestId(requesterUid, requestType)));
+      batch.delete(_requestsCollectionRef.doc(_unlockRequestId(sponsorUid, requestType)));
+    }
+
+    batch.delete(_linkRequestRefForPair(requesterUid, sponsorUid));
+    batch.delete(_linkRequestRefForPair(sponsorUid, requesterUid));
+
+    final clearFields = <String, dynamic>{
+      'settingsUnlockUntil': FieldValue.delete(),
+      'zoneOverrideUntil': FieldValue.delete(),
+      'shieldPauseUntil': FieldValue.delete(),
+      'unlinkEmailCode': FieldValue.delete(),
+      'unlinkEmailCodeExpiresAt': FieldValue.delete(),
+      'unlinkEmailRequestId': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    batch.set(
+      _firestore.collection('users').doc(requesterUid),
+      clearFields,
+      SetOptions(merge: true),
+    );
+    batch.set(
+      _firestore.collection('users').doc(sponsorUid),
+      clearFields,
+      SetOptions(merge: true),
+    );
+
+    await batch.commit();
   }
 
   Future<void> createUnlockRequest({
@@ -788,6 +814,7 @@ class SponsorService {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     });
+    await StorageService().incrementPauseRequests();
   }
 
   Stream<List<SponsorRequest>> incomingRequests() {
@@ -894,8 +921,9 @@ class SponsorService {
     }
 
     final requestRef = _requestsCollectionRef.doc(_unlockRequestId(uid, requestType));
+    String? unlinkedSponsorUid;
 
-    return _firestore.runTransaction<int>((tx) async {
+    final consumedMinutes = await _firestore.runTransaction<int>((tx) async {
       final requestSnap = await tx.get(requestRef);
       final data = requestSnap.data();
 
@@ -921,6 +949,7 @@ class SponsorService {
         final userSnap = await tx.get(userDoc);
         final userData = userSnap.data() ?? <String, dynamic>{};
         final sponsorUid = userData['sponsorUid'] as String?;
+        unlinkedSponsorUid = sponsorUid;
 
         tx.set(requestRef, {
           'status': 'consumed',
@@ -999,6 +1028,15 @@ class SponsorService {
 
       return request.durationMinutes;
     });
+
+    if (requestType == 'unlink_sponsor' && unlinkedSponsorUid != null) {
+      await _purgeSponsorPairState(
+        requesterUid: uid,
+        sponsorUid: unlinkedSponsorUid!,
+      );
+    }
+
+    return consumedMinutes;
   }
 
   Future<bool> hasActiveSettingsUnlock() async =>

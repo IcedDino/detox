@@ -109,10 +109,14 @@ class FocusBlockerService : Service() {
             }
 
             ACTION_SYNC_SPONSOR_STATE -> {
-                val hasSponsor = intent.getBooleanExtra("has_sponsor", false)
-                getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                val extras = intent.extras
+                val hasSponsor = if (extras != null && extras.containsKey("has_sponsor")) intent.getBooleanExtra("has_sponsor", false) else prefs.getBoolean("has_sponsor", false)
+                val strictMode = if (extras != null && extras.containsKey("strict_mode")) intent.getBooleanExtra("strict_mode", false) else prefs.getBoolean("strict_mode", false)
+                prefs
                     .edit()
                     .putBoolean("has_sponsor", hasSponsor)
+                    .putBoolean("strict_mode", strictMode)
                     .apply()
 
                 if (overlayView != null) {
@@ -134,6 +138,18 @@ class FocusBlockerService : Service() {
                 windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
                 audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
                 val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                intent?.getStringArrayListExtra("blockedPackages")?.let {
+                    prefs.edit().putStringSet("blocked_packages", it.toSet()).apply()
+                }
+                if (intent?.hasExtra("reason") == true) {
+                    prefs.edit().putString("block_reason", intent.getStringExtra("reason")).apply()
+                }
+                if (intent?.hasExtra("hasSponsor") == true) {
+                    prefs.edit().putBoolean("has_sponsor", intent.getBooleanExtra("hasSponsor", false)).apply()
+                }
+                if (intent?.hasExtra("strictMode") == true) {
+                    prefs.edit().putBoolean("strict_mode", intent.getBooleanExtra("strictMode", false)).apply()
+                }
                 val blockedPackages =
                     prefs.getStringSet("blocked_packages", emptySet()) ?: emptySet()
 
@@ -204,6 +220,33 @@ class FocusBlockerService : Service() {
         }
     }
 
+    private fun currentSuspendUntilMillis(): Long {
+        return getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getLong("suspend_until_millis", 0L)
+    }
+
+    private fun updateSuspendUntilMillis(
+        candidateUntilMillis: Long,
+        allowShorten: Boolean = false
+    ): Long {
+        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val current = prefs.getLong("suspend_until_millis", 0L)
+        val now = System.currentTimeMillis()
+
+        val normalizedCandidate = if (candidateUntilMillis > now) candidateUntilMillis else 0L
+        val next = if (allowShorten) {
+            normalizedCandidate
+        } else {
+            maxOf(current, normalizedCandidate)
+        }
+
+        if (next != current) {
+            prefs.edit().putLong("suspend_until_millis", next).apply()
+        }
+
+        return next
+    }
+
     private fun startShieldPauseWatcher() {
         userListener?.remove()
         userListener = null
@@ -221,13 +264,10 @@ class FocusBlockerService : Service() {
                 }
 
                 val ts = snapshot?.getTimestamp("shieldPauseUntil")
-                val millis = ts?.toDate()?.time ?: 0L
-                getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                    .edit()
-                    .putLong("suspend_until_millis", millis)
-                    .apply()
+                val remoteMillis = ts?.toDate()?.time ?: 0L
+                val effectiveMillis = updateSuspendUntilMillis(remoteMillis, allowShorten = false)
 
-                if (millis > System.currentTimeMillis()) {
+                if (effectiveMillis > System.currentTimeMillis()) {
                     requestInFlight = false
                     keepOverlayPinned = false
                     currentRequestId = null
@@ -346,6 +386,7 @@ class FocusBlockerService : Service() {
         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         ensureDailyPauseReset(prefs)
         val hasSponsor = prefs.getBoolean("has_sponsor", false)
+        val strictMode = prefs.getBoolean("strict_mode", false)
         requestAudioFocus()
 
         if (overlayView != null) {
@@ -482,8 +523,8 @@ class FocusBlockerService : Service() {
             }
             minHeight = dp(54)
             setPadding(dp(18), dp(14), dp(18), dp(14))
-            isEnabled = !requestInFlight && !waitingAdResult
-            text = primaryActionLabel(hasSponsor)
+            isEnabled = !strictMode && !requestInFlight && !waitingAdResult
+            text = if (strictMode) tr("Strict mode active", "Modo estricto activo") else primaryActionLabel(hasSponsor)
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -491,8 +532,10 @@ class FocusBlockerService : Service() {
                 bottomMargin = dp(12)
             }
 
+            isEnabled = true
+
             setOnClickListener {
-                if (requestInFlight || waitingAdResult) return@setOnClickListener
+                if (strictMode || requestInFlight || waitingAdResult) return@setOnClickListener
 
                 val prefsNow = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 ensureDailyPauseReset(prefsNow)
@@ -560,6 +603,8 @@ class FocusBlockerService : Service() {
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
 
+            isEnabled = true
+
             setOnClickListener {
                 requestInFlight = false
                 waitingAdResult = false
@@ -569,7 +614,7 @@ class FocusBlockerService : Service() {
                 requestListener = null
 
                 suppressPackageName = lastShownPackage
-                suppressPackageUntil = System.currentTimeMillis() + 1500L
+                suppressPackageUntil = System.currentTimeMillis() + 2500L
 
                 val homeIntent = Intent(Intent.ACTION_MAIN).apply {
                     addCategory(Intent.CATEGORY_HOME)
@@ -634,11 +679,7 @@ class FocusBlockerService : Service() {
 
     private fun suspendLocallyForMinutes(minutes: Int) {
         val untilMillis = System.currentTimeMillis() + minutes * 60_000L
-        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-
-        prefs.edit()
-            .putLong("suspend_until_millis", untilMillis)
-            .apply()
+        updateSuspendUntilMillis(untilMillis, allowShorten = false)
 
         keepOverlayPinned = false
         waitingAdResult = false
@@ -715,8 +756,9 @@ class FocusBlockerService : Service() {
 
             prefs.edit()
                 .putBoolean(KEY_PAUSE_AD_USED, true)
-                .putLong("suspend_until_millis", untilMillis)
                 .apply()
+
+            updateSuspendUntilMillis(untilMillis, allowShorten = false)
 
             keepOverlayPinned = false
             lastShownPackage = null
@@ -888,10 +930,7 @@ class FocusBlockerService : Service() {
                     val expiresAt = snapshot.getTimestamp("expiresAt")?.toDate()?.time
                         ?: (System.currentTimeMillis() + 15 * 60_000L)
 
-                    getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                        .edit()
-                        .putLong("suspend_until_millis", expiresAt)
-                        .apply()
+                    updateSuspendUntilMillis(expiresAt, allowShorten = false)
 
                     requestInFlight = false
                     keepOverlayPinned = false
@@ -903,15 +942,23 @@ class FocusBlockerService : Service() {
 
                 "rejected" -> {
                     requestInFlight = false
-                    keepOverlayPinned = true
                     currentRequestId = null
-                    updateOverlayReason(
-                        tr(
-                            "Pause request rejected by your sponsor.",
-                            "Tu sponsor rechazó la solicitud de pausa."
+
+                    if (currentSuspendUntilMillis() > System.currentTimeMillis()) {
+                        keepOverlayPinned = false
+                        requestListener?.remove()
+                        requestListener = null
+                        hideOverlay(force = true)
+                    } else {
+                        keepOverlayPinned = true
+                        updateOverlayReason(
+                            tr(
+                                "Pause request rejected by your sponsor.",
+                                "Tu sponsor rechazó la solicitud de pausa."
+                            )
                         )
-                    )
-                    syncOverlayButtonState()
+                        syncOverlayButtonState()
+                    }
                 }
             }
         }
@@ -952,11 +999,12 @@ class FocusBlockerService : Service() {
         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         ensureDailyPauseReset(prefs)
         val hasSponsor = prefs.getBoolean("has_sponsor", false)
+        val strictMode = prefs.getBoolean("strict_mode", false)
         val canAct = canUseFreePause(prefs) || canUseAdPause(prefs) || hasSponsor
 
         val actionButton = overlayView?.findViewWithTag<Button>("actionButton") ?: return
-        actionButton.isEnabled = !requestInFlight && !waitingAdResult && canAct
-        actionButton.text = primaryActionLabel(hasSponsor)
+        actionButton.isEnabled = !strictMode && !requestInFlight && !waitingAdResult && canAct
+        actionButton.text = if (strictMode) tr("Strict mode active", "Modo estricto activo") else primaryActionLabel(hasSponsor)
     }
 
     private fun syncOverlayAppDetails() {
@@ -985,8 +1033,10 @@ class FocusBlockerService : Service() {
         val freePauseLeft = !prefs.getBoolean(KEY_PAUSE_FREE_USED, false)
         val adPauseLeft = !prefs.getBoolean(KEY_PAUSE_AD_USED, false)
         val hasSponsor = prefs.getBoolean("has_sponsor", false)
+        val strictMode = prefs.getBoolean("strict_mode", false)
 
         val suffix = when {
+            strictMode -> tr(" Strict mode is on: no pauses or ads until the session ends. You can still go back to focus.", " El modo estricto está activo: sin pausas ni anuncios hasta que termine la sesión. Aun así puedes volver al enfoque.")
             requestInFlight -> ""
             waitingAdResult -> tr(
                 " Complete the ad to get 15 extra minutes.",

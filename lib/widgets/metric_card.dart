@@ -20,13 +20,19 @@ class MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? DetoxColors.text : DetoxColors.lightText;
+    final muted = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
+
     final resolvedLeading = leading ?? Container(
       width: 50,
       height: 50,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: DetoxColors.accent.withOpacity(0.16),
-        border: Border.all(color: Colors.white12),
+        border: Border.all(
+          color: isDark ? Colors.white12 : DetoxColors.lightCardBorder,
+        ),
       ),
       child: Icon(icon ?? Icons.auto_graph_outlined, color: DetoxColors.accentSoft),
     );
@@ -44,10 +50,7 @@ class MetricCard extends StatelessWidget {
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context)
-                      .textTheme
-                      .labelMedium
-                      ?.copyWith(color: DetoxColors.muted),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(color: muted),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -56,7 +59,7 @@ class MetricCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: DetoxColors.text,
+                        color: textColor,
                       ),
                 ),
                 const SizedBox(height: 2),
@@ -64,7 +67,7 @@ class MetricCard extends StatelessWidget {
                   subtitle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: DetoxColors.muted, height: 1.18),
+                  style: TextStyle(color: muted, height: 1.18),
                 ),
               ],
             ),

@@ -12,8 +12,10 @@ import '../models/auth_user.dart';
 import '../models/concentration_zone.dart';
 import '../models/installed_app_entry.dart';
 import '../models/sponsor_profile.dart';
+import '../screens/automation_settings_screen.dart';
 import '../screens/sponsor_screen.dart';
 import '../services/app_blocking_service.dart';
+import '../services/anti_bypass_service.dart';
 import '../services/app_catalog_service.dart';
 import '../services/location_zone_service.dart';
 import '../services/sponsor_service.dart';
@@ -21,6 +23,7 @@ import '../services/storage_service.dart';
 import '../services/usage_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_icon_badge.dart';
+import '../widgets/ui_kit.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
@@ -45,7 +48,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
   final StorageService _storageService = StorageService();
   final UsageService _usageService = UsageService();
   final AppCatalogService _catalogService = AppCatalogService();
@@ -64,6 +67,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   DateTime? _settingsUnlockUntil;
   ZoneState _zoneState = LocationZoneService.instance.currentState;
   StreamSubscription<ZoneState>? _zoneSubscription;
+  bool _antiBypassHealthy = true;
 
   @override
   void initState() {
@@ -107,6 +111,7 @@ class _SettingsScreenState extends State<SettingsScreen>
       SponsorService.instance.hasActiveSettingsUnlock(),
       SponsorService.instance.getSettingsUnlockUntil(),
       SponsorService.instance.getMySponsorCode(),
+      AntiBypassService.instance.getStatus(),
     ]);
 
     if (!mounted) return;
@@ -122,6 +127,7 @@ class _SettingsScreenState extends State<SettingsScreen>
       _settingsUnlockActive = results[7] as bool;
       _settingsUnlockUntil = results[8] as DateTime?;
       _mySponsorCode = results[9] as String;
+      _antiBypassHealthy = (results[10] as AntiBypassStatus).healthy;
       _loading = false;
     });
   }
@@ -145,19 +151,19 @@ class _SettingsScreenState extends State<SettingsScreen>
             ),
             const SizedBox(height: 10),
             const Text(
-              'Removing apps or zones needs your sponsor to approve settings access.',
+              'Protected changes need sponsor approval.',
               style: TextStyle(color: DetoxColors.muted),
             ),
             const SizedBox(height: 14),
             FilledButton.icon(
               onPressed: () => Navigator.pop(context, 'request'),
               icon: const Icon(Icons.send_outlined),
-              label: const Text('Request sponsor approval'),
+              label: const Text('Request approval'),
             ),
             const SizedBox(height: 10),
             TextButton(
               onPressed: () => Navigator.pop(context, 'open'),
-              child: const Text('Open sponsor center'),
+              child: const Text('Sponsor center'),
             ),
           ],
         ),
@@ -173,7 +179,7 @@ class _SettingsScreenState extends State<SettingsScreen>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Settings approval request sent to your sponsor.'),
+              content: Text('Approval request sent.'),
             ),
           );
         }
@@ -267,6 +273,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   Future<void> _editZone(ConcentrationZone zone) async {
+    if (!await _ensureProtectedSettingsAccess()) return;
     final updatedZone = await showModalBottomSheet<ConcentrationZone>(
       context: context,
       isScrollControlled: true,
@@ -288,8 +295,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   Future<void> _toggleZone(ConcentrationZone zone, bool value) async {
-    if (zone.enabled &&
-        !value &&
+    if (zone.enabled != value &&
         !await _ensureProtectedSettingsAccess()) {
       return;
     }
@@ -326,448 +332,409 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context);
     final t = AppStrings.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final muted = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
 
     return _loading
         ? const Center(child: CircularProgressIndicator())
         : ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        if (widget.currentUser != null) ...[
-          GlassCard(
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.person_outline_rounded),
-                  ),
-                  title: Text(widget.currentUser!.displayName),
-                  subtitle: Text(
-                    '${widget.currentUser!.email} • ${widget.currentUser!.provider}',
-                    style: const TextStyle(
-                      color: DetoxColors.muted,
-                    ),
-                  ),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.logout_rounded),
-                  title: Text(t.signOut),
-                  subtitle: Text(
-                    t.returnLoginScreen,
-                    style: const TextStyle(color: DetoxColors.muted),
-                  ),
-                  onTap: () async {
-                    await widget.onSignOut();
-                  },
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-        ],
-        GlassCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
             children: [
-              Row(
-                children: [
-                  const Icon(
-                    Icons.handshake_outlined,
-                    color: DetoxColors.accentSoft,
+              if (widget.currentUser != null) ...[
+                HeroInfoCard(
+                  icon: Icons.person_outline_rounded,
+                  title: widget.currentUser!.displayName,
+                  subtitle: widget.currentUser!.email,
+                  badge: StatusPill(
+                    label: widget.currentUser!.provider,
+                    icon: Icons.verified_user_outlined,
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      t.sponsorCenter,
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () async {
-                      await Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const SponsorScreen(),
-                        ),
-                      );
-                      await _load();
-                    },
-                    child: Text(t.open),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _hasSponsor
-                    ? t.linkedWith(
-                  _sponsorProfile?.displayName ?? '',
-                  _settingsUnlockActive,
-                )
-                    : '${t.yourCode}: ${_mySponsorCode.isEmpty ? t.loading : _mySponsorCode}',
-                style: const TextStyle(color: DetoxColors.muted),
-              ),
-              if (_settingsUnlockActive &&
-                  _settingsUnlockUntil != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  t.settingsUnlockedUntil(
-                    '${_settingsUnlockUntil!.hour.toString().padLeft(2, '0')}:${_settingsUnlockUntil!.minute.toString().padLeft(2, '0')}',
-                  ),
-                  style:
-                  const TextStyle(color: Colors.greenAccent),
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        Text(
-          t.settings,
-          style: Theme.of(context)
-              .textTheme
-              .headlineMedium
-              ?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 18),
-        GlassCard(
-          child: Column(
-            children: [
-              SwitchListTile(
-                value: widget.darkMode,
-                onChanged: widget.onDarkModeChanged,
-                title: Text(t.darkMode),
-                subtitle: Text(
-                  t.darkModeSubtitle,
-                  style: const TextStyle(color: DetoxColors.muted),
-                ),
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(
-                  Icons.language_rounded,
-                  color: DetoxColors.accentSoft,
-                ),
-                title: Text(t.language),
-                subtitle: Text(
-                  widget.localeCode == 'es' ? 'Español' : 'English',
-                  style: const TextStyle(color: DetoxColors.muted),
-                ),
-                trailing: DropdownButton<String>(
-                  value: widget.localeCode,
-                  underline: const SizedBox.shrink(),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'en',
-                      child: Text('English'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'es',
-                      child: Text('Español'),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) widget.onLocaleChanged(value);
-                  },
-                ),
-              ),
-              const Divider(height: 1),
-              ListTile(
-                title: Text(t.dailyScreenTimeLimit),
-                subtitle: Text(
-                  t.minutesLabel(_dailyLimit),
-                  style: const TextStyle(color: DetoxColors.muted),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Slider(
-                  min: 30,
-                  max: 480,
-                  divisions: 15,
-                  label: t.minutesLabel(_dailyLimit),
-                  value: _dailyLimit.toDouble(),
-                  onChanged: (value) =>
-                      setState(() => _dailyLimit = value.round()),
-                  onChangeEnd: (value) =>
-                      _storageService.saveDailyLimitMinutes(
-                        value.round(),
-                      ),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(
-                  Icons.admin_panel_settings_outlined,
-                  color: DetoxColors.accentSoft,
-                ),
-                title: Text(
-                  defaultTargetPlatform == TargetPlatform.android
-                      ? t.openAndroidUsageSettings
-                      : t.permissionsOverview,
-                ),
-                subtitle: Text(
-                  defaultTargetPlatform == TargetPlatform.android
-                      ? t.grantUsageAndRefresh
-                      : t.iosSeparatePath,
-                  style: const TextStyle(color: DetoxColors.muted),
-                ),
-                onTap: defaultTargetPlatform == TargetPlatform.android
-                    ? _openUsageSettings
-                    : null,
-              ),
-              if (defaultTargetPlatform == TargetPlatform.android) ...[
-                const Divider(height: 1),
-                ListTile(
-                  leading: Icon(
-                    _overlayReady
-                        ? Icons.shield_rounded
-                        : Icons.warning_amber_rounded,
-                    color: _overlayReady
-                        ? Colors.greenAccent
-                        : Colors.orangeAccent,
-                  ),
-                  title: Text(t.focusShieldOverlay),
-                  subtitle: Text(
-                    _overlayReady
-                        ? t.overlayReadyShield
-                        : t.overlayGrantShield,
-                    style: const TextStyle(color: DetoxColors.muted),
-                  ),
-                  onTap: _openOverlaySettings,
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        GlassCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    t.perAppLimits,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: _addAppLimit,
-                    icon: const Icon(
-                      Icons.add,
-                      color: DetoxColors.accentSoft,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                defaultTargetPlatform == TargetPlatform.android
-                    ? t.pickAppsBody
-                    : t.iosAppsBody,
-                style: const TextStyle(color: DetoxColors.muted),
-              ),
-              const SizedBox(height: 10),
-              if (_appLimits.isEmpty)
-                Text(
-                  t.noPerAppLimits,
-                  style:
-                  const TextStyle(color: DetoxColors.muted),
-                )
-              else
-                ..._appLimits.map(
-                      (item) => Column(
+                  child: Column(
                     children: [
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: AppIconBadge(
-                          packageName: item.packageName,
-                          size: 40,
-                          borderRadius: 12,
-                        ),
-                        title: Text(
-                          item.appName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text(
-                          t.appLimitSubtitle(
-                            item.minutes,
-                            item.packageName ?? 'custom',
-                          ),
-                          style: const TextStyle(
-                            color: DetoxColors.muted,
-                          ),
-                        ),
-                        trailing: IconButton(
-                          onPressed: () => _removeAppLimit(item),
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            color: DetoxColors.muted,
-                          ),
-                        ),
+                      SoftActionTile(
+                        icon: Icons.logout_rounded,
+                        title: t.signOut,
+                        subtitle: t.returnLoginScreen,
+                        color: DetoxColors.warning,
+                        onTap: () async {
+                          await widget.onSignOut();
+                        },
                       ),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        value: item.useInFocusMode,
-                        onChanged: (value) =>
-                            _toggleFocus(item, value),
-                        title: Text(t.blockInFocusMode),
-                        subtitle: Text(
-                          t.focusModeBlockSubtitle,
-                          style: const TextStyle(
-                            color: DetoxColors.muted,
-                          ),
-                        ),
-                      ),
-                      const Divider(height: 1),
                     ],
                   ),
                 ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        GlassCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    t.concentrationZones,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: _addZone,
-                    icon: const Icon(
-                      Icons.add_location_alt_outlined,
-                      color: DetoxColors.accentSoft,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                _zoneState.message ?? t.zonesIntro,
-                style: const TextStyle(color: DetoxColors.muted),
-              ),
-              const SizedBox(height: 10),
-              if (_zones.isEmpty)
-                Text(
-                  t.noConcentrationZonesYet,
-                  style:
-                  const TextStyle(color: DetoxColors.muted),
-                )
-              else
-                ..._zones.map(
-                      (zone) => Column(
-                    children: [
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(
-                          _zoneState.zoneName == zone.name &&
-                              _zoneState.insideZone
-                              ? Icons.school_rounded
-                              : Icons.location_on_outlined,
-                          color: _zoneState.zoneName == zone.name &&
-                              _zoneState.insideZone
-                              ? Colors.greenAccent
-                              : DetoxColors.accentSoft,
-                        ),
-                        title: Text(zone.name),
-                        subtitle: Text(
-                          zone.blockedPackages.isEmpty
-                              ? t.zoneRadiusUsesFocus(
-                            zone.radiusMeters.round(),
-                          )
-                              : t.zoneRadiusSelectedApps(
-                            zone.radiusMeters.round(),
-                            zone.blockedPackages.length,
-                          ),
-                          style: const TextStyle(
-                            color: DetoxColors.muted,
-                          ),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
+                const SizedBox(height: 16),
+              ],
+              HeroInfoCard(
+                icon: Icons.handshake_outlined,
+                title: t.sponsorCenter,
+                subtitle: _hasSponsor
+                    ? (_sponsorProfile?.displayName ?? '')
+                    : '${t.yourCode}: ${_mySponsorCode.isEmpty ? t.loading : _mySponsorCode}',
+                badge: StatusPill(
+                  label: _hasSponsor
+                      ? (t.isEs ? 'Vínculo activo' : 'Linked')
+                      : (t.isEs ? 'Sin padrino' : 'No sponsor'),
+                  icon: _hasSponsor ? Icons.check_circle_rounded : Icons.link_off_rounded,
+                  color: _hasSponsor ? DetoxColors.success : DetoxColors.warning,
+                ),
+                action: TextButton(
+                  onPressed: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const SponsorScreen(),
+                      ),
+                    );
+                    await _load();
+                  },
+                  child: Text(t.open),
+                ),
+                child: Column(
+                  children: [
+                    if (_settingsUnlockActive && _settingsUnlockUntil != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Row(
                           children: [
-                            IconButton(
-                              onPressed: () => _editZone(zone),
-                              icon: const Icon(
-                                Icons.edit_outlined,
-                                color: DetoxColors.muted,
+                            StatusPill(
+                              label: t.settingsUnlockedUntil(
+                                '${_settingsUnlockUntil!.hour.toString().padLeft(2, '0')}:${_settingsUnlockUntil!.minute.toString().padLeft(2, '0')}',
                               ),
-                            ),
-                            IconButton(
-                              onPressed: () => _removeZone(zone),
-                              icon: const Icon(
-                                Icons.delete_outline,
-                                color: DetoxColors.muted,
-                              ),
+                              icon: Icons.lock_open_rounded,
+                              color: DetoxColors.success,
                             ),
                           ],
                         ),
                       ),
-                      if (zone.blockedAppNames.isNotEmpty)
-                        Padding(
-                          padding:
-                          const EdgeInsets.only(bottom: 8),
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: zone.blockedAppNames
-                                  .map(
-                                    (name) =>
-                                    Chip(label: Text(name)),
-                              )
-                                  .toList(),
-                            ),
+                    SoftActionTile(
+                      icon: Icons.shield_outlined,
+                      title: t.isEs ? 'Protección con padrino' : 'Sponsor protection',
+                      subtitle: _hasSponsor
+                          ? (t.isEs
+                              ? 'Las acciones sensibles piden aprobación o una pausa autorizada.'
+                              : 'Sensitive actions can request approval or an authorized pause.')
+                          : (t.isEs
+                              ? 'Puedes agregar una persona de confianza para aprobar cambios importantes.'
+                              : 'You can add a trusted person to approve important changes.'),
+                      trailing: Icon(Icons.chevron_right_rounded, color: muted),
+                      onTap: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const SponsorScreen(),
                           ),
-                        ),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        value: zone.enabled,
-                        onChanged: (value) =>
-                            _toggleZone(zone, value),
-                        title: Text(
-                          t.isEs
-                              ? 'Activar enfoque automático aquí'
-                              : 'Enable automatic focus here',
-                        ),
-                        subtitle: Text(
-                          t.isEs
-                              ? 'Detox revisa tu ubicación y empieza a bloquear las apps seleccionadas en esta zona.'
-                              : 'Detox checks your location and starts shielding the selected apps in this zone.',
-                          style: const TextStyle(
-                            color: DetoxColors.muted,
-                          ),
+                        );
+                        await _load();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              SectionTitle(
+                title: t.isEs ? 'Preferencias generales' : 'General preferences',
+                subtitle: t.isEs
+                    ? 'Aspecto, idioma y tiempo de pantalla diario.'
+                    : 'Appearance, language, and your daily screen-time target.',
+              ),
+              const SizedBox(height: 12),
+              GlassCard(
+                child: Column(
+                  children: [
+                    SoftActionTile(
+                      icon: widget.darkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                      title: t.darkMode,
+                      subtitle: t.darkModeSubtitle,
+                      trailing: Switch(
+                        value: widget.darkMode,
+                        onChanged: widget.onDarkModeChanged,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SoftActionTile(
+                      icon: Icons.language_rounded,
+                      title: t.language,
+                      subtitle: widget.localeCode == 'es' ? 'Español' : 'English',
+                      trailing: DropdownButton<String>(
+                        value: widget.localeCode,
+                        underline: const SizedBox.shrink(),
+                        items: const [
+                          DropdownMenuItem(value: 'en', child: Text('English')),
+                          DropdownMenuItem(value: 'es', child: Text('Español')),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) widget.onLocaleChanged(value);
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        color: isDark ? Colors.white.withOpacity(0.035) : const Color(0xFFF8FAFF),
+                        border: Border.all(
+                          color: isDark ? Colors.white.withOpacity(0.06) : DetoxColors.lightCardBorder,
                         ),
                       ),
-                      const Divider(height: 1),
-                    ],
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            t.dailyScreenTimeLimit,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            t.minutesLabel(_dailyLimit),
+                            style: TextStyle(color: muted),
+                          ),
+                          const SizedBox(height: 8),
+                          Slider(
+                            min: 30,
+                            max: 480,
+                            divisions: 15,
+                            label: t.minutesLabel(_dailyLimit),
+                            value: _dailyLimit.toDouble(),
+                            onChanged: (value) => setState(() => _dailyLimit = value.round()),
+                            onChangeEnd: (value) => _storageService.saveDailyLimitMinutes(
+                              value.round(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              SectionTitle(
+                title: t.perAppLimits,
+                subtitle: t.pickAppsBody,
+                trailing: IconButton(
+                  onPressed: _addAppLimit,
+                  icon: const Icon(Icons.add),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (_appLimits.isEmpty)
+                GlassCard(
+                  child: Text(
+                    t.noPerAppLimits,
+                    style: TextStyle(color: muted),
+                  ),
+                )
+              else
+                GlassCard(
+                  child: Column(
+                    children: _appLimits.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final item = entry.value;
+                      return Column(
+                        children: [
+                          Row(
+                            children: [
+                              AppIconBadge(
+                                packageName: item.packageName,
+                                size: 38,
+                                borderRadius: 10,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  item.appName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                              Switch(
+                                value: item.useInFocusMode,
+                                onChanged: (value) => _toggleFocus(item, value),
+                              ),
+                              IconButton(
+                                onPressed: () => _removeAppLimit(item),
+                                icon: const Icon(Icons.delete_outline),
+                                color: muted,
+                              ),
+                            ],
+                          ),
+                          if (index != _appLimits.length - 1) ...[
+                            const SizedBox(height: 12),
+                            Divider(
+                              height: 1,
+                              color: isDark ? Colors.white.withOpacity(0.06) : DetoxColors.lightCardBorder,
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ),
+              const SizedBox(height: 16),
+              SectionTitle(
+                title: t.isEs ? 'Horarios de Detox' : 'Detox schedules',
+                subtitle: t.isEs
+                    ? 'Programa bloqueos automáticos y presets de apps para ciertos momentos del día, incluso sin usar zonas.'
+                    : 'Schedule automatic blocking and app presets for certain moments of the day, even without using zones.',
+              ),
+              const SizedBox(height: 12),
+              GlassCard(
+                child: SoftActionTile(
+                  icon: Icons.schedule_rounded,
+                  title: t.isEs ? 'Horarios de Detox' : 'Detox schedules',
+                  subtitle: t.isEs
+                      ? 'Crea horarios automáticos y presets de apps para clases, trabajo o descanso.'
+                      : 'Create automatic schedules and app presets for classes, work, or downtime.',
+                  trailing: Icon(Icons.chevron_right_rounded, color: muted),
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const AutomationSettingsScreen(),
+                      ),
+                    );
+                    await _load();
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+              SectionTitle(
+                title: t.concentrationZones,
+                subtitle: t.isEs
+                    ? 'Espacios donde el enfoque se puede activar solo.'
+                    : 'Places where focus can activate automatically.',
+                trailing: IconButton(
+                  onPressed: _addZone,
+                  icon: const Icon(Icons.add_location_alt_outlined),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (_zones.isEmpty)
+                GlassCard(
+                  child: Text(
+                    t.noConcentrationZonesYet,
+                    style: TextStyle(color: muted),
+                  ),
+                )
+              else
+                GlassCard(
+                  child: Column(
+                    children: _zones.map((zone) {
+                      final inside = _zoneState.zoneName == zone.name && _zoneState.insideZone;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            color: isDark ? Colors.white.withOpacity(0.035) : const Color(0xFFF8FAFF),
+                            border: Border.all(
+                              color: isDark ? Colors.white.withOpacity(0.06) : DetoxColors.lightCardBorder,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 42,
+                                    height: 42,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(14),
+                                      color: (inside ? DetoxColors.success : DetoxColors.accentSoft).withOpacity(0.14),
+                                    ),
+                                    child: Icon(
+                                      inside ? Icons.school_rounded : Icons.location_on_outlined,
+                                      color: inside ? DetoxColors.success : DetoxColors.accentSoft,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          zone.name,
+                                          style: const TextStyle(fontWeight: FontWeight.w700),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          zone.blockedPackages.isEmpty
+                                              ? t.zoneRadiusUsesFocus(zone.radiusMeters.round())
+                                              : t.zoneRadiusSelectedApps(zone.radiusMeters.round(), zone.blockedPackages.length),
+                                          style: TextStyle(color: muted, height: 1.3),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: () => _editZone(zone),
+                                    icon: const Icon(Icons.edit_outlined),
+                                    color: muted,
+                                  ),
+                                  IconButton(
+                                    onPressed: () => _removeZone(zone),
+                                    icon: const Icon(Icons.delete_outline),
+                                    color: muted,
+                                  ),
+                                ],
+                              ),
+                              if (zone.blockedAppNames.isNotEmpty) ...[
+                                const SizedBox(height: 10),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: zone.blockedAppNames.map((name) => Chip(label: Text(name))).toList(),
+                                ),
+                              ],
+                              const SizedBox(height: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(20),
+                                  color: isDark ? Colors.white.withOpacity(0.035) : const Color(0xFFF8FAFF),
+                                  border: Border.all(
+                                    color: isDark ? Colors.white.withOpacity(0.06) : DetoxColors.lightCardBorder,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      zone.enabled ? Icons.location_searching_rounded : Icons.location_disabled_outlined,
+                                      color: zone.enabled ? DetoxColors.accentSoft : muted,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        t.isEs ? 'Activar / desactivar' : 'Enable / disable',
+                                        style: const TextStyle(fontWeight: FontWeight.w700),
+                                      ),
+                                    ),
+                                    Switch(
+                                      value: zone.enabled,
+                                      onChanged: (value) => _toggleZone(zone, value),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ),
             ],
-          ),
-        ),
-      ],
-    );
+          );
   }
 }
 
