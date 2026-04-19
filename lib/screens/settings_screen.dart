@@ -16,6 +16,7 @@ import '../screens/automation_settings_screen.dart';
 import '../screens/sponsor_screen.dart';
 import '../services/app_blocking_service.dart';
 import '../services/anti_bypass_service.dart';
+import '../services/auth_service.dart';
 import '../services/app_catalog_service.dart';
 import '../services/location_zone_service.dart';
 import '../services/sponsor_service.dart';
@@ -47,6 +48,8 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
+enum _AccountAction { signOut, delete }
+
 class _SettingsScreenState extends State<SettingsScreen>
     with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
   final StorageService _storageService = StorageService();
@@ -68,6 +71,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   ZoneState _zoneState = LocationZoneService.instance.currentState;
   StreamSubscription<ZoneState>? _zoneSubscription;
   bool _antiBypassHealthy = true;
+  bool _deletingAccount = false;
 
   @override
   void initState() {
@@ -317,6 +321,102 @@ class _SettingsScreenState extends State<SettingsScreen>
     await LocationZoneService.instance.refresh();
   }
 
+
+  Future<void> _openAccountActions() async {
+    final t = AppStrings.of(context);
+    final action = await showModalBottomSheet<_AccountAction>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => GlassCard(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              t.accountOptions,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            const SizedBox(height: 14),
+            SoftActionTile(
+              icon: Icons.logout_rounded,
+              title: t.signOut,
+              subtitle: t.returnLoginScreen,
+              color: DetoxColors.warning,
+              onTap: () => Navigator.of(context).pop(_AccountAction.signOut),
+            ),
+            const SizedBox(height: 10),
+            SoftActionTile(
+              icon: Icons.delete_forever_rounded,
+              title: t.deleteAccount,
+              subtitle: t.deleteAccountWarning,
+              color: DetoxColors.danger,
+              onTap: () => Navigator.of(context).pop(_AccountAction.delete),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted || action == null) return;
+
+    if (action == _AccountAction.signOut) {
+      await widget.onSignOut();
+      return;
+    }
+
+    await _confirmDeleteAccount();
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    final t = AppStrings.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(t.deleteAccountForever),
+        content: Text(t.deleteAccountWarning),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(t.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: DetoxColors.danger,
+            ),
+            child: Text(t.deleteAccountConfirm),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _deletingAccount = true);
+    try {
+      await AuthService.instance.deleteAccount();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.deleteAccountSuccess)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _deletingAccount = false);
+      }
+    }
+  }
+
   Future<void> _openOverlaySettings() async {
     await AppBlockingService.instance.openOverlayPermissionSettings();
     await Future<void>.delayed(const Duration(milliseconds: 600));
@@ -347,26 +447,65 @@ class _SettingsScreenState extends State<SettingsScreen>
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
             children: [
               if (widget.currentUser != null) ...[
-                HeroInfoCard(
-                  icon: Icons.person_outline_rounded,
-                  title: widget.currentUser!.displayName,
-                  subtitle: widget.currentUser!.email,
-                  badge: StatusPill(
-                    label: widget.currentUser!.provider,
-                    icon: Icons.verified_user_outlined,
-                  ),
-                  child: Column(
-                    children: [
-                      SoftActionTile(
-                        icon: Icons.logout_rounded,
-                        title: t.signOut,
-                        subtitle: t.returnLoginScreen,
-                        color: DetoxColors.warning,
-                        onTap: () async {
-                          await widget.onSignOut();
-                        },
-                      ),
-                    ],
+                GestureDetector(
+                  onTap: _deletingAccount ? null : _openAccountActions,
+                  behavior: HitTestBehavior.opaque,
+                  child: GlassCard(
+                    padding: const EdgeInsets.all(20),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            color: DetoxColors.accent.withOpacity(isDark ? 0.18 : 0.10),
+                          ),
+                          child: Icon(Icons.person_outline_rounded, color: DetoxColors.accentSoft),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  Text(
+                                    widget.currentUser!.displayName,
+                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                  ),
+                                  StatusPill(
+                                    label: widget.currentUser!.provider,
+                                    icon: Icons.verified_user_outlined,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                widget.currentUser!.email,
+                                style: TextStyle(color: muted, height: 1.35),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        _deletingAccount
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(strokeWidth: 2.2),
+                              )
+                            : Icon(
+                                Icons.expand_more_rounded,
+                                color: muted,
+                              ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),

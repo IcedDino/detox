@@ -760,6 +760,67 @@ class SponsorService {
     await batch.commit();
   }
 
+
+  Future<void> purgeDeletedAccountReferences(String uid) async {
+    final linkedUsersSnap = await _firestore
+        .collection('users')
+        .where('sponsorUid', isEqualTo: uid)
+        .get();
+    final outgoingLinksSnap = await _linkRequestsRef
+        .where('requesterUid', isEqualTo: uid)
+        .get();
+    final incomingLinksSnap = await _linkRequestsRef
+        .where('targetUid', isEqualTo: uid)
+        .get();
+    final outgoingUnlocksSnap = await _requestsCollectionRef
+        .where('requesterUid', isEqualTo: uid)
+        .get();
+    final sponsoredUnlocksSnap = await _requestsCollectionRef
+        .where('sponsorUid', isEqualTo: uid)
+        .get();
+
+    final clearReleasedUserFields = <String, dynamic>{
+      'sponsorUid': FieldValue.delete(),
+      'sponsorLinkedAt': FieldValue.delete(),
+      'settingsUnlockUntil': FieldValue.delete(),
+      'zoneOverrideUntil': FieldValue.delete(),
+      'shieldPauseUntil': FieldValue.delete(),
+      'unlinkEmailCode': FieldValue.delete(),
+      'unlinkEmailCodeExpiresAt': FieldValue.delete(),
+      'unlinkEmailRequestId': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    final batch = _firestore.batch();
+    final deletedDocPaths = <String>{};
+
+    void deleteIfNeeded(DocumentReference<Map<String, dynamic>> ref) {
+      if (deletedDocPaths.add(ref.path)) {
+        batch.delete(ref);
+      }
+    }
+
+    for (final doc in linkedUsersSnap.docs) {
+      if (doc.id == uid) continue;
+      batch.set(doc.reference, clearReleasedUserFields, SetOptions(merge: true));
+    }
+
+    for (final doc in outgoingLinksSnap.docs) {
+      deleteIfNeeded(doc.reference);
+    }
+    for (final doc in incomingLinksSnap.docs) {
+      deleteIfNeeded(doc.reference);
+    }
+    for (final doc in outgoingUnlocksSnap.docs) {
+      deleteIfNeeded(doc.reference);
+    }
+    for (final doc in sponsoredUnlocksSnap.docs) {
+      deleteIfNeeded(doc.reference);
+    }
+
+    await batch.commit();
+  }
+
   Future<void> createUnlockRequest({
     required String requestType,
     required int durationMinutes,

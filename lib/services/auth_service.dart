@@ -5,6 +5,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../models/auth_user.dart';
 import 'cloud_sync_service.dart';
+import 'sponsor_service.dart';
+import 'storage_service.dart';
 
 class AuthException implements Exception {
   AuthException(this.message);
@@ -171,6 +173,47 @@ class AuthService {
       await CloudSyncService.instance.saveUserProfile(mapped);
       return mapped;
     } on FirebaseAuthException catch (e) {
+      throw AuthException(_friendlyAuthMessage(e));
+    }
+  }
+
+
+  Future<void> deleteAccount() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw AuthException('No active session to delete.');
+    }
+
+    try {
+      await CloudSyncService.instance.flushPendingWrites();
+    } catch (_) {
+      // Best effort before removing the remote profile.
+    } finally {
+      CloudSyncService.instance.cancelPendingWrites();
+    }
+
+    try {
+      await SponsorService.instance.purgeDeletedAccountReferences(user.uid);
+      await CloudSyncService.instance.deleteUserDocument(user.uid);
+      await user.delete();
+      await StorageService.instance.clearLocalUserData();
+      // ignore: body_might_complete_normally_catch_error
+      await _google.signOut().catchError((_) {});
+      // ignore: body_might_complete_normally_catch_error
+      await _auth.signOut().catchError((_) {});
+    } on FirebaseAuthException catch (e) {
+      // The Firestore profile may already be gone at this point.
+      // Force the session back to login so the user can retry if needed.
+      // ignore: body_might_complete_normally_catch_error
+      await _google.signOut().catchError((_) {});
+      // ignore: body_might_complete_normally_catch_error
+      await _auth.signOut().catchError((_) {});
+
+      if (e.code == 'requires-recent-login') {
+        throw AuthException(
+          'Your Detox data was deleted, but Firebase requires a recent sign-in to remove the access account completely. Sign in again and repeat the deletion once more.',
+        );
+      }
       throw AuthException(_friendlyAuthMessage(e));
     }
   }

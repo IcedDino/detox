@@ -141,6 +141,12 @@ class CloudSyncService {
     _queuedUid = null;
   }
 
+
+  Future<void> deleteUserDocument(String uid) async {
+    cancelPendingWrites();
+    await _firestore.collection('users').doc(uid).delete();
+  }
+
   void _queueFieldWrite(String field, dynamic value) {
     final uid = _uid;
     if (uid == null) return;

@@ -79,6 +79,17 @@ class AppStrings {
   String get noPerAppLimits => isEs ? 'Aún no hay límites por app.' : 'No per-app limits yet.';
   String get blockInFocusMode => isEs ? 'Bloquear en modo enfoque' : 'Block in focus mode';
   String get focusModeBlockSubtitle => isEs ? 'Esta app será cubierta durante el temporizador y las zonas de estudio.' : 'This app will be shielded during timer focus and study zones.';
+
+  String get accountOptions => isEs ? 'Opciones de cuenta' : 'Account options';
+  String get manageAccount => isEs ? 'Gestionar cuenta' : 'Manage account';
+  String get deleteAccount => isEs ? 'Eliminar cuenta' : 'Delete account';
+  String get deleteAccountForever => isEs ? 'Eliminar cuenta para siempre' : 'Delete account forever';
+  String get deleteAccountWarning => isEs
+      ? 'Esto borrará tu cuenta, tus horarios, zonas, límites, progreso y cualquier vínculo con padrino.'
+      : 'This will erase your account, schedules, zones, limits, progress, and any sponsor link.';
+  String get deleteAccountConfirm => isEs ? 'Sí, eliminar cuenta' : 'Yes, delete account';
+  String get deleteAccountSuccess => isEs ? 'Tu cuenta y tus datos se eliminaron.' : 'Your account and data were deleted.';
+  String get tapToManageAccount => isEs ? 'Toca para ver opciones de cuenta' : 'Tap to view account options';
   String get signOut => isEs ? 'Cerrar sesión' : 'Sign out';
   String get returnLoginScreen => isEs ? 'Volver a la pantalla de acceso' : 'Return to the login screen';
   String get sponsorCenter => isEs ? 'Centro de padrino' : 'Sponsor center';

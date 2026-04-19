@@ -439,6 +439,22 @@ class StorageService {
     };
   }
 
+
+  Future<void> clearLocalUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final darkMode = prefs.getBool('dark_mode');
+    final localeCode = prefs.getString('locale_code');
+
+    await prefs.clear();
+
+    if (darkMode != null) {
+      await prefs.setBool('dark_mode', darkMode);
+    }
+    if (localeCode != null && localeCode.isNotEmpty) {
+      await prefs.setString('locale_code', localeCode);
+    }
+  }
+
   Future<bool> loadOnboardingDone() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_onboardingDoneKey) ?? false;
