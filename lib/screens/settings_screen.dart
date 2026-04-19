@@ -72,6 +72,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   StreamSubscription<ZoneState>? _zoneSubscription;
   bool _antiBypassHealthy = true;
   bool _deletingAccount = false;
+  bool _loadingInstalledApps = false;
 
   @override
   void initState() {
@@ -99,41 +100,71 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   Future<void> _load() async {
-    if (widget.currentUser != null) {
-      await SponsorService.instance
-          .ensureCurrentUserInitialized(widget.currentUser);
+    try {
+      if (widget.currentUser != null) {
+        await SponsorService.instance.ensureCurrentUserInitialized(widget.currentUser);
+      }
+
+      final results = await Future.wait<dynamic>([
+        _storageService.loadDailyLimitMinutes(),
+        _storageService.loadAppLimits(),
+        _storageService.loadConcentrationZones(),
+        AppBlockingService.instance.hasOverlayPermission(),
+        SponsorService.instance.loadCurrentUserContext(),
+        AntiBypassService.instance.getStatus(),
+      ]);
+
+      if (!mounted) return;
+
+      final sponsorContext = results[4] as SponsorUserContext;
+      setState(() {
+        _dailyLimit = results[0] as int;
+        _appLimits = results[1] as List<AppLimit>;
+        _zones = results[2] as List<ConcentrationZone>;
+        _overlayReady = results[3] as bool;
+        _hasSponsor = sponsorContext.hasSponsor;
+        _sponsorProfile = sponsorContext.sponsorProfile;
+        _settingsUnlockActive = sponsorContext.hasActiveSettingsUnlock;
+        _settingsUnlockUntil = sponsorContext.settingsUnlockUntil;
+        _mySponsorCode = sponsorContext.sponsorCode;
+        _antiBypassHealthy = (results[5] as AntiBypassStatus).healthy;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+      });
+    }
+  }
+
+  Future<bool> _ensureInstalledAppsLoaded() async {
+    if (_installedApps.isNotEmpty) return true;
+    if (_loadingInstalledApps) return false;
+
+    if (mounted) {
+      setState(() => _loadingInstalledApps = true);
     }
 
-    final results = await Future.wait<dynamic>([
-      _storageService.loadDailyLimitMinutes(),
-      _storageService.loadAppLimits(),
-      _catalogService.loadInstalledApps(),
-      _storageService.loadConcentrationZones(),
-      AppBlockingService.instance.hasOverlayPermission(),
-      SponsorService.instance.hasSponsor(),
-      SponsorService.instance.getCurrentSponsorProfile(),
-      SponsorService.instance.hasActiveSettingsUnlock(),
-      SponsorService.instance.getSettingsUnlockUntil(),
-      SponsorService.instance.getMySponsorCode(),
-      AntiBypassService.instance.getStatus(),
-    ]);
-
-    if (!mounted) return;
-
-    setState(() {
-      _dailyLimit = results[0] as int;
-      _appLimits = results[1] as List<AppLimit>;
-      _installedApps = results[2] as List<InstalledAppEntry>;
-      _zones = results[3] as List<ConcentrationZone>;
-      _overlayReady = results[4] as bool;
-      _hasSponsor = results[5] as bool;
-      _sponsorProfile = results[6] as SponsorProfile?;
-      _settingsUnlockActive = results[7] as bool;
-      _settingsUnlockUntil = results[8] as DateTime?;
-      _mySponsorCode = results[9] as String;
-      _antiBypassHealthy = (results[10] as AntiBypassStatus).healthy;
-      _loading = false;
-    });
+    try {
+      final apps = await _catalogService.loadInstalledApps();
+      if (!mounted) return false;
+      setState(() {
+        _installedApps = apps;
+      });
+      return true;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not load installed apps.')),
+        );
+      }
+      return false;
+    } finally {
+      if (mounted) {
+        setState(() => _loadingInstalledApps = false);
+      }
+    }
   }
 
   Future<bool> _ensureProtectedSettingsAccess() async {
@@ -212,6 +243,9 @@ class _SettingsScreenState extends State<SettingsScreen>
     return false;
   }
   Future<void> _addAppLimit() async {
+    final loaded = await _ensureInstalledAppsLoaded();
+    if (!loaded || !mounted) return;
+
     final created = await showModalBottomSheet<AppLimit>(
       context: context,
       isScrollControlled: true,
@@ -891,9 +925,99 @@ class _AppPickerSheet extends StatefulWidget {
 }
 
 class _AppPickerSheetState extends State<_AppPickerSheet> {
+  static const Set<String> _socialPackageHints = {
+    'instagram',
+    'facebook',
+    'whatsapp',
+    'telegram',
+    'discord',
+    'snapchat',
+    'twitter',
+    'reddit',
+    'messenger',
+    'tiktok',
+    'musically',
+    'pinterest',
+    'threads',
+    'tumblr',
+    'bereal',
+    'wechat',
+    'line',
+    'signal',
+    'linkedin',
+  };
+
+  static const Set<String> _socialNameHints = {
+    'instagram',
+    'facebook',
+    'whatsapp',
+    'telegram',
+    'discord',
+    'snapchat',
+    'twitter',
+    'reddit',
+    'messenger',
+    'tik tok',
+    'tiktok',
+    'pinterest',
+    'threads',
+    'tumblr',
+    'bereal',
+    'wechat',
+    'line',
+    'signal',
+    'linkedin',
+  };
+
+  static const Set<String> _gamePackageHints = {
+    'roblox',
+    'minecraft',
+    'supercell',
+    'epicgames',
+    'riotgames',
+    'garena',
+    'activision',
+    'ea.gp',
+    'mojang',
+    'niantic',
+    'king',
+    'brawlstars',
+    'clashroyale',
+    'clashofclans',
+    'freefire',
+    'pubg',
+    'callofduty',
+    'stumble',
+    'subwaysurf',
+    'amongus',
+    'pokemon',
+  };
+
+  static const Set<String> _gameNameHints = {
+    'game',
+    'juego',
+    'roblox',
+    'minecraft',
+    'fortnite',
+    'free fire',
+    'pubg',
+    'call of duty',
+    'brawl stars',
+    'clash royale',
+    'clash of clans',
+    'stumble guys',
+    'subway surfers',
+    'among us',
+    'pokemon',
+    'candy crush',
+    'fifa',
+    'mlbb',
+    'mobile legends',
+  };
+
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _minutesController =
-  TextEditingController(text: '30');
+      TextEditingController(text: '30');
 
   InstalledAppEntry? _selected;
   String _query = '';
@@ -905,21 +1029,59 @@ class _AppPickerSheetState extends State<_AppPickerSheet> {
     super.dispose();
   }
 
+  bool _matchesHints(String value, Set<String> hints) {
+    return hints.any(value.contains);
+  }
+
+  bool _matchesExactName(String value, Set<String> names) {
+    return names.contains(value.trim());
+  }
+
+  bool _isSocialApp(InstalledAppEntry app) {
+    final package = app.packageName.toLowerCase();
+    final name = app.name.toLowerCase();
+    return _matchesHints(package, _socialPackageHints) ||
+        _matchesHints(name, _socialNameHints) ||
+        _matchesExactName(name, const {'x'});
+  }
+
+  bool _isGameApp(InstalledAppEntry app) {
+    final package = app.packageName.toLowerCase();
+    final name = app.name.toLowerCase();
+    return _matchesHints(package, _gamePackageHints) ||
+        _matchesHints(name, _gameNameHints);
+  }
+
+  int _priorityForApp(InstalledAppEntry app) {
+    if (_isSocialApp(app)) return 0;
+    if (_isGameApp(app)) return 1;
+    return 2;
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppStrings.of(context);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
-    final existingPackages =
-    widget.existing.map((e) => e.packageName).toSet();
+    final existingPackages = widget.existing.map((e) => e.packageName).toSet();
+    final query = _query.trim().toLowerCase();
 
     final filtered = widget.apps
         .where((app) => !existingPackages.contains(app.packageName))
-        .where(
-          (app) =>
-          app.name.toLowerCase().contains(_query.toLowerCase()),
-    )
-        .take(80)
-        .toList();
+        .where((app) {
+          if (query.isEmpty) return true;
+          return app.name.toLowerCase().contains(query) ||
+              app.packageName.toLowerCase().contains(query);
+        })
+        .toList()
+      ..sort((a, b) {
+        final priorityCompare = _priorityForApp(a).compareTo(_priorityForApp(b));
+        if (priorityCompare != 0) return priorityCompare;
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+
+    final visibleApps = filtered.take(80).toList();
 
     return Padding(
       padding: EdgeInsets.only(
@@ -936,10 +1098,9 @@ class _AppPickerSheetState extends State<_AppPickerSheet> {
             children: [
               Text(
                 t.addAppLimit,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -961,71 +1122,95 @@ class _AppPickerSheetState extends State<_AppPickerSheet> {
               ),
               const SizedBox(height: 14),
               Expanded(
-                child: filtered.isEmpty
+                child: visibleApps.isEmpty
                     ? Center(
-                  child: Text(
-                    t.noAppsFound,
-                    style: const TextStyle(
-                      color: DetoxColors.muted,
-                    ),
-                  ),
-                )
-                    : ListView.builder(
-                  itemCount: filtered.length,
-                  itemBuilder: (context, index) {
-                    final app = filtered[index];
-                    final selected =
-                        _selected?.packageName == app.packageName;
-
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      selected: selected,
-                      leading: AppIconBadge(
-                        packageName: app.packageName,
-                        iconBytes: app.iconBytes,
-                        size: 42,
-                        borderRadius: 12,
-                      ),
-                      title: Text(
-                        app.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
-                        app.packageName,
-                        style: const TextStyle(
-                          color: DetoxColors.muted,
+                        child: Text(
+                          t.noAppsFound,
+                          style: const TextStyle(color: DetoxColors.muted),
                         ),
-                      ),
-                      trailing: selected
-                          ? const Icon(
-                        Icons.check_circle,
-                        color: DetoxColors.accentSoft,
                       )
-                          : null,
-                      onTap: () => setState(() => _selected = app),
-                    );
-                  },
-                ),
+                    : ListView.separated(
+                        itemCount: visibleApps.length,
+                        separatorBuilder: (context, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final app = visibleApps[index];
+                          final selected = _selected?.packageName == app.packageName;
+
+                          return Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(18),
+                              onTap: () => setState(() => _selected = app),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 160),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(18),
+                                  color: selected
+                                      ? DetoxColors.accent.withOpacity(0.16)
+                                      : (isDark
+                                          ? Colors.white.withOpacity(0.035)
+                                          : const Color(0xFFF8FAFF)),
+                                  border: Border.all(
+                                    color: selected
+                                        ? DetoxColors.accentSoft.withOpacity(0.45)
+                                        : (isDark
+                                            ? Colors.white.withOpacity(0.06)
+                                            : DetoxColors.lightCardBorder),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    AppIconBadge(
+                                      packageName: app.packageName,
+                                      iconBytes: app.iconBytes,
+                                      size: 42,
+                                      borderRadius: 12,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        app.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: theme.textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    if (selected)
+                                      const Icon(
+                                        Icons.check_circle,
+                                        color: DetoxColors.accentSoft,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
               ),
               const SizedBox(height: 10),
               FilledButton(
                 onPressed: _selected == null
                     ? null
                     : () {
-                  final minutes =
-                      int.tryParse(_minutesController.text.trim()) ??
-                          30;
+                        final minutes =
+                            int.tryParse(_minutesController.text.trim()) ?? 30;
 
-                  Navigator.pop(
-                    context,
-                    AppLimit(
-                      appName: _selected!.name,
-                      packageName: _selected!.packageName,
-                      minutes: minutes,
-                    ),
-                  );
-                },
+                        Navigator.pop(
+                          context,
+                          AppLimit(
+                            appName: _selected!.name,
+                            packageName: _selected!.packageName,
+                            minutes: minutes,
+                          ),
+                        );
+                      },
                 child: Text(t.addSelectedApp),
               ),
             ],
@@ -1085,7 +1270,9 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
       }
 
       if (widget.initialZone == null) {
-        final position = await Geolocator.getCurrentPosition();
+        final position = await Geolocator.getCurrentPosition(
+          timeLimit: const Duration(seconds: 8),
+        );
         _center = LatLng(position.latitude, position.longitude);
         _mapController.move(_center, 15);
       } else {

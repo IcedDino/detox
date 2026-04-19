@@ -4,7 +4,7 @@ class AppVisibilityFilterService {
   AppVisibilityFilterService._();
 
   static final AppVisibilityFilterService instance =
-  AppVisibilityFilterService._();
+      AppVisibilityFilterService._();
 
   static const Set<String> _blockedPackages = {
     'com.android.packageinstaller',
@@ -25,6 +25,7 @@ class AppVisibilityFilterService {
     'com.google.android.ext.services',
     'com.google.android.ondevicepersonalization.services',
     'com.iceddino.detox',
+    'com.example.detox',
   };
 
   static const List<String> _blockedLabelFragments = [
@@ -43,17 +44,33 @@ class AppVisibilityFilterService {
     'servicios de google play',
     'google play services',
     'google services framework',
-    'Detox',
+    'detox',
   ];
+
+  bool shouldShowPackageName(String packageName) {
+    final normalizedPackage = packageName.trim().toLowerCase();
+    if (normalizedPackage.isEmpty) return false;
+    return !_blockedPackages.contains(normalizedPackage);
+  }
+
+  bool shouldShowResolvedLabel(String? resolvedLabel) {
+    final label = resolvedLabel?.trim().toLowerCase() ?? '';
+    if (label.isEmpty) return true;
+
+    for (final fragment in _blockedLabelFragments) {
+      if (label.contains(fragment)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
 
   Future<bool> shouldShowApp({
     required String packageName,
     String? resolvedLabel,
   }) async {
-    final normalizedPackage = packageName.trim().toLowerCase();
-    if (normalizedPackage.isEmpty) return false;
-
-    if (_blockedPackages.contains(normalizedPackage)) {
+    if (!shouldShowPackageName(packageName)) {
       return false;
     }
 
@@ -61,15 +78,6 @@ class AppVisibilityFilterService {
         ? resolvedLabel!.trim()
         : (await AppMetadataService.instance.getLabel(packageName) ?? '').trim();
 
-    if (label.isNotEmpty) {
-      final normalizedLabel = label.toLowerCase();
-      for (final fragment in _blockedLabelFragments) {
-        if (normalizedLabel.contains(fragment)) {
-          return false;
-        }
-      }
-    }
-
-    return true;
+    return shouldShowResolvedLabel(label);
   }
 }

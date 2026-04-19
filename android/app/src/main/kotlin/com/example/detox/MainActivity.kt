@@ -96,11 +96,11 @@ class MainActivity : FlutterActivity() {
                             .apply()
 
                         val intent = Intent(this, FocusBlockerService::class.java).apply {
-                            action = "START_BLOCKING"
+                            action = FocusBlockerService.ACTION_START
                             putStringArrayListExtra("blockedPackages", ArrayList(blockedPackages))
                             putExtra("reason", reason)
-                            putExtra("hasSponsor", hasSponsor)
-                            putExtra("strictMode", strictMode)
+                            putExtra(FocusBlockerService.EXTRA_HAS_SPONSOR, hasSponsor)
+                            putExtra(FocusBlockerService.EXTRA_STRICT_MODE, strictMode)
                         }
                         startService(intent)
                         result.success(true)
@@ -130,6 +130,10 @@ class MainActivity : FlutterActivity() {
                             val untilMillis = System.currentTimeMillis() + minutes * 60_000L
                             val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                             prefs.edit().putLong("suspend_until_millis", untilMillis).apply()
+                            val syncIntent = Intent(this, FocusBlockerService::class.java).apply {
+                                action = FocusBlockerService.ACTION_SYNC_SPONSOR_STATE
+                            }
+                            startService(syncIntent)
                             result.success(true)
                         } catch (e: Exception) {
                             result.error("SUSPEND_BLOCKING_ERROR", e.message, null)
@@ -154,9 +158,9 @@ class MainActivity : FlutterActivity() {
                         prefs.edit().putBoolean("has_sponsor", hasSponsor).putBoolean("strict_mode", strictMode).apply()
 
                         val intent = Intent(this, FocusBlockerService::class.java).apply {
-                            action = "SYNC_SPONSOR_STATE"
-                            putExtra("hasSponsor", hasSponsor)
-                            putExtra("strictMode", strictMode)
+                            action = FocusBlockerService.ACTION_SYNC_SPONSOR_STATE
+                            putExtra(FocusBlockerService.EXTRA_HAS_SPONSOR, hasSponsor)
+                            putExtra(FocusBlockerService.EXTRA_STRICT_MODE, strictMode)
                         }
                         startService(intent)
                         result.success(true)

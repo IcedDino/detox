@@ -15,7 +15,9 @@ import '../widgets/app_icon_badge.dart';
 import '../widgets/ui_kit.dart';
 
 class FocusScreen extends StatefulWidget {
-  const FocusScreen({super.key});
+  const FocusScreen({super.key, required this.isCurrentPage});
+
+  final bool isCurrentPage;
 
   @override
   State<FocusScreen> createState() => _FocusScreenState();
@@ -64,16 +66,22 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver, 
     }
   }
 
+  @override
+  void didUpdateWidget(covariant FocusScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isCurrentPage != widget.isCurrentPage) {
+      _syncTicker();
+    }
+  }
+
   Future<void> _refresh() async {
     final limits = await _storage.loadAppLimits();
     final usageStatus = await _usageService.getPermissionStatus();
     final overlayReady = await AppBlockingService.instance.hasOverlayPermission();
     final strictMode = await _storage.loadStrictModeEnabled();
     final snap = await FocusSessionService.instance.loadSnapshot();
-    _timer?.cancel();
-    if (snap.isActive) {
-      _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
-    }
+    _snapshot = snap;
+    _syncTicker();
     if (!mounted) return;
     setState(() {
       _shieldedApps = limits
@@ -89,12 +97,21 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver, 
     });
   }
 
+  void _syncTicker() {
+    _timer?.cancel();
+    _timer = null;
+    if (!_snapshot.isActive || !widget.isCurrentPage) {
+      return;
+    }
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+  }
+
   Future<void> _tick() async {
     final next = await FocusSessionService.instance.loadSnapshot();
     if (!mounted) return;
     setState(() => _snapshot = next);
+    _syncTicker();
     if (!next.isActive) {
-      _timer?.cancel();
       await FocusNotificationService.instance.cancel();
     }
   }
@@ -145,7 +162,6 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver, 
 
   Future<void> _setStrictMode(bool value) async {
     await _storage.saveStrictModeEnabled(value);
-    await _storage.setStrictMode(value);
     await AppBlockingService.instance.refreshStrictMode();
     if (!mounted) return;
     setState(() => _strictMode = value);

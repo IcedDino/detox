@@ -28,37 +28,85 @@ import 'services/sponsor_service.dart';
 import 'services/storage_service.dart';
 import 'theme/app_theme.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  runApp(const DetoxBootstrapApp());
+}
 
-  final prefs = await SharedPreferences.getInstance();
-  final darkMode = prefs.getBool('dark_mode') ?? true;
-  final localeCode = prefs.getString('locale_code');
-  final currentUser = await AuthService.instance.getCurrentUser();
+class _BootstrapState {
+  const _BootstrapState({
+    required this.darkMode,
+    required this.onboardingDone,
+    required this.currentUser,
+    required this.localeCode,
+  });
 
-  if (currentUser != null) {
-    StorageService.bootstrapInProgress = true;
-    await StorageService().bootstrapForSignedInUser();
-    StorageService.bootstrapInProgress = false;
-    await SponsorService.instance.ensureCurrentUserInitialized(currentUser);
-    SponsorAlertService.instance.start();
-    await AppBlockingService.instance.consumePendingNativeAction();
+  final bool darkMode;
+  final bool onboardingDone;
+  final AuthUser? currentUser;
+  final String? localeCode;
+}
+
+class DetoxBootstrapApp extends StatefulWidget {
+  const DetoxBootstrapApp({super.key});
+
+  @override
+  State<DetoxBootstrapApp> createState() => _DetoxBootstrapAppState();
+}
+
+class _DetoxBootstrapAppState extends State<DetoxBootstrapApp> {
+  late final Future<_BootstrapState> _bootstrapFuture = _bootstrap();
+
+  Future<_BootstrapState> _bootstrap() async {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+
+    final prefs = await SharedPreferences.getInstance();
+    final darkMode = prefs.getBool('dark_mode') ?? true;
+    final localeCode = prefs.getString('locale_code');
+    final onboardingDone = await StorageService().loadOnboardingDone();
+    final currentUser = await AuthService.instance.getCurrentUser();
+
+    return _BootstrapState(
+      darkMode: darkMode,
+      onboardingDone: onboardingDone,
+      currentUser: currentUser,
+      localeCode: localeCode,
+    );
   }
 
-  final onboardingDone = await StorageService().loadOnboardingDone();
-  await FocusNotificationService.instance.initialize();
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<_BootstrapState>(
+      future: _bootstrapFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done || !snapshot.hasData) {
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: DetoxTheme.light,
+            darkTheme: DetoxTheme.dark,
+            themeMode: ThemeMode.dark,
+            home: const Scaffold(
+              body: DetoxBackground(
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+            ),
+          );
+        }
 
-  runApp(
-    DetoxApp(
-      initialDarkMode: darkMode,
-      onboardingDone: onboardingDone,
-      initialUser: currentUser,
-      initialLocaleCode: localeCode,
-    ),
-  );
+        final data = snapshot.data!;
+        return DetoxApp(
+          initialDarkMode: data.darkMode,
+          onboardingDone: data.onboardingDone,
+          initialUser: data.currentUser,
+          initialLocaleCode: data.localeCode,
+        );
+      },
+    );
+  }
 }
 
 class DetoxApp extends StatefulWidget {
@@ -84,7 +132,6 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
 
   int _index = 0;
   late final PageController _pageController;
-  late final List<Widget> _coreScreens;
   late bool _darkMode;
   late bool _onboardingDone;
   AuthUser? _currentUser;
@@ -99,12 +146,6 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _pageController = PageController(initialPage: _index);
-    _coreScreens = const [
-      RepaintBoundary(child: DashboardScreen(key: PageStorageKey('dashboard'))),
-      RepaintBoundary(child: FocusScreen(key: PageStorageKey('focus'))),
-      RepaintBoundary(child: HabitsScreen(key: PageStorageKey('habits'))),
-      RepaintBoundary(child: StatsScreen(key: PageStorageKey('stats'))),
-    ];
     _darkMode = widget.initialDarkMode;
     _onboardingDone = widget.onboardingDone;
     _currentUser = widget.initialUser;
@@ -114,10 +155,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _configureProtectedServices();
-      if (_currentUser != null && _onboardingDone) {
-        await _refreshProtectedState();
-      }
-      await _drainPendingLaunchActions();
+      await _runDeferredStartup();
     });
 
     _authSubscription = AuthService.instance.authChanges().listen((user) async {
@@ -188,10 +226,25 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
-  Future<void> _syncSignedInUser(AuthUser user) async {
-    if (!StorageService.bootstrapInProgress) {
+  Future<void> _runDeferredStartup() async {
+    await FocusNotificationService.instance.initialize();
+
+    if (_currentUser != null) {
       await StorageService().bootstrapForSignedInUser();
+      await SponsorService.instance.ensureCurrentUserInitialized(_currentUser);
+      SponsorAlertService.instance.start();
+      await _consumePendingBlockAction();
     }
+
+    await _drainPendingLaunchActions();
+
+    if (_currentUser != null && _onboardingDone) {
+      await _refreshProtectedState();
+    }
+  }
+
+  Future<void> _syncSignedInUser(AuthUser user) async {
+    await StorageService().bootstrapForSignedInUser();
 
     await SponsorService.instance.ensureCurrentUserInitialized(user);
     SponsorAlertService.instance.start();
@@ -377,30 +430,39 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
           child: SafeArea(
             child: PageView.builder(
               controller: _pageController,
-              allowImplicitScrolling: true,
+              allowImplicitScrolling: false,
               itemCount: 5,
               onPageChanged: (value) {
                 if (!mounted) return;
                 setState(() => _index = value);
               },
               itemBuilder: (context, index) {
-                if (index < _coreScreens.length) {
-                  return _coreScreens[index];
+                if (index == 0) {
+                  return const DashboardScreen(key: PageStorageKey('dashboard'));
+                }
+                if (index == 1) {
+                  return FocusScreen(
+                    key: const PageStorageKey('focus'),
+                    isCurrentPage: _index == 1,
+                  );
+                }
+                if (index == 2) {
+                  return const HabitsScreen(key: PageStorageKey('habits'));
+                }
+                if (index == 3) {
+                  return const StatsScreen(key: PageStorageKey('stats'));
                 }
 
-                return RepaintBoundary(
-                  child: SettingsScreen(
-                    key: const PageStorageKey('settings'),
-                    darkMode: _darkMode,
-                    onDarkModeChanged: _setDarkMode,
-                    currentUser: _currentUser,
-                    onSignOut: _signOut,
-                    onDeleteAccount: _deleteAccount,
-                    localeCode:
-                        (_locale ?? WidgetsBinding.instance.platformDispatcher.locale)
-                            .languageCode,
-                    onLocaleChanged: _setLocale,
-                  ),
+                return SettingsScreen(
+                  key: const PageStorageKey('settings'),
+                  darkMode: _darkMode,
+                  onDarkModeChanged: _setDarkMode,
+                  currentUser: _currentUser,
+                  onSignOut: _signOut,
+                  localeCode:
+                      (_locale ?? WidgetsBinding.instance.platformDispatcher.locale)
+                          .languageCode,
+                  onLocaleChanged: _setLocale,
                 );
               },
             ),

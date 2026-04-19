@@ -40,18 +40,18 @@ class BootReceiver : BroadcastReceiver() {
         val strictMode = prefs.getBoolean(KEY_STRICT_MODE, false)
 
         val blockerIntent = Intent(context, FocusBlockerService::class.java).apply {
-            action = ACTION_START_BLOCKING
+            action = FocusBlockerService.ACTION_START
             putStringArrayListExtra(EXTRA_BLOCKED_PACKAGES, ArrayList(blockedPackages))
             putExtra(EXTRA_REASON, reason)
-            putExtra(EXTRA_HAS_SPONSOR, hasSponsor)
-            putExtra(EXTRA_STRICT_MODE, strictMode)
+            putExtra(FocusBlockerService.EXTRA_HAS_SPONSOR, hasSponsor)
+            putExtra(FocusBlockerService.EXTRA_STRICT_MODE, strictMode)
         }
 
         ContextCompat.startForegroundService(context, blockerIntent)
     }
 
     companion object {
-        private const val PREFS = "detox_prefs"
+        private const val PREFS = "detox_native"
 
         private const val KEY_BLOCKED_PACKAGES = "blocked_packages"
         private const val KEY_BLOCK_REASON = "block_reason"
@@ -61,10 +61,7 @@ class BootReceiver : BroadcastReceiver() {
 
         private const val DEFAULT_BLOCK_REASON = "focus_session"
 
-        private const val ACTION_START_BLOCKING = "START_BLOCKING"
         private const val EXTRA_BLOCKED_PACKAGES = "blockedPackages"
         private const val EXTRA_REASON = "reason"
-        private const val EXTRA_HAS_SPONSOR = "hasSponsor"
-        private const val EXTRA_STRICT_MODE = "strictMode"
     }
 }

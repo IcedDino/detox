@@ -1,10 +1,10 @@
 import 'dart:async';
-import '../services/sponsor_service.dart';
+
 import '../models/app_limit.dart';
 import '../models/automation_rule.dart';
 import 'app_blocking_service.dart';
 import 'location_zone_service.dart';
-
+import 'sponsor_service.dart';
 import 'storage_service.dart';
 import 'usage_service.dart';
 
@@ -36,7 +36,7 @@ class AutomationService {
     _timer?.cancel();
     await refresh();
     _timer = Timer.periodic(const Duration(minutes: 1), (_) {
-      refresh();
+      unawaited(refresh());
     });
   }
 
@@ -57,22 +57,26 @@ class AutomationService {
         .where((rule) => rule.blockedPackages.isNotEmpty)
         .toList();
 
-    final usageEntries = await _usage.getTodayAppUsageEntries();
     final limitMap = <String, AppLimit>{
       for (final item in appLimits)
-        if ((item.packageName ?? '').isNotEmpty) item.packageName!: item,
+        if ((item.packageName ?? '').isNotEmpty && item.minutes > 0)
+          item.packageName!: item,
     };
 
-    final overLimitPackages = usageEntries
-        .where((entry) => (entry.packageName ?? '').isNotEmpty)
-        .where((entry) {
-          final limit = limitMap[entry.packageName!];
-          return limit != null && entry.minutes >= limit.minutes;
-        })
-        .map((e) => e.packageName!)
-        .toSet()
-        .toList()
-      ..sort();
+    List<String> overLimitPackages = const [];
+    if (limitMap.isNotEmpty) {
+      final usageEntries = await _usage.getTodayAppUsageEntries();
+      overLimitPackages = usageEntries
+          .where((entry) => (entry.packageName ?? '').isNotEmpty)
+          .where((entry) {
+            final limit = limitMap[entry.packageName!];
+            return limit != null && entry.minutes >= limit.minutes;
+          })
+          .map((e) => e.packageName!)
+          .toSet()
+          .toList()
+        ..sort();
+    }
 
     return AutomationSnapshot(
       activeRules: activeRules,
@@ -108,19 +112,10 @@ class AutomationService {
 
     if (key == _activeKey) return;
 
-    final reasons = <String>[];
-    if (snapshot.activeRules.isNotEmpty) {
-      reasons.add('Schedule active');
-    }
-    if (snapshot.overLimitPackages.isNotEmpty) {
-      reasons.add('Daily app limit reached');
-    }
-
-    final hasSponsor =
-        (await SponsorService.instance.getCurrentSponsorProfile()) != null;
+    final hasSponsor = await SponsorService.instance.hasSponsor();
 
     await AppBlockingService.instance.startShield(
-      blockedPackages: packages.toList(),
+      blockedPackages: sortedPackages,
       reason: 'automation_rule',
       hasSponsor: hasSponsor,
       source: 'automation',

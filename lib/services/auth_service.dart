@@ -5,7 +5,6 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../models/auth_user.dart';
 import 'cloud_sync_service.dart';
-import 'sponsor_service.dart';
 import 'storage_service.dart';
 
 class AuthException implements Exception {
@@ -111,10 +110,16 @@ class AuthService {
     required void Function(AuthUser user) onVerified,
   }) async {
     final completer = Completer<void>();
+    final requestNonce = ++_activeVerificationNonce;
+    _verificationId = null;
     try {
       await _auth.verifyPhoneNumber(
         phoneNumber: phoneNumber.trim(),
         verificationCompleted: (credential) async {
+          if (requestNonce != _activeVerificationNonce) {
+            if (!completer.isCompleted) completer.complete();
+            return;
+          }
           try {
             final result = await _auth.signInWithCredential(credential);
             final user = result.user;
@@ -128,16 +133,21 @@ class AuthService {
           }
         },
         verificationFailed: (e) {
+          if (requestNonce == _activeVerificationNonce) {
+            _verificationId = null;
+          }
           if (!completer.isCompleted) {
             completer.completeError(AuthException(_friendlyAuthMessage(e)));
           }
         },
         codeSent: (verificationId, _) {
+          if (requestNonce != _activeVerificationNonce) return;
           _verificationId = verificationId;
           onCodeSent();
           if (!completer.isCompleted) completer.complete();
         },
         codeAutoRetrievalTimeout: (verificationId) {
+          if (requestNonce != _activeVerificationNonce) return;
           _verificationId = verificationId;
         },
       );
@@ -153,6 +163,7 @@ class AuthService {
   }
 
   String? _verificationId;
+  int _activeVerificationNonce = 0;
 
   Future<AuthUser> verifySmsCode(String code) async {
     final verificationId = _verificationId;
@@ -169,6 +180,7 @@ class AuthService {
       if (user == null) {
         throw AuthException('The SMS code could not be verified.');
       }
+      _verificationId = null;
       final mapped = _mapUser(user);
       await CloudSyncService.instance.saveUserProfile(mapped);
       return mapped;
@@ -193,8 +205,8 @@ class AuthService {
     }
 
     try {
-      await SponsorService.instance.purgeDeletedAccountReferences(user.uid);
-      await CloudSyncService.instance.deleteUserDocument(user.uid);
+      final mappedUser = _mapUser(user);
+      await CloudSyncService.instance.markAccountDeleted(mappedUser);
       await user.delete();
       await StorageService.instance.clearLocalUserData();
       // ignore: body_might_complete_normally_catch_error
@@ -244,8 +256,8 @@ class AuthService {
       displayName: user.displayName?.trim().isNotEmpty == true
           ? user.displayName!.trim()
           : (user.phoneNumber?.trim().isNotEmpty == true
-          ? 'Detox user'
-          : (user.email?.split('@').first ?? 'Detox user')),
+              ? user.phoneNumber!.trim()
+              : (user.email?.split('@').first ?? 'Detox user')),
       provider: provider,
       phoneNumber: user.phoneNumber,
     );

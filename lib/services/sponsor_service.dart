@@ -17,6 +17,28 @@ class SponsorException implements Exception {
   String toString() => message;
 }
 
+class SponsorUserContext {
+  const SponsorUserContext({
+    required this.sponsorCode,
+    required this.sponsorUid,
+    required this.settingsUnlockUntil,
+    required this.zoneOverrideUntil,
+    required this.sponsorProfile,
+  });
+
+  final String sponsorCode;
+  final String? sponsorUid;
+  final DateTime? settingsUnlockUntil;
+  final DateTime? zoneOverrideUntil;
+  final SponsorProfile? sponsorProfile;
+
+  bool get hasSponsor => sponsorUid != null && sponsorUid!.isNotEmpty;
+  bool get hasActiveSettingsUnlock =>
+      settingsUnlockUntil != null && DateTime.now().isBefore(settingsUnlockUntil!);
+  bool get hasActiveZoneOverride =>
+      zoneOverrideUntil != null && DateTime.now().isBefore(zoneOverrideUntil!);
+}
+
 class SponsorService {
   SponsorService._();
   static final SponsorService instance = SponsorService._();
@@ -24,6 +46,18 @@ class SponsorService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final Random _random = Random();
+
+  static const Duration _userDocCacheTtl = Duration(seconds: 2);
+  static const Duration _sponsorProfileCacheTtl = Duration(seconds: 10);
+
+  Future<Map<String, dynamic>?>? _userDocLoadFuture;
+  String? _cachedUserDocUid;
+  Map<String, dynamic>? _cachedUserDocData;
+  DateTime? _cachedUserDocAt;
+
+  final Map<String, SponsorProfile> _sponsorProfileCache =
+      <String, SponsorProfile>{};
+  final Map<String, DateTime> _sponsorProfileCacheAt = <String, DateTime>{};
 
   CollectionReference<Map<String, dynamic>> get _linkRequestsRef =>
       _firestore.collection('meta').doc('sponsor').collection('link_requests');
@@ -68,14 +102,14 @@ class SponsorService {
     final doc = _userDoc;
     if (doc == null) return;
 
-    final current = await doc.get();
-    final currentData = current.data() ?? <String, dynamic>{};
+    final currentData = await _loadCurrentUserData() ?? <String, dynamic>{};
     if ((currentData['sponsorCode'] as String?)?.isNotEmpty == true) {
       if (user != null) {
         await doc.set({
           'profile': user.toMap(),
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
+        _invalidateUserDocCache();
       }
       return;
     }
@@ -106,6 +140,7 @@ class SponsorService {
         SetOptions(merge: true),
       );
     });
+    _invalidateUserDocCache();
   }
 
   Stream<List<LinkRequest>> outgoingLinkRequests() {
@@ -251,33 +286,50 @@ class SponsorService {
 
 
   Future<String> getMySponsorCode() async {
-    await ensureCurrentUserInitialized();
-    final doc = _userDoc;
-    if (doc == null) {
+    if (!isSignedIn) {
       throw SponsorException('You need to sign in first.');
     }
-    final snap = await doc.get();
-    return snap.data()?['sponsorCode'] as String? ?? '';
+    final context = await loadCurrentUserContext(includeSponsorProfile: false);
+    return context.sponsorCode;
   }
 
   Future<String?> getSponsorUid() async {
-    final doc = _userDoc;
-    if (doc == null) return null;
-    final snap = await doc.get();
-    return snap.data()?['sponsorUid'] as String?;
+    final context = await loadCurrentUserContext(includeSponsorProfile: false);
+    return context.sponsorUid;
   }
 
-  Future<bool> hasSponsor() async => (await getSponsorUid()) != null;
+  Future<bool> hasSponsor() async {
+    final context = await loadCurrentUserContext(includeSponsorProfile: false);
+    return context.hasSponsor;
+  }
 
   Future<SponsorProfile?> getCurrentSponsorProfile() async {
-    final sponsorUid = await getSponsorUid();
-    if (sponsorUid == null) return null;
+    final context = await loadCurrentUserContext();
+    return context.sponsorProfile;
+  }
 
-    final snap = await _firestore.collection('users').doc(sponsorUid).get();
-    final data = snap.data();
-    if (data == null) return null;
+  Future<SponsorUserContext> loadCurrentUserContext({
+    bool includeSponsorProfile = true,
+  }) async {
+    await ensureCurrentUserInitialized();
+    final data = await _loadCurrentUserData();
+    final sponsorUid = (data?['sponsorUid'] as String?)?.trim();
+    final settingsUnlockUntil = _timestampFromData(data, 'settingsUnlockUntil');
+    final zoneOverrideUntil = _timestampFromData(data, 'zoneOverrideUntil');
+    final sponsorCode = (data?['sponsorCode'] as String?)?.trim() ?? '';
 
-    return SponsorProfile.fromUserDoc(sponsorUid, data);
+    SponsorProfile? sponsorProfile;
+    if (includeSponsorProfile && sponsorUid != null && sponsorUid.isNotEmpty) {
+      sponsorProfile = await _loadSponsorProfile(sponsorUid);
+    }
+
+    return SponsorUserContext(
+      sponsorCode: sponsorCode,
+      sponsorUid: sponsorUid == null || sponsorUid.isEmpty ? null : sponsorUid,
+      settingsUnlockUntil: settingsUnlockUntil,
+      zoneOverrideUntil: zoneOverrideUntil,
+      sponsorProfile: sponsorProfile,
+    );
   }
 
   Future<void> sendLinkRequestWithCode(String code) async {
@@ -1118,18 +1170,79 @@ class SponsorService {
   }
 
   Future<DateTime?> _getTimestamp(String field) async {
+    final data = await _loadCurrentUserData();
+    return _timestampFromData(data, field);
+  }
+
+  Future<Map<String, dynamic>?> _loadCurrentUserData({bool force = false}) async {
     final doc = _userDoc;
-    if (doc == null) return null;
+    final uid = _uid;
+    if (doc == null || uid == null) return null;
 
-    final snap = await doc.get();
-    final data = snap.data();
+    final now = DateTime.now();
+    if (!force &&
+        _cachedUserDocUid == uid &&
+        _cachedUserDocData != null &&
+        _cachedUserDocAt != null &&
+        now.difference(_cachedUserDocAt!) <= _userDocCacheTtl) {
+      return _cachedUserDocData;
+    }
+
+    if (!force && _userDocLoadFuture != null && _cachedUserDocUid == uid) {
+      return _userDocLoadFuture!;
+    }
+
+    late final Future<Map<String, dynamic>?> future;
+    future = doc.get().then((snap) {
+      final data = snap.data();
+      _cachedUserDocUid = uid;
+      _cachedUserDocData = data == null ? null : Map<String, dynamic>.from(data);
+      _cachedUserDocAt = DateTime.now();
+      return _cachedUserDocData;
+    }).whenComplete(() {
+      if (identical(_userDocLoadFuture, future)) {
+        _userDocLoadFuture = null;
+      }
+    });
+
+    _cachedUserDocUid = uid;
+    _userDocLoadFuture = future;
+    return future;
+  }
+
+  void _invalidateUserDocCache() {
+    _userDocLoadFuture = null;
+    _cachedUserDocUid = null;
+    _cachedUserDocData = null;
+    _cachedUserDocAt = null;
+  }
+
+  DateTime? _timestampFromData(Map<String, dynamic>? data, String field) {
     final timestamp = data?[field];
-
     if (timestamp is Timestamp) {
       return timestamp.toDate();
     }
-
     return null;
+  }
+
+  Future<SponsorProfile?> _loadSponsorProfile(String sponsorUid) async {
+    final cached = _sponsorProfileCache[sponsorUid];
+    final cachedAt = _sponsorProfileCacheAt[sponsorUid];
+    final now = DateTime.now();
+    if (cached != null &&
+        cachedAt != null &&
+        now.difference(cachedAt) <= _sponsorProfileCacheTtl) {
+      return cached;
+    }
+
+    final snap = await _firestore.collection('users').doc(sponsorUid).get();
+    final data = snap.data();
+    if (data == null) return null;
+
+    final profile = SponsorProfile.fromUserDoc(sponsorUid, data);
+    _sponsorProfileCache[sponsorUid] = profile;
+    _sponsorProfileCacheAt[sponsorUid] = now;
+    return profile;
   }
 
   Stream<List<SponsorRequest>> incomingHistory() {

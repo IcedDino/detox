@@ -91,7 +91,7 @@ class FocusSessionService {
   Future<void> startFocus({required int minutes, String label = 'Focus session'}) async {
     final prefs = await SharedPreferences.getInstance();
     final packages = await _loadShieldPackages();
-    final hasSponsor = (await SponsorService.instance.getCurrentSponsorProfile()) != null;
+    final hasSponsor = await SponsorService.instance.hasSponsor();
     await _storage.incrementFocusSessionsStarted();
     await _storage.markProgressStartedToday();
 
@@ -119,7 +119,7 @@ class FocusSessionService {
   Future<void> startPomodoro({int workMinutes = 25, int breakMinutes = 5, int cycles = 4}) async {
     final prefs = await SharedPreferences.getInstance();
     final packages = await _loadShieldPackages();
-    final hasSponsor = (await SponsorService.instance.getCurrentSponsorProfile()) != null;
+    final hasSponsor = await SponsorService.instance.hasSponsor();
     await _storage.incrementFocusSessionsStarted();
     await _storage.markProgressStartedToday();
 
@@ -151,7 +151,7 @@ class FocusSessionService {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final hasSponsor =
-        (await SponsorService.instance.getCurrentSponsorProfile()) != null;
+        await SponsorService.instance.hasSponsor();
     final source = 'smart_break_$packageName';
 
     await _storage.incrementFocusSessionsStarted();
@@ -208,7 +208,7 @@ class FocusSessionService {
     }
 
     final packages = await _loadShieldPackages();
-    final hasSponsor = (await SponsorService.instance.getCurrentSponsorProfile()) != null;
+    final hasSponsor = await SponsorService.instance.hasSponsor();
     await prefs.setBool(_isBreakKey, false);
     await prefs.setInt(_cycleKey, cycle + 1);
     await prefs.setString(_endsAtKey, DateTime.now().add(Duration(minutes: workMinutes)).toIso8601String());

@@ -40,6 +40,8 @@ class FocusBlockerService : Service() {
         const val ACTION_START = "com.example.detox.START_BLOCKING"
         const val ACTION_STOP = "com.example.detox.STOP_BLOCKING"
         const val ACTION_SYNC_SPONSOR_STATE = "com.example.detox.SYNC_SPONSOR_STATE"
+        const val EXTRA_HAS_SPONSOR = "has_sponsor"
+        const val EXTRA_STRICT_MODE = "strict_mode"
 
         private const val CHANNEL_ID = "detox_focus_shield"
         private const val NOTIFICATION_ID = 4812
@@ -51,7 +53,9 @@ class FocusBlockerService : Service() {
         var instance: FocusBlockerService? = null
 
         fun onAdResult(success: Boolean) {
-            instance?.handleAdResult(success)
+            instance?.handler?.post {
+                instance?.handleAdResult(success)
+            }
         }
     }
 
@@ -73,6 +77,11 @@ class FocusBlockerService : Service() {
     private var isMutedByService = false
     private var suppressPackageName: String? = null
     private var suppressPackageUntil: Long = 0L
+    private val prefs by lazy { getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
+    private var blockedPackagesCache: Set<String> = emptySet()
+    private var hasSponsorCache = false
+    private var strictModeCache = false
+    private var suspendUntilMillisCache: Long = 0L
 
     @Volatile
     private var pollRunning = false
@@ -85,8 +94,8 @@ class FocusBlockerService : Service() {
             } finally {
                 if (pollRunning) {
                     val delay = when {
-                        overlayView != null || requestInFlight || keepOverlayPinned || waitingAdResult -> 400L
-                        else -> 1000L
+                        overlayView != null || requestInFlight || keepOverlayPinned || waitingAdResult -> 900L
+                        else -> 2200L
                     }
                     handler.postDelayed(this, delay)
                 }
@@ -109,15 +118,31 @@ class FocusBlockerService : Service() {
             }
 
             ACTION_SYNC_SPONSOR_STATE -> {
-                val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 val extras = intent.extras
-                val hasSponsor = if (extras != null && extras.containsKey("has_sponsor")) intent.getBooleanExtra("has_sponsor", false) else prefs.getBoolean("has_sponsor", false)
-                val strictMode = if (extras != null && extras.containsKey("strict_mode")) intent.getBooleanExtra("strict_mode", false) else prefs.getBoolean("strict_mode", false)
+                val hasSponsor = when {
+                    extras?.containsKey(EXTRA_HAS_SPONSOR) == true -> {
+                        intent.getBooleanExtra(EXTRA_HAS_SPONSOR, false)
+                    }
+                    extras?.containsKey("hasSponsor") == true -> {
+                        intent.getBooleanExtra("hasSponsor", false)
+                    }
+                    else -> prefs.getBoolean(EXTRA_HAS_SPONSOR, false)
+                }
+                val strictMode = when {
+                    extras?.containsKey(EXTRA_STRICT_MODE) == true -> {
+                        intent.getBooleanExtra(EXTRA_STRICT_MODE, false)
+                    }
+                    extras?.containsKey("strictMode") == true -> {
+                        intent.getBooleanExtra("strictMode", false)
+                    }
+                    else -> prefs.getBoolean(EXTRA_STRICT_MODE, false)
+                }
                 prefs
                     .edit()
-                    .putBoolean("has_sponsor", hasSponsor)
-                    .putBoolean("strict_mode", strictMode)
+                    .putBoolean(EXTRA_HAS_SPONSOR, hasSponsor)
+                    .putBoolean(EXTRA_STRICT_MODE, strictMode)
                     .apply()
+                refreshCachedPrefsState()
 
                 if (overlayView != null) {
                     syncOverlayButtonState()
@@ -137,31 +162,33 @@ class FocusBlockerService : Service() {
 
                 windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
                 audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-                val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 intent?.getStringArrayListExtra("blockedPackages")?.let {
                     prefs.edit().putStringSet("blocked_packages", it.toSet()).apply()
                 }
                 if (intent?.hasExtra("reason") == true) {
                     prefs.edit().putString("block_reason", intent.getStringExtra("reason")).apply()
                 }
-                if (intent?.hasExtra("hasSponsor") == true) {
-                    prefs.edit().putBoolean("has_sponsor", intent.getBooleanExtra("hasSponsor", false)).apply()
+                if (intent?.hasExtra(EXTRA_HAS_SPONSOR) == true || intent?.hasExtra("hasSponsor") == true) {
+                    val hasSponsor = when {
+                        intent?.hasExtra(EXTRA_HAS_SPONSOR) == true -> intent.getBooleanExtra(EXTRA_HAS_SPONSOR, false)
+                        else -> intent?.getBooleanExtra("hasSponsor", false) ?: false
+                    }
+                    prefs.edit().putBoolean(EXTRA_HAS_SPONSOR, hasSponsor).apply()
                 }
-                if (intent?.hasExtra("strictMode") == true) {
-                    prefs.edit().putBoolean("strict_mode", intent.getBooleanExtra("strictMode", false)).apply()
+                if (intent?.hasExtra(EXTRA_STRICT_MODE) == true || intent?.hasExtra("strictMode") == true) {
+                    val strictMode = when {
+                        intent?.hasExtra(EXTRA_STRICT_MODE) == true -> intent.getBooleanExtra(EXTRA_STRICT_MODE, false)
+                        else -> intent?.getBooleanExtra("strictMode", false) ?: false
+                    }
+                    prefs.edit().putBoolean(EXTRA_STRICT_MODE, strictMode).apply()
                 }
-                val blockedPackages =
-                    prefs.getStringSet("blocked_packages", emptySet()) ?: emptySet()
+                refreshCachedPrefsState()
+                val blockedPackages = blockedPackagesCache
 
                 if (!Settings.canDrawOverlays(this) || blockedPackages.isEmpty()) {
                     stopSelfSafely()
                     return START_NOT_STICKY
                 }
-
-                currentReason = prefs.getString(
-                    "block_reason",
-                    tr("Focus session active", "Sesión de enfoque activa")
-                ) ?: tr("Focus session active", "Sesión de enfoque activa")
 
                 startShieldPauseWatcher()
 
@@ -174,6 +201,7 @@ class FocusBlockerService : Service() {
     }
 
     override fun onDestroy() {
+        pollRunning = false
         handler.removeCallbacksAndMessages(null)
         userListener?.remove()
         userListener = null
@@ -220,9 +248,20 @@ class FocusBlockerService : Service() {
         }
     }
 
+    private fun refreshCachedPrefsState() {
+        blockedPackagesCache = prefs.getStringSet("blocked_packages", emptySet())?.toSet() ?: emptySet()
+        currentReason = prefs.getString(
+            "block_reason",
+            tr("Focus session active", "Sesión de enfoque activa")
+        ) ?: tr("Focus session active", "Sesión de enfoque activa")
+        hasSponsorCache = prefs.getBoolean(EXTRA_HAS_SPONSOR, false)
+        strictModeCache = prefs.getBoolean(EXTRA_STRICT_MODE, false)
+        suspendUntilMillisCache = prefs.getLong("suspend_until_millis", 0L)
+    }
+
     private fun currentSuspendUntilMillis(): Long {
-        return getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getLong("suspend_until_millis", 0L)
+        refreshCachedPrefsState()
+        return suspendUntilMillisCache
     }
 
     private fun updateSuspendUntilMillis(
@@ -243,6 +282,7 @@ class FocusBlockerService : Service() {
         if (next != current) {
             prefs.edit().putLong("suspend_until_millis", next).apply()
         }
+        suspendUntilMillisCache = next
 
         return next
     }
@@ -279,11 +319,8 @@ class FocusBlockerService : Service() {
     }
 
     private fun inspectForegroundApp() {
-        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val blockedPackages = prefs.getStringSet("blocked_packages", emptySet()) ?: emptySet()
-        currentReason = prefs.getString("block_reason", currentReason) ?: currentReason
-        val suspendedUntilMillis = prefs.getLong("suspend_until_millis", 0L)
-        val shieldSuspended = suspendedUntilMillis > System.currentTimeMillis()
+        val blockedPackages = blockedPackagesCache
+        val shieldSuspended = suspendUntilMillisCache > System.currentTimeMillis()
 
         if (blockedPackages.isEmpty()) {
             hideOverlay(force = true)
@@ -383,10 +420,9 @@ class FocusBlockerService : Service() {
     }
 
     private fun showOverlay(reason: String) {
-        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         ensureDailyPauseReset(prefs)
-        val hasSponsor = prefs.getBoolean("has_sponsor", false)
-        val strictMode = prefs.getBoolean("strict_mode", false)
+        val hasSponsor = hasSponsorCache
+        val strictMode = strictModeCache
         requestAudioFocus()
 
         if (overlayView != null) {
@@ -532,7 +568,6 @@ class FocusBlockerService : Service() {
                 bottomMargin = dp(12)
             }
 
-            isEnabled = true
 
             setOnClickListener {
                 if (strictMode || requestInFlight || waitingAdResult) return@setOnClickListener
@@ -603,7 +638,6 @@ class FocusBlockerService : Service() {
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
 
-            isEnabled = true
 
             setOnClickListener {
                 requestInFlight = false
@@ -773,8 +807,7 @@ class FocusBlockerService : Service() {
 
             hideOverlay(force = true)
 
-            // Fuerza que el servicio ya tome la suspensión recién guardada.
-            inspectForegroundApp()
+            handler.post { inspectForegroundApp() }
         } else {
             keepOverlayPinned = false
 
@@ -864,18 +897,7 @@ class FocusBlockerService : Service() {
                         "createdAt" to FieldValue.serverTimestamp(),
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
-                ).continueWithTask {
-                    requestRef.update(
-                        mapOf(
-                            "code" to FieldValue.delete(),
-                            "approvedAt" to FieldValue.delete(),
-                            "rejectedAt" to FieldValue.delete(),
-                            "consumedAt" to FieldValue.delete(),
-                            "expiresAt" to FieldValue.delete(),
-                            "appliedAt" to FieldValue.delete()
-                        )
-                    )
-                }.addOnSuccessListener {
+                ).addOnSuccessListener {
                     keepOverlayPinned = true
                     updateOverlayReason(
                         tr(
@@ -996,15 +1018,16 @@ class FocusBlockerService : Service() {
     }
 
     private fun syncOverlayButtonState() {
-        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         ensureDailyPauseReset(prefs)
-        val hasSponsor = prefs.getBoolean("has_sponsor", false)
-        val strictMode = prefs.getBoolean("strict_mode", false)
-        val canAct = canUseFreePause(prefs) || canUseAdPause(prefs) || hasSponsor
+        val canAct = canUseFreePause(prefs) || canUseAdPause(prefs) || hasSponsorCache
 
         val actionButton = overlayView?.findViewWithTag<Button>("actionButton") ?: return
-        actionButton.isEnabled = !strictMode && !requestInFlight && !waitingAdResult && canAct
-        actionButton.text = if (strictMode) tr("Strict mode active", "Modo estricto activo") else primaryActionLabel(hasSponsor)
+        actionButton.isEnabled = !strictModeCache && !requestInFlight && !waitingAdResult && canAct
+        actionButton.text = if (strictModeCache) {
+            tr("Strict mode active", "Modo estricto activo")
+        } else {
+            primaryActionLabel(hasSponsorCache)
+        }
     }
 
     private fun syncOverlayAppDetails() {
@@ -1028,12 +1051,11 @@ class FocusBlockerService : Service() {
 
     private fun buildBodyText(reason: String): String {
         val label = getReadableAppLabel(lastShownPackage)
-        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         ensureDailyPauseReset(prefs)
         val freePauseLeft = !prefs.getBoolean(KEY_PAUSE_FREE_USED, false)
         val adPauseLeft = !prefs.getBoolean(KEY_PAUSE_AD_USED, false)
-        val hasSponsor = prefs.getBoolean("has_sponsor", false)
-        val strictMode = prefs.getBoolean("strict_mode", false)
+        val hasSponsor = hasSponsorCache
+        val strictMode = strictModeCache
 
         val suffix = when {
             strictMode -> tr(" Strict mode is on: no pauses or ads until the session ends. You can still go back to focus.", " El modo estricto está activo: sin pausas ni anuncios hasta que termine la sesión. Aun así puedes volver al enfoque.")
@@ -1153,24 +1175,12 @@ class FocusBlockerService : Service() {
         } catch (_: Exception) {
         }
 
-        forceMuteAudio()
     }
 
     private fun forceMuteAudio() {
-        try {
-            if (!isMutedByService) {
-                originalVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-
-                audioManager.setStreamVolume(
-                    AudioManager.STREAM_MUSIC,
-                    0,
-                    0
-                )
-
-                isMutedByService = true
-            }
-        } catch (_: Exception) {
-        }
+        // Intentionally a no-op. Audio focus ducking/exclusive focus is enough,
+        // and muting STREAM_MUSIC here can leave the device volume at 0 if the
+        // process dies before restoration runs.
     }
 
     private fun abandonAudioFocus() {
@@ -1182,17 +1192,6 @@ class FocusBlockerService : Service() {
             } else {
                 @Suppress("DEPRECATION")
                 audioManager.abandonAudioFocus(null)
-            }
-        } catch (_: Exception) {
-        }
-
-        try {
-            if (isMutedByService && originalVolume >= 0) {
-                audioManager.setStreamVolume(
-                    AudioManager.STREAM_MUSIC,
-                    originalVolume,
-                    0
-                )
             }
         } catch (_: Exception) {
         }

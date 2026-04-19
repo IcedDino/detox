@@ -12,6 +12,16 @@ import 'app_visibility_filter_service.dart';
 
 class UsageService {
   static const MethodChannel _channel = MethodChannel('detox/device_control');
+  static const Duration _todayCacheTtl = Duration(seconds: 45);
+  static const Duration _weeklyCacheTtl = Duration(minutes: 2);
+
+  List<AppUsageEntry>? _todayEntriesCache;
+  DateTime? _todayEntriesCachedAt;
+  String? _todayEntriesDayToken;
+
+  List<WeeklyUsagePoint>? _weeklyUsageCache;
+  DateTime? _weeklyUsageCachedAt;
+  String? _weeklyUsageDayToken;
 
   Future<DailyUsageSummary> getTodaySummary() async {
     if (kIsWeb) return _fallbackSummary();
@@ -32,32 +42,36 @@ class UsageService {
 
     if (defaultTargetPlatform == TargetPlatform.android) {
       final now = DateTime.now();
+      final dayToken = _dayToken(now);
+      final cachedAt = _weeklyUsageCachedAt;
+      final cached = _weeklyUsageCache;
+      if (cached != null &&
+          cachedAt != null &&
+          _weeklyUsageDayToken == dayToken &&
+          now.difference(cachedAt) <= _weeklyCacheTtl) {
+        return cached;
+      }
+
       final points = <WeeklyUsagePoint>[];
-
-      for (var offset = 6; offset >= 0; offset--) {
-        final day = now.subtract(Duration(days: offset));
-        final start = DateTime(day.year, day.month, day.day);
-        final end = start.add(const Duration(days: 1));
-
-        try {
+      try {
+        for (var offset = 6; offset >= 0; offset--) {
+          final day = now.subtract(Duration(days: offset));
+          final start = DateTime(day.year, day.month, day.day);
+          final end = start.add(const Duration(days: 1));
           final usage = await AppUsage().getAppUsage(start, end);
-          var totalMinutes = 0;
 
+          var totalMinutes = 0;
           for (final item in usage) {
             final minutes = item.usage.inMinutes;
             if (minutes <= 0) continue;
 
             final packageName = item.packageName;
-            final resolvedName = packageName.isNotEmpty
-                ? await AppMetadataService.instance.getLabel(packageName)
-                : null;
-
-            final allowed = await AppVisibilityFilterService.instance.shouldShowApp(
-              packageName: packageName,
-              resolvedLabel: resolvedName ?? item.appName,
-            );
-
-            if (!allowed) continue;
+            if (packageName.isEmpty ||
+                !AppVisibilityFilterService.instance.shouldShowPackageName(
+                  packageName,
+                )) {
+              continue;
+            }
 
             totalMinutes += minutes;
           }
@@ -68,11 +82,14 @@ class UsageService {
               minutes: totalMinutes,
             ),
           );
-        } catch (_) {
-          return _fallbackWeeklyUsage();
         }
+      } catch (_) {
+        return _fallbackWeeklyUsage();
       }
 
+      _weeklyUsageCache = points;
+      _weeklyUsageCachedAt = now;
+      _weeklyUsageDayToken = dayToken;
       return points;
     }
 
@@ -113,7 +130,7 @@ class UsageService {
       return const PermissionStatusModel(
         usageReady: true,
         platformMessage:
-        'The iOS UI is ready. Real Screen Time enforcement needs Apple Family Controls entitlement and native setup in Xcode.',
+            'The iOS UI is ready. Real Screen Time enforcement needs Apple Family Controls entitlement and native setup in Xcode.',
       );
     }
 
@@ -172,39 +189,54 @@ class UsageService {
 
   Future<List<AppUsageEntry>> _loadAndroidTodayEntries() async {
     final now = DateTime.now();
+    final dayToken = _dayToken(now);
+    final cachedAt = _todayEntriesCachedAt;
+    final cached = _todayEntriesCache;
+    if (cached != null &&
+        cachedAt != null &&
+        _todayEntriesDayToken == dayToken &&
+        now.difference(cachedAt) <= _todayCacheTtl) {
+      return cached;
+    }
+
     final start = DateTime(now.year, now.month, now.day);
     final usage = await AppUsage().getAppUsage(start, now);
 
-    final entries = <AppUsageEntry>[];
-
-    for (final item in usage) {
+    final futures = usage.map((item) async {
       final minutes = item.usage.inMinutes;
-      if (minutes <= 0) continue;
+      if (minutes <= 0) return null;
 
       final packageName = item.packageName;
-      if (packageName.isEmpty) continue;
+      if (packageName.isEmpty ||
+          !AppVisibilityFilterService.instance.shouldShowPackageName(packageName)) {
+        return null;
+      }
 
-      final resolvedName = await AppMetadataService.instance.getLabel(packageName);
+      final fallbackName = item.appName.trim();
+      String? resolvedName =
+          (fallbackName.isNotEmpty && fallbackName != packageName) ? fallbackName : null;
+      resolvedName ??= await AppMetadataService.instance.getLabel(packageName);
 
-      final allowed = await AppVisibilityFilterService.instance.shouldShowApp(
+      final visibleLabel = (resolvedName?.trim().isNotEmpty ?? false)
+          ? resolvedName!.trim()
+          : fallbackName;
+      if (!AppVisibilityFilterService.instance.shouldShowResolvedLabel(visibleLabel)) {
+        return null;
+      }
+
+      return AppUsageEntry(
+        appName: visibleLabel.isNotEmpty ? visibleLabel : packageName,
+        minutes: minutes,
         packageName: packageName,
-        resolvedLabel: resolvedName ?? item.appName,
       );
+    });
 
-      if (!allowed) continue;
+    final entries = (await Future.wait(futures)).whereType<AppUsageEntry>().toList()
+      ..sort((a, b) => b.minutes.compareTo(a.minutes));
 
-      entries.add(
-        AppUsageEntry(
-          appName: (resolvedName?.trim().isNotEmpty ?? false)
-              ? resolvedName!.trim()
-              : (item.appName.isNotEmpty ? item.appName : item.packageName),
-          minutes: minutes,
-          packageName: packageName,
-        ),
-      );
-    }
-
-    entries.sort((a, b) => b.minutes.compareTo(a.minutes));
+    _todayEntriesCache = entries;
+    _todayEntriesCachedAt = now;
+    _todayEntriesDayToken = dayToken;
     return entries;
   }
 
@@ -266,5 +298,9 @@ class UsageService {
 
   int _estimatePickups(int totalMinutes) {
     return max(6, (totalMinutes / 4).round());
+  }
+
+  String _dayToken(DateTime value) {
+    return '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
   }
 }

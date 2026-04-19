@@ -47,6 +47,7 @@ class LocationZoneService {
   static const Duration _overrideCheckTtl = Duration(seconds: 15);
   static const double _nearZonePaddingMeters = 200;
   static const double _mediumZonePaddingMeters = 600;
+  static const Duration _positionRequestTimeout = Duration(seconds: 8);
 
   final StorageService _storageService = StorageService();
   final StreamController<ZoneState> _stateController =
@@ -120,7 +121,9 @@ class LocationZoneService {
     );
 
     try {
-      final current = await Geolocator.getCurrentPosition();
+      final current = await Geolocator.getCurrentPosition(
+        timeLimit: _positionRequestTimeout,
+      );
       _rememberPosition(current);
       await _handlePosition(current, cachedConfig: config);
     } catch (_) {}
@@ -161,7 +164,9 @@ class LocationZoneService {
         return;
       }
 
-      final current = await Geolocator.getCurrentPosition();
+      final current = await Geolocator.getCurrentPosition(
+        timeLimit: _positionRequestTimeout,
+      );
       _rememberPosition(current);
       await _handlePosition(current, cachedConfig: config);
     } catch (_) {
