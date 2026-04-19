@@ -24,6 +24,7 @@ class AppVisibilityFilterService {
     'com.google.android.gsf',
     'com.google.android.ext.services',
     'com.google.android.ondevicepersonalization.services',
+    'com.iceddino.detox',
   };
 
   static const List<String> _blockedLabelFragments = [
@@ -42,6 +43,7 @@ class AppVisibilityFilterService {
     'servicios de google play',
     'google play services',
     'google services framework',
+    'Detox',
   ];
 
   Future<bool> shouldShowApp({
