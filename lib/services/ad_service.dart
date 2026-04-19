@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/services.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class AdService {
   AdService._();

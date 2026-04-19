@@ -1,10 +1,15 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+
 import 'storage_service.dart';
 
 class NativeBlockAction {
   static const String requestShieldPause = 'request_shield_pause';
   static const String suspendShield15 = 'suspend_shield_15';
+}
+
+class NativeNavigationTarget {
+  static const String sponsorCenter = 'sponsor_center';
 }
 
 class _ShieldRequest {
@@ -31,7 +36,8 @@ class AppBlockingService {
   final StorageService _storage = StorageService();
   final Map<String, _ShieldRequest> _requests = <String, _ShieldRequest>{};
 
-  bool get _isAndroid => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  bool get _isAndroid =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   Future<bool> hasOverlayPermission() async {
     if (!_isAndroid) return true;
@@ -40,6 +46,22 @@ class AppBlockingService {
     } catch (_) {
       return false;
     }
+  }
+
+  Future<bool> hasUsageAccess() async {
+    if (!_isAndroid) return true;
+    try {
+      return await _channel.invokeMethod<bool>('hasUsageAccess') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> openUsageAccessSettings() async {
+    if (!_isAndroid) return;
+    try {
+      await _channel.invokeMethod('openUsageAccessSettings');
+    } catch (_) {}
   }
 
   Future<void> openOverlayPermissionSettings() async {
@@ -57,7 +79,8 @@ class AppBlockingService {
     bool? strictModeOverride,
   }) async {
     if (!_isAndroid) return;
-    final normalized = blockedPackages.toSet().where((e) => e.isNotEmpty).toList()..sort();
+    final normalized = blockedPackages.toSet().where((e) => e.isNotEmpty).toList()
+      ..sort();
     if (normalized.isEmpty) return;
     final strictMode = strictModeOverride ?? await _storage.getStrictMode();
     _requests[source] = _ShieldRequest(
@@ -89,7 +112,11 @@ class AppBlockingService {
       return;
     }
 
-    final mergedPackages = _requests.values.expand((e) => e.blockedPackages).toSet().toList()..sort();
+    final mergedPackages = _requests.values
+        .expand((e) => e.blockedPackages)
+        .toSet()
+        .toList()
+      ..sort();
     final strictMode = _requests.values.any((e) => e.strictMode);
     final hasSponsor = _requests.values.any((e) => e.hasSponsor);
     final reasons = _requests.values.map((e) => e.reason).toSet().toList();
@@ -109,7 +136,8 @@ class AppBlockingService {
   Future<void> suspendForMinutes(int minutes) async {
     if (!_isAndroid) return;
     try {
-      await _channel.invokeMethod('suspendBlockingForMinutes', {'minutes': minutes});
+      await _channel
+          .invokeMethod('suspendBlockingForMinutes', {'minutes': minutes});
     } catch (_) {}
   }
 
@@ -120,6 +148,25 @@ class AppBlockingService {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<String?> consumePendingNavigationTarget() async {
+    if (!_isAndroid) return null;
+    try {
+      return await _channel
+          .invokeMethod<String>('consumePendingNavigationTarget');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> setSignedInState(bool signedIn) async {
+    if (!_isAndroid) return;
+    try {
+      await _channel.invokeMethod('setSignedInState', {
+        'signedIn': signedIn,
+      });
+    } catch (_) {}
   }
 
   Future<void> syncSponsorState(bool hasSponsor) async {

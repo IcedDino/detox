@@ -47,7 +47,8 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && (_waitingFromUsage || _waitingFromOverlay)) {
+    if (state == AppLifecycleState.resumed &&
+        (_waitingFromUsage || _waitingFromOverlay)) {
       _refreshWithGracePeriod();
     }
   }
@@ -68,7 +69,8 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
       _waitingFromOverlay = false;
     });
 
-    final skipStrictPermissions = kIsWeb || defaultTargetPlatform != TargetPlatform.android;
+    final skipStrictPermissions =
+        kIsWeb || defaultTargetPlatform != TargetPlatform.android;
     if ((_usageReady && _overlayReady) || skipStrictPermissions) {
       await _storageService.saveOnboardingDone(true);
       if (mounted) widget.onFinished();
@@ -95,7 +97,8 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
       if (_overlayReady) _waitingFromOverlay = false;
     });
 
-    final skipStrictPermissions = kIsWeb || defaultTargetPlatform != TargetPlatform.android;
+    final skipStrictPermissions =
+        kIsWeb || defaultTargetPlatform != TargetPlatform.android;
     if ((_usageReady && _overlayReady) || skipStrictPermissions) {
       await _storageService.saveOnboardingDone(true);
       if (mounted) widget.onFinished();
@@ -122,7 +125,6 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
     final t = AppStrings.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final mutedColor = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
-    final cardBorder = isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder;
 
     return Scaffold(
       body: DetoxBackground(
@@ -136,106 +138,77 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
               Text(
                 t.welcomeToDetox,
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 8),
-              Text(
-                t.permissionsIntro,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: mutedColor),
-              ),
-              const SizedBox(height: 26),
+              const SizedBox(height: 18),
               GlassCard(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(t.whatDetoxUses, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
-                    SizedBox(height: 12),
-                    _PermissionBullet(icon: Icons.analytics_outlined, text: t.permReadUsage),
-                    SizedBox(height: 10),
-                    _PermissionBullet(icon: Icons.shield_rounded, text: t.permShield),
-                    SizedBox(height: 10),
-                    _PermissionBullet(icon: Icons.location_on_outlined, text: t.permZones),
+                    _PermissionStatusTile(
+                      icon: _usageReady
+                          ? Icons.check_circle_rounded
+                          : Icons.admin_panel_settings_outlined,
+                      title: t.openUsageAccess,
+                      subtitle: _message,
+                      ready: _usageReady,
+                    ),
+                    if (defaultTargetPlatform == TargetPlatform.android) ...[
+                      const Divider(height: 18),
+                      _PermissionStatusTile(
+                        icon: _overlayReady
+                            ? Icons.check_circle_rounded
+                            : Icons.layers_outlined,
+                        title: t.openOverlayPermission,
+                        subtitle: _overlayReady ? t.overlayReady : t.overlayNeeded,
+                        ready: _overlayReady,
+                      ),
+                    ],
+                    const Divider(height: 18),
+                    _PermissionStatusTile(
+                      icon: Icons.location_on_outlined,
+                      title: t.allowLocationForZones,
+                      subtitle: t.permZones,
+                      ready: false,
+                      tint: DetoxColors.accentSoft,
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 14),
-              GlassCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(t.permissionStatus, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
-                    const SizedBox(height: 12),
-                    _StatusRow(
-                      icon: _usageReady ? Icons.check_circle_rounded : Icons.info_outline_rounded,
-                      color: _usageReady ? Colors.greenAccent : DetoxColors.accentSoft,
-                      label: _message,
-                    ),
-                    if (defaultTargetPlatform == TargetPlatform.android) ...[
-                      const SizedBox(height: 12),
-                      _StatusRow(
-                        icon: _overlayReady ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
-                        color: _overlayReady ? Colors.greenAccent : Colors.orangeAccent,
-                        label: _overlayReady
-                            ? t.overlayReady
-                            : t.overlayNeeded,
-                      ),
-                    ],
-                    if (_waitingFromUsage || _waitingFromOverlay) ...[
-                      const SizedBox(height: 14),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: cardBorder),
-                        ),
-                        child: Row(
-                          children: [
-                            const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                t.returnAndRefresh,
-                                style: TextStyle(color: mutedColor),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              if (defaultTargetPlatform == TargetPlatform.android) ...[
+              if (_waitingFromUsage || _waitingFromOverlay)
                 GlassCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Text(t.specialPermissionsTitle, style: TextStyle(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 8),
-                      Text(
-                        t.specialPermissionsBody,
-                        style: TextStyle(color: mutedColor),
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       ),
-                      const SizedBox(height: 14),
-                      FilledButton.icon(
-                        onPressed: _checking ? null : _openUsageSettings,
-                        icon: const Icon(Icons.admin_panel_settings_outlined),
-                        label: Text(t.openUsageAccess),
-                      ),
-                      const SizedBox(height: 10),
-                      OutlinedButton.icon(
-                        onPressed: _checking ? null : _openOverlaySettings,
-                        icon: const Icon(Icons.layers_outlined),
-                        label: Text(t.openOverlayPermission),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          t.returnAndRefresh,
+                          style: TextStyle(color: mutedColor),
+                        ),
                       ),
                     ],
                   ),
+                ),
+              const SizedBox(height: 14),
+              if (defaultTargetPlatform == TargetPlatform.android) ...[
+                FilledButton.icon(
+                  onPressed: _checking ? null : _openUsageSettings,
+                  icon: const Icon(Icons.admin_panel_settings_outlined),
+                  label: Text(t.openUsageAccess),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: _checking ? null : _openOverlaySettings,
+                  icon: const Icon(Icons.layers_outlined),
+                  label: Text(t.openOverlayPermission),
                 ),
               ] else ...[
                 FilledButton.icon(
@@ -250,7 +223,6 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
                 icon: const Icon(Icons.location_searching_rounded),
                 label: Text(t.allowLocationForZones),
               ),
-              const SizedBox(height: 10),
             ],
           ),
         ),
@@ -259,51 +231,39 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
   }
 }
 
-class _StatusRow extends StatelessWidget {
-  const _StatusRow({required this.icon, required this.color, required this.label});
+class _PermissionStatusTile extends StatelessWidget {
+  const _PermissionStatusTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.ready,
+    this.tint,
+  });
 
   final IconData icon;
-  final Color color;
-  final String label;
+  final String title;
+  final String subtitle;
+  final bool ready;
+  final Color? tint;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: color),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? DetoxColors.muted
-                  : DetoxColors.lightMuted,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PermissionBullet extends StatelessWidget {
-  const _PermissionBullet({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Theme.of(context).brightness == Brightness.dark
-        ? DetoxColors.muted
-        : DetoxColors.lightMuted;
+    final color = ready ? Colors.greenAccent : (tint ?? DetoxColors.muted);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: DetoxColors.accentSoft, size: 20),
-        const SizedBox(width: 10),
-        Expanded(child: Text(text, style: TextStyle(color: color))),
+        Icon(icon, color: color),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text(subtitle, style: const TextStyle(color: DetoxColors.muted)),
+            ],
+          ),
+        ),
       ],
     );
   }

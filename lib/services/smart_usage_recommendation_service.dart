@@ -24,6 +24,8 @@ class SmartUsageRecommendationService {
       body: strings.smartSuggestionNotification(entry.appName, _formatTime(entry.minutes)),
       startLabel: strings.startConcentrationHour,
       denyLabel: strings.deny,
+      packageName: entry.packageName!,
+      appName: entry.appName,
     );
   }
 

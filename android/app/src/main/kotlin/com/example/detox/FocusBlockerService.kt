@@ -220,6 +220,33 @@ class FocusBlockerService : Service() {
         }
     }
 
+    private fun currentSuspendUntilMillis(): Long {
+        return getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getLong("suspend_until_millis", 0L)
+    }
+
+    private fun updateSuspendUntilMillis(
+        candidateUntilMillis: Long,
+        allowShorten: Boolean = false
+    ): Long {
+        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val current = prefs.getLong("suspend_until_millis", 0L)
+        val now = System.currentTimeMillis()
+
+        val normalizedCandidate = if (candidateUntilMillis > now) candidateUntilMillis else 0L
+        val next = if (allowShorten) {
+            normalizedCandidate
+        } else {
+            maxOf(current, normalizedCandidate)
+        }
+
+        if (next != current) {
+            prefs.edit().putLong("suspend_until_millis", next).apply()
+        }
+
+        return next
+    }
+
     private fun startShieldPauseWatcher() {
         userListener?.remove()
         userListener = null
@@ -237,13 +264,10 @@ class FocusBlockerService : Service() {
                 }
 
                 val ts = snapshot?.getTimestamp("shieldPauseUntil")
-                val millis = ts?.toDate()?.time ?: 0L
-                getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                    .edit()
-                    .putLong("suspend_until_millis", millis)
-                    .apply()
+                val remoteMillis = ts?.toDate()?.time ?: 0L
+                val effectiveMillis = updateSuspendUntilMillis(remoteMillis, allowShorten = false)
 
-                if (millis > System.currentTimeMillis()) {
+                if (effectiveMillis > System.currentTimeMillis()) {
                     requestInFlight = false
                     keepOverlayPinned = false
                     currentRequestId = null
@@ -655,11 +679,7 @@ class FocusBlockerService : Service() {
 
     private fun suspendLocallyForMinutes(minutes: Int) {
         val untilMillis = System.currentTimeMillis() + minutes * 60_000L
-        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-
-        prefs.edit()
-            .putLong("suspend_until_millis", untilMillis)
-            .apply()
+        updateSuspendUntilMillis(untilMillis, allowShorten = false)
 
         keepOverlayPinned = false
         waitingAdResult = false
@@ -736,8 +756,9 @@ class FocusBlockerService : Service() {
 
             prefs.edit()
                 .putBoolean(KEY_PAUSE_AD_USED, true)
-                .putLong("suspend_until_millis", untilMillis)
                 .apply()
+
+            updateSuspendUntilMillis(untilMillis, allowShorten = false)
 
             keepOverlayPinned = false
             lastShownPackage = null
@@ -909,10 +930,7 @@ class FocusBlockerService : Service() {
                     val expiresAt = snapshot.getTimestamp("expiresAt")?.toDate()?.time
                         ?: (System.currentTimeMillis() + 15 * 60_000L)
 
-                    getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                        .edit()
-                        .putLong("suspend_until_millis", expiresAt)
-                        .apply()
+                    updateSuspendUntilMillis(expiresAt, allowShorten = false)
 
                     requestInFlight = false
                     keepOverlayPinned = false
@@ -924,15 +942,23 @@ class FocusBlockerService : Service() {
 
                 "rejected" -> {
                     requestInFlight = false
-                    keepOverlayPinned = true
                     currentRequestId = null
-                    updateOverlayReason(
-                        tr(
-                            "Pause request rejected by your sponsor.",
-                            "Tu sponsor rechazó la solicitud de pausa."
+
+                    if (currentSuspendUntilMillis() > System.currentTimeMillis()) {
+                        keepOverlayPinned = false
+                        requestListener?.remove()
+                        requestListener = null
+                        hideOverlay(force = true)
+                    } else {
+                        keepOverlayPinned = true
+                        updateOverlayReason(
+                            tr(
+                                "Pause request rejected by your sponsor.",
+                                "Tu sponsor rechazó la solicitud de pausa."
+                            )
                         )
-                    )
-                    syncOverlayButtonState()
+                        syncOverlayButtonState()
+                    }
                 }
             }
         }

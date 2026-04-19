@@ -13,7 +13,7 @@ class StorageService {
   static const _habitsKey = 'habits_v2';
   static const _dailyLimitKey = 'daily_limit_minutes';
   static const _limitsKey = 'app_limits_v2';
-  static const _onboardingDoneKey = 'onboarding_done_v1';
+  static const _onboardingDoneKey = 'onboarding_done_local_v2';
   static const _zonesKey = 'concentration_zones_v1';
   static const _automationRulesKey = 'automation_rules_v1';
   static const _strictModeKey = 'focus_strict_mode_v1';
@@ -84,14 +84,11 @@ class StorageService {
     final remoteDaily = await CloudSyncService.instance.loadDailyLimitMinutes();
     final remoteLimits = await CloudSyncService.instance.loadAppLimits();
     final remoteZones = await CloudSyncService.instance.loadConcentrationZones();
-    final remoteOnboarding = await CloudSyncService.instance.loadOnboardingDone();
-
     final hasAnyRemoteData =
         remoteHabits != null ||
             remoteDaily != null ||
             remoteLimits != null ||
-            remoteZones != null ||
-            remoteOnboarding != null;
+            remoteZones != null;
 
     if (hasAnyRemoteData) {
       if (remoteHabits != null) {
@@ -119,9 +116,6 @@ class StorageService {
         );
       }
 
-      if (remoteOnboarding != null) {
-        await prefs.setBool(_onboardingDoneKey, remoteOnboarding);
-      }
 
       return;
     }
@@ -131,14 +125,12 @@ class StorageService {
     final localLimitsRaw = prefs.getStringList(_limitsKey);
     final localZonesRaw = prefs.getStringList(_zonesKey);
     final hasLocalDaily = prefs.containsKey(_dailyLimitKey);
-    final hasLocalOnboarding = prefs.containsKey(_onboardingDoneKey);
 
     final hasMeaningfulLocalData =
         (localHabitsRaw != null && localHabitsRaw.isNotEmpty) ||
             (localLimitsRaw != null && localLimitsRaw.isNotEmpty) ||
             (localZonesRaw != null && localZonesRaw.isNotEmpty) ||
-            hasLocalDaily ||
-            hasLocalOnboarding;
+            hasLocalDaily;
 
     if (!hasMeaningfulLocalData) {
       // Fresh install + empty local + no readable remote.
@@ -156,11 +148,6 @@ class StorageService {
     await CloudSyncService.instance.saveAppLimits(localLimits);
     await CloudSyncService.instance.saveConcentrationZones(localZones);
 
-    if (hasLocalOnboarding) {
-      await CloudSyncService.instance.saveOnboardingDone(
-        prefs.getBool(_onboardingDoneKey) ?? false,
-      );
-    }
   }
 
   Future<void> refreshFromCloud() async {
@@ -197,10 +184,6 @@ class StorageService {
       );
     }
 
-    final remoteOnboarding = await CloudSyncService.instance.loadOnboardingDone();
-    if (remoteOnboarding != null) {
-      await prefs.setBool(_onboardingDoneKey, remoteOnboarding);
-    }
   }
 
   Future<List<Habit>> loadHabits() async {
@@ -464,8 +447,5 @@ class StorageService {
   Future<void> saveOnboardingDone(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_onboardingDoneKey, value);
-    try {
-      await CloudSyncService.instance.saveOnboardingDone(value);
-    } catch (_) {}
   }
 }

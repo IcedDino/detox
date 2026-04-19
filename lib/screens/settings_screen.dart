@@ -150,19 +150,19 @@ class _SettingsScreenState extends State<SettingsScreen>
             ),
             const SizedBox(height: 10),
             const Text(
-              'Removing apps or zones needs your sponsor to approve settings access.',
+              'Protected changes need sponsor approval.',
               style: TextStyle(color: DetoxColors.muted),
             ),
             const SizedBox(height: 14),
             FilledButton.icon(
               onPressed: () => Navigator.pop(context, 'request'),
               icon: const Icon(Icons.send_outlined),
-              label: const Text('Request sponsor approval'),
+              label: const Text('Request approval'),
             ),
             const SizedBox(height: 10),
             TextButton(
               onPressed: () => Navigator.pop(context, 'open'),
-              child: const Text('Open sponsor center'),
+              child: const Text('Sponsor center'),
             ),
           ],
         ),
@@ -178,7 +178,7 @@ class _SettingsScreenState extends State<SettingsScreen>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Settings approval request sent to your sponsor.'),
+              content: Text('Approval request sent.'),
             ),
           );
         }
@@ -272,6 +272,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   Future<void> _editZone(ConcentrationZone zone) async {
+    if (!await _ensureProtectedSettingsAccess()) return;
     final updatedZone = await showModalBottomSheet<ConcentrationZone>(
       context: context,
       isScrollControlled: true,
@@ -293,8 +294,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   Future<void> _toggleZone(ConcentrationZone zone, bool value) async {
-    if (zone.enabled &&
-        !value &&
+    if (zone.enabled != value &&
         !await _ensureProtectedSettingsAccess()) {
       return;
     }
@@ -359,10 +359,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                 ListTile(
                   leading: const Icon(Icons.logout_rounded),
                   title: Text(t.signOut),
-                  subtitle: Text(
-                    t.returnLoginScreen,
-                    style: const TextStyle(color: DetoxColors.muted),
-                  ),
+                  subtitle: null,
                   onTap: () async {
                     await widget.onSignOut();
                   },
@@ -405,13 +402,10 @@ class _SettingsScreenState extends State<SettingsScreen>
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 _hasSponsor
-                    ? t.linkedWith(
-                  _sponsorProfile?.displayName ?? '',
-                  _settingsUnlockActive,
-                )
+                    ? (_sponsorProfile?.displayName ?? '')
                     : '${t.yourCode}: ${_mySponsorCode.isEmpty ? t.loading : _mySponsorCode}',
                 style: const TextStyle(color: DetoxColors.muted),
               ),
@@ -430,14 +424,6 @@ class _SettingsScreenState extends State<SettingsScreen>
           ),
         ),
         const SizedBox(height: 14),
-        Text(
-          t.settings,
-          style: Theme.of(context)
-              .textTheme
-              .headlineMedium
-              ?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 18),
         GlassCard(
           child: Column(
             children: [
@@ -445,10 +431,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                 value: widget.darkMode,
                 onChanged: widget.onDarkModeChanged,
                 title: Text(t.darkMode),
-                subtitle: Text(
-                  t.darkModeSubtitle,
-                  style: const TextStyle(color: DetoxColors.muted),
-                ),
+                subtitle: null,
               ),
               const Divider(height: 1),
               ListTile(
@@ -457,10 +440,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                   color: DetoxColors.accentSoft,
                 ),
                 title: Text(t.language),
-                subtitle: Text(
-                  widget.localeCode == 'es' ? 'Español' : 'English',
-                  style: const TextStyle(color: DetoxColors.muted),
-                ),
+                subtitle: null,
                 trailing: DropdownButton<String>(
                   value: widget.localeCode,
                   underline: const SizedBox.shrink(),
@@ -516,12 +496,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       ? t.openAndroidUsageSettings
                       : t.permissionsOverview,
                 ),
-                subtitle: Text(
-                  defaultTargetPlatform == TargetPlatform.android
-                      ? t.grantUsageAndRefresh
-                      : t.iosSeparatePath,
-                  style: const TextStyle(color: DetoxColors.muted),
-                ),
+                subtitle: null,
                 onTap: defaultTargetPlatform == TargetPlatform.android
                     ? _openUsageSettings
                     : null,
@@ -538,12 +513,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                         : Colors.orangeAccent,
                   ),
                   title: Text(t.focusShieldOverlay),
-                  subtitle: Text(
-                    _overlayReady
-                        ? t.overlayReadyShield
-                        : t.overlayGrantShield,
-                    style: const TextStyle(color: DetoxColors.muted),
-                  ),
+                  subtitle: null,
                   onTap: _openOverlaySettings,
                 ),
               ],
@@ -554,10 +524,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                   color: DetoxColors.accentSoft,
                 ),
                 title: Text(t.automationAndHardMode),
-                subtitle: Text(
-                  t.automationAndHardModeSubtitle,
-                  style: const TextStyle(color: DetoxColors.muted),
-                ),
+                subtitle: null,
                 onTap: () async {
                   await Navigator.of(context).push(
                     MaterialPageRoute(
@@ -579,8 +546,8 @@ class _SettingsScreenState extends State<SettingsScreen>
               color: _antiBypassHealthy ? Colors.greenAccent : Colors.orangeAccent,
             ),
             title: Text(t.antiBypassTitle),
-            subtitle: Text(
-              _antiBypassHealthy ? t.antiBypassBody : t.antiBypassNeedsAttention,
+            subtitle: _antiBypassHealthy ? null : Text(
+              t.antiBypassNeedsAttention,
               style: const TextStyle(color: DetoxColors.muted),
             ),
           ),
@@ -608,13 +575,6 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                defaultTargetPlatform == TargetPlatform.android
-                    ? t.pickAppsBody
-                    : t.iosAppsBody,
-                style: const TextStyle(color: DetoxColors.muted),
               ),
               const SizedBox(height: 10),
               if (_appLimits.isEmpty)
@@ -662,12 +622,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                         onChanged: (value) =>
                             _toggleFocus(item, value),
                         title: Text(t.blockInFocusMode),
-                        subtitle: Text(
-                          t.focusModeBlockSubtitle,
-                          style: const TextStyle(
-                            color: DetoxColors.muted,
-                          ),
-                        ),
+                        subtitle: null,
                       ),
                       const Divider(height: 1),
                     ],
@@ -699,11 +654,6 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                _zoneState.message ?? t.zonesIntro,
-                style: const TextStyle(color: DetoxColors.muted),
               ),
               const SizedBox(height: 10),
               if (_zones.isEmpty)
@@ -790,14 +740,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                               ? 'Activar enfoque automático aquí'
                               : 'Enable automatic focus here',
                         ),
-                        subtitle: Text(
-                          t.isEs
-                              ? 'Detox revisa tu ubicación y empieza a bloquear las apps seleccionadas en esta zona.'
-                              : 'Detox checks your location and starts shielding the selected apps in this zone.',
-                          style: const TextStyle(
-                            color: DetoxColors.muted,
-                          ),
-                        ),
+                        subtitle: null,
                       ),
                       const Divider(height: 1),
                     ],

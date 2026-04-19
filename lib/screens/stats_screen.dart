@@ -38,6 +38,8 @@ class _StatsScreenState extends State<StatsScreen> {
         final weekly = snapshot.data ?? [145, 132, 118, 160, 170, 124, 96];
         final maxY = (weekly.reduce((a, b) => a > b ? a : b) + 20).toDouble();
         final days = t.weekDayLabels;
+        final trendDown = weekly.last <= weekly.first;
+        final goalMet = weekly.where((e) => e <= 180).length >= 5;
 
         return RefreshIndicator(
           onRefresh: () async {
@@ -49,30 +51,26 @@ class _StatsScreenState extends State<StatsScreen> {
             children: [
               Text(
                 t.statsWeeklyTitle,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 8),
-              Text(t.statsWeeklySubtitle, style: const TextStyle(color: DetoxColors.muted)),
-              if (snapshot.data == null && snapshot.connectionState == ConnectionState.done) ...[
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.orangeAccent.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.info_outline, color: Colors.orangeAccent, size: 14),
-                      const SizedBox(width: 6),
-                      Text(t.demoDataNotice, style: const TextStyle(color: Colors.orangeAccent, fontSize: 12)),
-                    ],
-                  ),
+              const SizedBox(height: 14),
+              GlassCard(
+                child: Row(
+                  children: [
+                    _MiniChip(label: trendDown ? 'Down' : 'Up'),
+                    const SizedBox(width: 8),
+                    _MiniChip(label: goalMet ? 'Goal' : 'Keep going'),
+                    const Spacer(),
+                    if (snapshot.data == null &&
+                        snapshot.connectionState == ConnectionState.done)
+                      _MiniChip(label: 'Demo'),
+                  ],
                 ),
-              ],
-              const SizedBox(height: 18),
+              ),
+              const SizedBox(height: 14),
               GlassCard(
                 child: SizedBox(
                   height: 300,
@@ -83,18 +81,26 @@ class _StatsScreenState extends State<StatsScreen> {
                       gridData: FlGridData(
                         show: true,
                         horizontalInterval: 60,
-                        getDrawingHorizontalLine: (_) => const FlLine(color: Colors.white10),
+                        getDrawingHorizontalLine: (_) =>
+                        const FlLine(color: Colors.white10),
                       ),
                       titlesData: FlTitlesData(
-                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        topTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        rightTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
                         leftTitles: AxisTitles(
                           sideTitles: SideTitles(
                             reservedSize: 42,
                             showTitles: true,
                             getTitlesWidget: (value, meta) => Text(
                               value.toInt().toString(),
-                              style: const TextStyle(fontSize: 11, color: DetoxColors.muted),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: DetoxColors.muted,
+                              ),
                             ),
                           ),
                         ),
@@ -108,7 +114,12 @@ class _StatsScreenState extends State<StatsScreen> {
                               }
                               return Padding(
                                 padding: const EdgeInsets.only(top: 8),
-                                child: Text(days[index], style: const TextStyle(color: DetoxColors.muted)),
+                                child: Text(
+                                  days[index],
+                                  style: const TextStyle(
+                                    color: DetoxColors.muted,
+                                  ),
+                                ),
                               );
                             },
                           ),
@@ -132,34 +143,28 @@ class _StatsScreenState extends State<StatsScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
-              GlassCard(
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.insights_outlined, color: DetoxColors.accentSoft),
-                  title: Text(t.statsTrendInsight),
-                  subtitle: Text(
-                    weekly.last <= weekly.first ? t.statsTrendDown : t.statsTrendUp,
-                    style: const TextStyle(color: DetoxColors.muted),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              GlassCard(
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.flag_outlined, color: DetoxColors.accentSoft),
-                  title: Text(t.statsWeeklyGoal),
-                  subtitle: Text(
-                    weekly.where((e) => e <= 180).length >= 5 ? t.statsGoalMet : t.statsGoalMiss,
-                    style: const TextStyle(color: DetoxColors.muted),
-                  ),
-                ),
-              ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _MiniChip extends StatelessWidget {
+  const _MiniChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(label),
     );
   }
 }

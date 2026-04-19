@@ -359,5 +359,11 @@ class AppStrings {
   String get pomodoroCycles => isEs ? 'Ciclos Pomodoro' : 'Pomodoro cycles';
   String get extraPauseAd => isEs ? 'Pausa extra con anuncio' : 'Extra pause with ad';
   String get extraPauseAdSubtitle => isEs ? 'Mantienes 1 pausa gratis diaria y 1 pausa adicional al completar un anuncio.' : 'Keep 1 free daily pause and 1 extra pause after completing an ad.';
+  String get progressStats => isEs ? 'Resumen de progreso' : 'Progress summary';
+  String get progressStatsBody => isEs
+      ? 'Aquí ves tu resumen personal. El sponsor sigue recibiendo tu progreso sin mostrar esta sección como un panel especial.'
+      : 'This is your personal summary. Your sponsor still receives your progress without showing this section as a special panel.';
+  String get topApps => isEs ? 'Apps más usadas' : 'Top apps';
+
 
 }

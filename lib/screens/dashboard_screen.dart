@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../l10n_app_strings.dart';
 import '../models/dashboard_data.dart';
-import '../services/storage_service.dart';
 import '../services/smart_usage_recommendation_service.dart';
+import '../services/storage_service.dart';
 import '../services/usage_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_icon_badge.dart';
@@ -48,10 +48,18 @@ class _DashboardScreenState extends State<DashboardScreen>
   Future<DashboardData> _load() async {
     final summary = await _usageService.getTodaySummary();
     final limit = await _storageService.loadDailyLimitMinutes();
-    final strings = AppStrings(Localizations.maybeLocaleOf(context) ?? WidgetsBinding.instance.platformDispatcher.locale);
+    final strings = AppStrings(
+      Localizations.maybeLocaleOf(context) ??
+          WidgetsBinding.instance.platformDispatcher.locale,
+    );
+
     if (summary.topApps.isNotEmpty) {
-      await SmartUsageRecommendationService.instance.evaluateTopApp(entry: summary.topApps.first, strings: strings);
+      await SmartUsageRecommendationService.instance.evaluateTopApp(
+        entry: summary.topApps.first,
+        strings: strings,
+      );
     }
+
     return DashboardData(summary: summary, dailyLimit: limit);
   }
 
@@ -61,9 +69,15 @@ class _DashboardScreenState extends State<DashboardScreen>
     return '${hours}h ${mins.toString().padLeft(2, '0')}m';
   }
 
+  String _topAppsTitle(BuildContext context) {
+    final code = Localizations.localeOf(context).languageCode.toLowerCase();
+    return code == 'es' ? 'Apps más usadas' : 'Top apps';
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppStrings.of(context);
+
     return RefreshIndicator(
       onRefresh: () async {
         setState(() => _future = _load());
@@ -82,32 +96,9 @@ class _DashboardScreenState extends State<DashboardScreen>
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              const DetoxLogo(showLabel: true),
-              const SizedBox(height: 18),
               Row(
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        (t.isEs ? 'BIENVENIDO DE VUELTA' : 'WELCOME BACK'),
-                        style: TextStyle(
-                          color: DetoxColors.muted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.6,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        t.dashboardTitle,
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
+                  const DetoxLogo(showLabel: true),
                   const Spacer(),
                   IconButton(
                     onPressed: () => setState(() => _future = _load()),
@@ -118,29 +109,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                t.dashboardSubtitle,
-                style: TextStyle(color: DetoxColors.muted),
-              ),
               const SizedBox(height: 18),
-              if (summary != null && !summary.fromRealUsage)
-                GlassCard(
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: DetoxColors.accentSoft),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          t.realUsageInactive,
-                          style: TextStyle(color: DetoxColors.muted),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              if (summary != null && !summary.fromRealUsage)
-                const SizedBox(height: 14),
+              Text(
+                t.dashboardTitle,
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 14),
               GlassCard(
                 padding: const EdgeInsets.all(22),
                 child: Column(
@@ -148,8 +125,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.timer_outlined,
-                            color: DetoxColors.accentSoft),
+                        const Icon(
+                          Icons.timer_outlined,
+                          color: DetoxColors.accentSoft,
+                        ),
                         const SizedBox(width: 10),
                         Text(
                           t.today,
@@ -158,13 +137,30 @@ class _DashboardScreenState extends State<DashboardScreen>
                               .titleLarge
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
+                        const Spacer(),
+                        if (summary != null && !summary.fromRealUsage)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.orangeAccent.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              t.demoDataNotice,
+                              style: const TextStyle(
+                                color: Colors.orangeAccent,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 18),
                     Text(
-                      summary == null
-                          ? '--'
-                          : _formatMinutes(summary.totalMinutes),
+                      summary == null ? '--' : _formatMinutes(summary.totalMinutes),
                       style: Theme.of(context)
                           .textTheme
                           .displaySmall
@@ -178,21 +174,21 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      t.goalUsed(_formatMinutes(limit), ((percent * 100).clamp(0, 140)).round()),
+                      '${_formatMinutes(limit)} · ${((percent * 100).clamp(0, 140)).round()}%',
                       style: const TextStyle(color: DetoxColors.muted),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 14),
-              if (summary != null) ...[
+              if (summary != null)
                 Row(
                   children: [
                     Expanded(
                       child: MetricCard(
                         title: t.pickups,
                         value: '${summary.pickups}',
-                        subtitle: t.estimatedUnlocks,
+                        subtitle: '',
                         icon: Icons.touch_app_outlined,
                       ),
                     ),
@@ -204,11 +200,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                             ? '—'
                             : summary.topApps.first.appName,
                         subtitle: summary.topApps.isEmpty
-                            ? t.noDataYet
+                            ? ''
                             : t.minToday(summary.topApps.first.minutes),
                         leading: AppIconBadge(
-                          packageName: summary.topApps.isEmpty ? null : summary.topApps.first.packageName,
-                          iconBytes: summary.topApps.isEmpty ? null : summary.topApps.first.iconBytes,
+                          packageName: summary.topApps.isEmpty
+                              ? null
+                              : summary.topApps.first.packageName,
+                          iconBytes: summary.topApps.isEmpty
+                              ? null
+                              : summary.topApps.first.iconBytes,
                           size: 50,
                           borderRadius: 14,
                           fallbackIcon: Icons.auto_graph_outlined,
@@ -217,45 +217,37 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ),
                   ],
                 ),
-              ],
-              if (summary != null && summary.topApps.isNotEmpty && summary.topApps.first.minutes >= 90) ...[
+              const SizedBox(height: 14),
+              if (summary != null && summary.topApps.isNotEmpty)
                 GlassCard(
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.notifications_active_outlined, color: Colors.orangeAccent),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          t.smartSuggestionNotification(summary.topApps.first.appName, _formatMinutes(summary.topApps.first.minutes)),
-                          style: const TextStyle(color: DetoxColors.muted),
+                      Text(
+                        _topAppsTitle(context),
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 10),
+                      ...summary.topApps
+                          .take(5)
+                          .toList()
+                          .asMap()
+                          .entries
+                          .map(
+                            (entry) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: TopAppTile(
+                            entry: entry.value,
+                            index: entry.key,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 14),
-              ],
-              const SizedBox(height: 18),
-              Text(
-                t.topAppsToday,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              if (summary == null || summary.topApps.isEmpty)
-                GlassCard(
-                  child: Text(
-                    t.noAppUsageYet,
-                    style: TextStyle(color: DetoxColors.muted),
-                  ),
-                )
-              else
-                ...summary.topApps
-                    .asMap()
-                    .entries
-                    .map((entry) => TopAppTile(entry: entry.value, index: entry.key)),
             ],
           );
         },

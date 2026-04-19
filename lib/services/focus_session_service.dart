@@ -52,6 +52,7 @@ class FocusSessionService {
   static const _cycleKey = 'focus_session_cycle_v2';
   static const _cyclesTotalKey = 'focus_session_cycles_total_v2';
   static const _breakMinutesKey = 'focus_session_break_minutes_v2';
+  static const _sourceKey = 'focus_session_source_v2';
 
   final StorageService _storage = StorageService();
 
@@ -103,6 +104,7 @@ class FocusSessionService {
     await prefs.setInt(_cycleKey, 1);
     await prefs.setInt(_cyclesTotalKey, 1);
     await prefs.setInt(_breakMinutesKey, 5);
+    await prefs.setString(_sourceKey, 'focus');
 
     if (packages.isNotEmpty) {
       await AppBlockingService.instance.startShield(
@@ -130,6 +132,7 @@ class FocusSessionService {
     await prefs.setInt(_cycleKey, 1);
     await prefs.setInt(_cyclesTotalKey, cycles);
     await prefs.setInt(_breakMinutesKey, breakMinutes);
+    await prefs.setString(_sourceKey, 'focus');
 
     if (packages.isNotEmpty) {
       await AppBlockingService.instance.startShield(
@@ -139,6 +142,41 @@ class FocusSessionService {
         source: 'focus',
       );
     }
+  }
+
+
+  Future<void> startSmartSuggestionBreak({
+    required String packageName,
+    required String appName,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasSponsor =
+        (await SponsorService.instance.getCurrentSponsorProfile()) != null;
+    final source = 'smart_break_$packageName';
+
+    await _storage.incrementFocusSessionsStarted();
+    await _storage.markProgressStartedToday();
+
+    await prefs.setBool(_activeKey, true);
+    await prefs.setString(
+      _endsAtKey,
+      DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
+    );
+    await prefs.setInt(_minutesKey, 60);
+    await prefs.setString(_labelKey, 'Break from $appName');
+    await prefs.setBool(_isPomodoroKey, false);
+    await prefs.setBool(_isBreakKey, false);
+    await prefs.setInt(_cycleKey, 1);
+    await prefs.setInt(_cyclesTotalKey, 1);
+    await prefs.setInt(_breakMinutesKey, 5);
+    await prefs.setString(_sourceKey, source);
+
+    await AppBlockingService.instance.startShield(
+      blockedPackages: <String>[packageName],
+      reason: 'smart_break',
+      hasSponsor: hasSponsor,
+      source: source,
+    );
   }
 
   Future<FocusSessionSnapshot> tickAndAdvance() async {
@@ -187,6 +225,7 @@ class FocusSessionService {
 
   Future<void> stopSession({bool markCompleted = false}) async {
     final prefs = await SharedPreferences.getInstance();
+    final source = prefs.getString(_sourceKey) ?? 'focus';
     await prefs.remove(_activeKey);
     await prefs.remove(_endsAtKey);
     await prefs.remove(_minutesKey);
@@ -196,7 +235,8 @@ class FocusSessionService {
     await prefs.remove(_cycleKey);
     await prefs.remove(_cyclesTotalKey);
     await prefs.remove(_breakMinutesKey);
-    await AppBlockingService.instance.stopShield(source: 'focus');
+    await prefs.remove(_sourceKey);
+    await AppBlockingService.instance.stopShield(source: source);
     if (markCompleted) {
       await _storage.registerCompletedFocusSession();
     }

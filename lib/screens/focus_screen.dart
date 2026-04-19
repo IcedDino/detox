@@ -74,7 +74,9 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
     }
     if (!mounted) return;
     setState(() {
-      _shieldedApps = limits.where((e) => e.useInFocusMode && (e.packageName ?? '').isNotEmpty).toList();
+      _shieldedApps = limits
+          .where((e) => e.useInFocusMode && (e.packageName ?? '').isNotEmpty)
+          .toList();
       _usageReady = usageStatus.usageReady;
       _overlayReady = overlayReady;
       _strictMode = strictMode;
@@ -105,7 +107,10 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
       _showSnack(AppStrings.of(context).addAppsSnack);
       return;
     }
-    await FocusSessionService.instance.startFocus(minutes: _selectedMinutes, label: 'Focus');
+    await FocusSessionService.instance.startFocus(
+      minutes: _selectedMinutes,
+      label: 'Focus',
+    );
     await _refresh();
   }
 
@@ -114,7 +119,11 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
       await _startFocus();
       return;
     }
-    await FocusSessionService.instance.startPomodoro(workMinutes: 25, breakMinutes: 5, cycles: 4);
+    await FocusSessionService.instance.startPomodoro(
+      workMinutes: 25,
+      breakMinutes: 5,
+      cycles: 4,
+    );
     await _refresh();
   }
 
@@ -125,7 +134,9 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
 
   void _showSnack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   String _formatSeconds(int totalSeconds) {
@@ -137,29 +148,32 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final t = AppStrings.of(context);
-    final totalSeconds = (_snapshot.minutes <= 0 ? _selectedMinutes : _snapshot.minutes) * 60;
-    final remaining = _snapshot.isActive ? _snapshot.remainingSeconds : _selectedMinutes * 60;
+    final totalSeconds =
+        (_snapshot.minutes <= 0 ? _selectedMinutes : _snapshot.minutes) * 60;
+    final remaining =
+    _snapshot.isActive ? _snapshot.remainingSeconds : _selectedMinutes * 60;
     final progress = totalSeconds == 0 ? 0.0 : 1 - (remaining / totalSeconds);
 
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        Text(t.focusTitle, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Text(t.focusSubtitle, style: const TextStyle(color: DetoxColors.muted)),
-        const SizedBox(height: 14),
-        GlassCard(
-          child: Row(
-            children: [
-              const Icon(Icons.shield_outlined, color: DetoxColors.accentSoft),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(_strictMode ? t.hardModeGlobalSubtitle : t.normalSchedulesBody, style: const TextStyle(color: DetoxColors.muted)),
-              ),
-            ],
-          ),
+        Row(
+          children: [
+            Text(
+              t.focusTitle,
+              style: Theme.of(context)
+                  .textTheme
+                  .headlineMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const Spacer(),
+            _CompactBadge(
+              icon: _strictMode ? Icons.lock_outline : Icons.shield_outlined,
+              label: _strictMode ? 'Strict' : '${_shieldedApps.length} apps',
+            ),
+          ],
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
         GlassCard(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -170,18 +184,46 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    CircularProgressIndicator(value: progress.clamp(0.0, 1.0), strokeWidth: 14, backgroundColor: DetoxColors.accent.withOpacity(0.12)),
+                    CircularProgressIndicator(
+                      value: progress.clamp(0.0, 1.0),
+                      strokeWidth: 14,
+                      backgroundColor: DetoxColors.accent.withOpacity(0.12),
+                    ),
                     Center(
-                      child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        Text(_formatSeconds(remaining), style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 8),
-                        Text(_snapshot.isActive ? (_snapshot.isBreak ? t.pomodoroBreak : (_snapshot.isPomodoro ? t.pomodoroWork : t.focusTitle)) : t.focusTitle, style: const TextStyle(color: DetoxColors.muted)),
-                        if (_snapshot.isPomodoro) ...[
-                          const SizedBox(height: 6),
-                          Text(t.pomodoroCycleLabel(_snapshot.currentCycle, _snapshot.totalCycles), style: const TextStyle(color: DetoxColors.muted)),
-                        ]
-                      ]),
-                    )
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _formatSeconds(remaining),
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _snapshot.isActive
+                                ? (_snapshot.isBreak
+                                ? t.pomodoroBreak
+                                : (_snapshot.isPomodoro
+                                ? t.pomodoroWork
+                                : t.focusTitle))
+                                : t.focusTitle,
+                            style: const TextStyle(color: DetoxColors.muted),
+                          ),
+                          if (_snapshot.isPomodoro) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              t.pomodoroCycleLabel(
+                                _snapshot.currentCycle,
+                                _snapshot.totalCycles,
+                              ),
+                              style: const TextStyle(color: DetoxColors.muted),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -189,11 +231,17 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: _presets.map((minutes) => ChoiceChip(
-                  selected: _selectedMinutes == minutes,
-                  label: Text('${minutes}m'),
-                  onSelected: _snapshot.isActive ? null : (_) => setState(() => _selectedMinutes = minutes),
-                )).toList(),
+                children: _presets
+                    .map(
+                      (minutes) => ChoiceChip(
+                    selected: _selectedMinutes == minutes,
+                    label: Text('${minutes}m'),
+                    onSelected: _snapshot.isActive
+                        ? null
+                        : (_) => setState(() => _selectedMinutes = minutes),
+                  ),
+                )
+                    .toList(),
               ),
               const SizedBox(height: 16),
               Row(
@@ -209,52 +257,86 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: _snapshot.isActive ? _stop : _startPomodoro,
-                      icon: Icon(_snapshot.isActive ? Icons.stop_rounded : Icons.timer_outlined),
-                      label: Text(_snapshot.isActive ? t.stopSession : t.pomodoroStart),
+                      icon: Icon(
+                        _snapshot.isActive
+                            ? Icons.stop_rounded
+                            : Icons.timer_outlined,
+                      ),
+                      label: Text(
+                        _snapshot.isActive ? t.stopSession : t.pomodoroStart,
+                      ),
                     ),
                   ),
                 ],
-              )
+              ),
             ],
           ),
         ),
         const SizedBox(height: 14),
-        GlassCard(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(t.pomodoroTitle, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(t.pomodoroSubtitle, style: const TextStyle(color: DetoxColors.muted)),
-            const SizedBox(height: 12),
-            Row(children: [
-              Expanded(child: _InfoPill(label: t.pomodoroWork, value: '25m')),
-              const SizedBox(width: 10),
-              Expanded(child: _InfoPill(label: t.pomodoroBreak, value: '5m')),
-              const SizedBox(width: 10),
-              Expanded(child: _InfoPill(label: 'Cycles', value: '4')),
-            ])
-          ]),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            _MiniStat(label: 'Apps', value: '${_shieldedApps.length}'),
+            _MiniStat(label: 'Mode', value: _strictMode ? 'Strict' : 'Normal'),
+            _MiniStat(label: 'Pomodoro', value: '25 · 5 · 4'),
+          ],
         ),
       ],
     );
   }
 }
 
-class _InfoPill extends StatelessWidget {
-  const _InfoPill({required this.label, required this.value});
+class _CompactBadge extends StatelessWidget {
+  const _CompactBadge({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: DetoxColors.accentSoft),
+          const SizedBox(width: 6),
+          Text(label),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  const _MiniStat({required this.label, required this.value});
+
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
         color: Colors.white.withOpacity(0.04),
-        borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+          Text(
+            value,
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 4),
           Text(label, style: const TextStyle(color: DetoxColors.muted)),
         ],
