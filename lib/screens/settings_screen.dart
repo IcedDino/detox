@@ -32,6 +32,7 @@ class SettingsScreen extends StatefulWidget {
     required this.onDarkModeChanged,
     required this.currentUser,
     required this.onSignOut,
+    required this.onDeleteAccount,
     required this.localeCode,
     required this.onLocaleChanged,
   });
@@ -40,6 +41,7 @@ class SettingsScreen extends StatefulWidget {
   final ValueChanged<bool> onDarkModeChanged;
   final AuthUser? currentUser;
   final Future<void> Function() onSignOut;
+  final Future<void> Function() onDeleteAccount;
   final String localeCode;
   final ValueChanged<String> onLocaleChanged;
 
@@ -68,6 +70,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   ZoneState _zoneState = LocationZoneService.instance.currentState;
   StreamSubscription<ZoneState>? _zoneSubscription;
   bool _antiBypassHealthy = true;
+  bool _accountActionBusy = false;
 
   @override
   void initState() {
@@ -206,6 +209,122 @@ class _SettingsScreenState extends State<SettingsScreen>
     }
 
     return false;
+  }
+
+  Future<void> _showAccountMenu() async {
+    if (widget.currentUser == null || _accountActionBusy) return;
+
+    final t = AppStrings.of(context);
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => GlassCard(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              t.accountOptions,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              widget.currentUser!.email,
+              style: TextStyle(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? DetoxColors.muted
+                    : DetoxColors.lightMuted,
+              ),
+            ),
+            const SizedBox(height: 16),
+            SoftActionTile(
+              icon: Icons.logout_rounded,
+              title: t.signOut,
+              subtitle: t.returnLoginScreen,
+              color: DetoxColors.warning,
+              onTap: () => Navigator.of(context).pop('sign_out'),
+            ),
+            const SizedBox(height: 12),
+            SoftActionTile(
+              icon: Icons.delete_outline_rounded,
+              title: t.deleteAccount,
+              subtitle: t.deleteAccountSubtitle,
+              color: DetoxColors.danger,
+              onTap: () => Navigator.of(context).pop('delete_account'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted || action == null) return;
+
+    if (action == 'sign_out') {
+      setState(() => _accountActionBusy = true);
+      try {
+        await widget.onSignOut();
+      } finally {
+        if (mounted) setState(() => _accountActionBusy = false);
+      }
+      return;
+    }
+
+    if (action == 'delete_account') {
+      await _confirmDeleteAccount();
+    }
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    if (widget.currentUser == null || _accountActionBusy) return;
+
+    final t = AppStrings.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(t.deleteAccountTitle),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(t.deleteAccountBody),
+            const SizedBox(height: 12),
+            Text(
+              t.deleteAccountWarning,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(t.cancel),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: DetoxColors.danger,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(t.deleteAccountConfirm),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _accountActionBusy = true);
+    try {
+      await widget.onDeleteAccount();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _accountActionBusy = false);
+    }
   }
   Future<void> _addAppLimit() async {
     final created = await showModalBottomSheet<AppLimit>(
@@ -347,26 +466,85 @@ class _SettingsScreenState extends State<SettingsScreen>
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
             children: [
               if (widget.currentUser != null) ...[
-                HeroInfoCard(
-                  icon: Icons.person_outline_rounded,
-                  title: widget.currentUser!.displayName,
-                  subtitle: widget.currentUser!.email,
-                  badge: StatusPill(
-                    label: widget.currentUser!.provider,
-                    icon: Icons.verified_user_outlined,
-                  ),
-                  child: Column(
-                    children: [
-                      SoftActionTile(
-                        icon: Icons.logout_rounded,
-                        title: t.signOut,
-                        subtitle: t.returnLoginScreen,
-                        color: DetoxColors.warning,
-                        onTap: () async {
-                          await widget.onSignOut();
-                        },
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(28),
+                    onTap: _accountActionBusy ? null : _showAccountMenu,
+                    child: GlassCard(
+                      padding: const EdgeInsets.all(20),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(18),
+                              color: DetoxColors.accent.withOpacity(
+                                isDark ? 0.18 : 0.10,
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.person_outline_rounded,
+                              color: DetoxColors.accentSoft,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        widget.currentUser!.displayName,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleLarge
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                      ),
+                                    ),
+                                    StatusPill(
+                                      label: widget.currentUser!.provider,
+                                      icon: Icons.verified_user_outlined,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  widget.currentUser!.email,
+                                  style: TextStyle(color: muted, height: 1.25),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  t.manageAccountSubtitle,
+                                  style: TextStyle(
+                                    color: muted,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _accountActionBusy
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  color: muted,
+                                  size: 30,
+                                ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),

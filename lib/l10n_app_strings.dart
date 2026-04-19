@@ -80,6 +80,16 @@ class AppStrings {
   String get blockInFocusMode => isEs ? 'Bloquear en modo enfoque' : 'Block in focus mode';
   String get focusModeBlockSubtitle => isEs ? 'Esta app será cubierta durante el temporizador y las zonas de estudio.' : 'This app will be shielded during timer focus and study zones.';
   String get signOut => isEs ? 'Cerrar sesión' : 'Sign out';
+  String get manageAccount => isEs ? 'Cuenta' : 'Account';
+  String get manageAccountSubtitle => isEs ? 'Toca para ver opciones de sesión y cuenta.' : 'Tap to view session and account options.';
+  String get accountOptions => isEs ? 'Opciones de cuenta' : 'Account options';
+  String get deleteAccount => isEs ? 'Eliminar cuenta' : 'Delete account';
+  String get deleteAccountSubtitle => isEs ? 'Borra tu cuenta y tus datos sincronizados.' : 'Delete your account and synced data.';
+  String get deleteAccountTitle => isEs ? 'Eliminar cuenta' : 'Delete account';
+  String get deleteAccountBody => isEs ? 'Esta acción eliminará tu cuenta de Detox, tus datos sincronizados y cerrará tu sesión en este dispositivo.' : 'This will delete your Detox account, your synced data, and sign you out on this device.';
+  String get deleteAccountWarning => isEs ? 'No podrás recuperar esta información después.' : 'You will not be able to recover this information afterwards.';
+  String get deleteAccountConfirm => isEs ? 'Sí, eliminar' : 'Yes, delete';
+  String get deletingAccount => isEs ? 'Eliminando cuenta…' : 'Deleting account...';
   String get returnLoginScreen => isEs ? 'Volver a la pantalla de acceso' : 'Return to the login screen';
   String get sponsorCenter => isEs ? 'Centro de padrino' : 'Sponsor center';
   String get open => isEs ? 'Abrir' : 'Open';

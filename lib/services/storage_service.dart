@@ -448,4 +448,20 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_onboardingDoneKey, value);
   }
+
+  Future<void> clearLocalUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final preservedDarkMode = prefs.getBool('dark_mode');
+    final preservedLocale = prefs.getString('locale_code');
+
+    await prefs.clear();
+
+    if (preservedDarkMode != null) {
+      await prefs.setBool('dark_mode', preservedDarkMode);
+    }
+    if (preservedLocale != null && preservedLocale.isNotEmpty) {
+      await prefs.setString('locale_code', preservedLocale);
+    }
+  }
 }

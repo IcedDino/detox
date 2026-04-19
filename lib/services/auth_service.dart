@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../models/auth_user.dart';
 import 'cloud_sync_service.dart';
+import 'storage_service.dart';
 
 class AuthException implements Exception {
   AuthException(this.message);
@@ -175,6 +176,37 @@ class AuthService {
     }
   }
 
+  Future<void> deleteAccount() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    final mapped = _mapUser(user);
+
+    try {
+      await CloudSyncService.instance.flushPendingWrites();
+    } catch (_) {
+      // Best effort before account deletion.
+    } finally {
+      CloudSyncService.instance.cancelPendingWrites();
+    }
+
+    await CloudSyncService.instance.markAccountDeleted(mapped);
+
+    try {
+      await user.delete();
+    } on FirebaseAuthException catch (e) {
+      throw AuthException(_friendlyDeleteMessage(e));
+    }
+
+    await StorageService.instance.clearLocalUserData();
+
+    await Future.wait([
+      _auth.signOut(),
+      // ignore: body_might_complete_normally_catch_error
+      _google.signOut().catchError((_) {}),
+    ]);
+  }
+
   Future<void> signOut() async {
     try {
       await CloudSyncService.instance.flushPendingWrites();
@@ -206,6 +238,17 @@ class AuthService {
       provider: provider,
       phoneNumber: user.phoneNumber,
     );
+  }
+
+  String _friendlyDeleteMessage(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'requires-recent-login':
+        return 'Por seguridad, vuelve a iniciar sesión y después intenta eliminar tu cuenta otra vez.';
+      case 'network-request-failed':
+        return 'No se pudo completar la eliminación por un problema de red. Inténtalo de nuevo.';
+      default:
+        return e.message ?? 'No se pudo eliminar la cuenta.';
+    }
   }
 
   String _friendlyAuthMessage(FirebaseAuthException e) {

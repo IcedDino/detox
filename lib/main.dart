@@ -337,6 +337,29 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _deleteAccount() async {
+    SponsorAlertService.instance.stop();
+    await _stopProtectedServices();
+
+    try {
+      await AuthService.instance.deleteAccount();
+    } catch (_) {
+      await _configureProtectedServices();
+      rethrow;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _currentUser = null;
+      _onboardingDone = false;
+      _index = 0;
+      _sponsorCenterQueued = false;
+    });
+    if (_pageController.hasClients) {
+      _pageController.jumpToPage(0);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final resolvedLocale =
@@ -372,6 +395,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
                     onDarkModeChanged: _setDarkMode,
                     currentUser: _currentUser,
                     onSignOut: _signOut,
+                    onDeleteAccount: _deleteAccount,
                     localeCode:
                         (_locale ?? WidgetsBinding.instance.platformDispatcher.locale)
                             .languageCode,
