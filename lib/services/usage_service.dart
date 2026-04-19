@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import '../models/permission_status.dart';
 import '../models/usage_models.dart';
 import 'app_metadata_service.dart';
+import 'app_visibility_filter_service.dart';
 
 class UsageService {
   static const MethodChannel _channel = MethodChannel('detox/device_control');
@@ -41,9 +42,26 @@ class UsageService {
         try {
           final usage = await AppUsage().getAppUsage(start, end);
           var totalMinutes = 0;
+
           for (final item in usage) {
-            totalMinutes += item.usage.inMinutes;
+            final minutes = item.usage.inMinutes;
+            if (minutes <= 0) continue;
+
+            final packageName = item.packageName;
+            final resolvedName = packageName.isNotEmpty
+                ? await AppMetadataService.instance.getLabel(packageName)
+                : null;
+
+            final allowed = await AppVisibilityFilterService.instance.shouldShowApp(
+              packageName: packageName,
+              resolvedLabel: resolvedName ?? item.appName,
+            );
+
+            if (!allowed) continue;
+
+            totalMinutes += minutes;
           }
+
           points.add(
             WeeklyUsagePoint(
               dateLabel: DateFormat.E().format(start),
@@ -94,7 +112,8 @@ class UsageService {
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       return const PermissionStatusModel(
         usageReady: true,
-        platformMessage: 'The iOS UI is ready. Real Screen Time enforcement needs Apple Family Controls entitlement and native setup in Xcode.',
+        platformMessage:
+        'The iOS UI is ready. Real Screen Time enforcement needs Apple Family Controls entitlement and native setup in Xcode.',
       );
     }
 
@@ -135,10 +154,6 @@ class UsageService {
 
   Future<DailyUsageSummary> _loadAndroidTodaySummary() async {
     try {
-      final now = DateTime.now();
-      final start = DateTime(now.year, now.month, now.day);
-      final usage = await AppUsage().getAppUsage(start, now);
-
       final entries = await _loadAndroidTodayEntries();
       final totalMinutes = entries.fold<int>(0, (sum, item) => sum + item.minutes);
 
@@ -155,21 +170,28 @@ class UsageService {
     }
   }
 
-
   Future<List<AppUsageEntry>> _loadAndroidTodayEntries() async {
     final now = DateTime.now();
     final start = DateTime(now.year, now.month, now.day);
     final usage = await AppUsage().getAppUsage(start, now);
 
     final entries = <AppUsageEntry>[];
+
     for (final item in usage) {
       final minutes = item.usage.inMinutes;
       if (minutes <= 0) continue;
 
       final packageName = item.packageName;
-      final resolvedName = packageName.isNotEmpty
-          ? await AppMetadataService.instance.getLabel(packageName)
-          : null;
+      if (packageName.isEmpty) continue;
+
+      final resolvedName = await AppMetadataService.instance.getLabel(packageName);
+
+      final allowed = await AppVisibilityFilterService.instance.shouldShowApp(
+        packageName: packageName,
+        resolvedLabel: resolvedName ?? item.appName,
+      );
+
+      if (!allowed) continue;
 
       entries.add(
         AppUsageEntry(
@@ -177,7 +199,7 @@ class UsageService {
               ? resolvedName!.trim()
               : (item.appName.isNotEmpty ? item.appName : item.packageName),
           minutes: minutes,
-          packageName: packageName.isEmpty ? null : packageName,
+          packageName: packageName,
         ),
       );
     }
@@ -200,11 +222,31 @@ class UsageService {
       totalMinutes: 132,
       pickups: 34,
       topApps: [
-        AppUsageEntry(appName: 'Instagram', minutes: 48, packageName: 'com.instagram.android'),
-        AppUsageEntry(appName: 'YouTube', minutes: 34, packageName: 'com.google.android.youtube'),
-        AppUsageEntry(appName: 'TikTok', minutes: 28, packageName: 'com.zhiliaoapp.musically'),
-        AppUsageEntry(appName: 'Chrome', minutes: 14, packageName: 'com.android.chrome'),
-        AppUsageEntry(appName: 'WhatsApp', minutes: 8, packageName: 'com.whatsapp'),
+        AppUsageEntry(
+          appName: 'Instagram',
+          minutes: 48,
+          packageName: 'com.instagram.android',
+        ),
+        AppUsageEntry(
+          appName: 'YouTube',
+          minutes: 34,
+          packageName: 'com.google.android.youtube',
+        ),
+        AppUsageEntry(
+          appName: 'TikTok',
+          minutes: 28,
+          packageName: 'com.zhiliaoapp.musically',
+        ),
+        AppUsageEntry(
+          appName: 'Chrome',
+          minutes: 14,
+          packageName: 'com.android.chrome',
+        ),
+        AppUsageEntry(
+          appName: 'WhatsApp',
+          minutes: 8,
+          packageName: 'com.whatsapp',
+        ),
       ],
       fromRealUsage: false,
     );
