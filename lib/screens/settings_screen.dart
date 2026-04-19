@@ -102,7 +102,8 @@ class _SettingsScreenState extends State<SettingsScreen>
   Future<void> _load() async {
     try {
       if (widget.currentUser != null) {
-        await SponsorService.instance.ensureCurrentUserInitialized(widget.currentUser);
+        await SponsorService.instance
+            .ensureCurrentUserInitialized(widget.currentUser);
       }
 
       final results = await Future.wait<dynamic>([
@@ -242,6 +243,7 @@ class _SettingsScreenState extends State<SettingsScreen>
 
     return false;
   }
+
   Future<void> _addAppLimit() async {
     final loaded = await _ensureInstalledAppsLoaded();
     if (!loaded || !mounted) return;
@@ -324,17 +326,14 @@ class _SettingsScreenState extends State<SettingsScreen>
 
     if (updatedZone == null) return;
 
-    final next = _zones
-        .map((e) => e.id == zone.id ? updatedZone : e)
-        .toList();
+    final next = _zones.map((e) => e.id == zone.id ? updatedZone : e).toList();
     setState(() => _zones = next);
     await _storageService.saveConcentrationZones(next);
     await LocationZoneService.instance.refresh();
   }
 
   Future<void> _toggleZone(ConcentrationZone zone, bool value) async {
-    if (zone.enabled != value &&
-        !await _ensureProtectedSettingsAccess()) {
+    if (zone.enabled != value && !await _ensureProtectedSettingsAccess()) {
       return;
     }
 
@@ -355,7 +354,6 @@ class _SettingsScreenState extends State<SettingsScreen>
     await LocationZoneService.instance.refresh();
   }
 
-
   Future<void> _openAccountActions() async {
     final t = AppStrings.of(context);
     final action = await showModalBottomSheet<_AccountAction>(
@@ -369,8 +367,8 @@ class _SettingsScreenState extends State<SettingsScreen>
             Text(
               t.accountOptions,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(height: 14),
             SoftActionTile(
@@ -478,436 +476,516 @@ class _SettingsScreenState extends State<SettingsScreen>
     return _loading
         ? const Center(child: CircularProgressIndicator())
         : ListView(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-            children: [
-              if (widget.currentUser != null) ...[
-                GestureDetector(
-                  onTap: _deletingAccount ? null : _openAccountActions,
-                  behavior: HitTestBehavior.opaque,
-                  child: GlassCard(
-                    padding: const EdgeInsets.all(20),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 46,
-                          height: 46,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            color: DetoxColors.accent.withOpacity(isDark ? 0.18 : 0.10),
-                          ),
-                          child: Icon(Icons.person_outline_rounded, color: DetoxColors.accentSoft),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                children: [
-                                  Text(
-                                    widget.currentUser!.displayName,
-                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                  ),
-                                  StatusPill(
-                                    label: widget.currentUser!.provider,
-                                    icon: Icons.verified_user_outlined,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                widget.currentUser!.email,
-                                style: TextStyle(color: muted, height: 1.35),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        _deletingAccount
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(strokeWidth: 2.2),
-                              )
-                            : Icon(
-                                Icons.expand_more_rounded,
-                                color: muted,
-                              ),
-                      ],
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+      children: [
+        if (widget.currentUser != null) ...[
+          GestureDetector(
+            onTap: _deletingAccount ? null : _openAccountActions,
+            behavior: HitTestBehavior.opaque,
+            child: GlassCard(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      color: DetoxColors.accent
+                          .withOpacity(isDark ? 0.18 : 0.10),
+                    ),
+                    child: Icon(
+                      Icons.person_outline_rounded,
+                      color: DetoxColors.accentSoft,
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              HeroInfoCard(
-                icon: Icons.handshake_outlined,
-                title: t.sponsorCenter,
-                subtitle: _hasSponsor
-                    ? (_sponsorProfile?.displayName ?? '')
-                    : '${t.yourCode}: ${_mySponsorCode.isEmpty ? t.loading : _mySponsorCode}',
-                badge: StatusPill(
-                  label: _hasSponsor
-                      ? (t.isEs ? 'Vínculo activo' : 'Linked')
-                      : (t.isEs ? 'Sin padrino' : 'No sponsor'),
-                  icon: _hasSponsor ? Icons.check_circle_rounded : Icons.link_off_rounded,
-                  color: _hasSponsor ? DetoxColors.success : DetoxColors.warning,
-                ),
-                action: TextButton(
-                  onPressed: () async {
-                    await Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const SponsorScreen(),
-                      ),
-                    );
-                    await _load();
-                  },
-                  child: Text(t.open),
-                ),
-                child: Column(
-                  children: [
-                    if (_settingsUnlockActive && _settingsUnlockUntil != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Row(
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            StatusPill(
-                              label: t.settingsUnlockedUntil(
-                                '${_settingsUnlockUntil!.hour.toString().padLeft(2, '0')}:${_settingsUnlockUntil!.minute.toString().padLeft(2, '0')}',
+                            Text(
+                              widget.currentUser!.displayName,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleLarge
+                                  ?.copyWith(
+                                fontWeight: FontWeight.w800,
                               ),
-                              icon: Icons.lock_open_rounded,
-                              color: DetoxColors.success,
+                            ),
+                            StatusPill(
+                              label: widget.currentUser!.provider,
+                              icon: Icons.verified_user_outlined,
                             ),
                           ],
                         ),
+                        const SizedBox(height: 8),
+                        Text(
+                          widget.currentUser!.email,
+                          style: TextStyle(color: muted, height: 1.35),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  _deletingAccount
+                      ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                    ),
+                  )
+                      : Icon(
+                    Icons.expand_more_rounded,
+                    color: muted,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        HeroInfoCard(
+          icon: Icons.handshake_outlined,
+          title: t.sponsorCenter,
+          subtitle: _hasSponsor
+              ? (_sponsorProfile?.displayName ?? '')
+              : '${t.yourCode}: ${_mySponsorCode.isEmpty ? t.loading : _mySponsorCode}',
+          badge: StatusPill(
+            label: _hasSponsor
+                ? (t.isEs ? 'Vínculo activo' : 'Linked')
+                : (t.isEs ? 'Sin padrino' : 'No sponsor'),
+            icon: _hasSponsor
+                ? Icons.check_circle_rounded
+                : Icons.link_off_rounded,
+            color:
+            _hasSponsor ? DetoxColors.success : DetoxColors.warning,
+          ),
+          action: TextButton(
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const SponsorScreen(),
+                ),
+              );
+              await _load();
+            },
+            child: Text(t.open),
+          ),
+          child: Column(
+            children: [
+              if (_settingsUnlockActive && _settingsUnlockUntil != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      StatusPill(
+                        label: t.settingsUnlockedUntil(
+                          '${_settingsUnlockUntil!.hour.toString().padLeft(2, '0')}:${_settingsUnlockUntil!.minute.toString().padLeft(2, '0')}',
+                        ),
+                        icon: Icons.lock_open_rounded,
+                        color: DetoxColors.success,
                       ),
-                    SoftActionTile(
-                      icon: Icons.shield_outlined,
-                      title: t.isEs ? 'Protección con padrino' : 'Sponsor protection',
-                      subtitle: _hasSponsor
-                          ? (t.isEs
-                              ? 'Las acciones sensibles piden aprobación o una pausa autorizada.'
-                              : 'Sensitive actions can request approval or an authorized pause.')
-                          : (t.isEs
-                              ? 'Puedes agregar una persona de confianza para aprobar cambios importantes.'
-                              : 'You can add a trusted person to approve important changes.'),
-                      trailing: Icon(Icons.chevron_right_rounded, color: muted),
-                      onTap: () async {
-                        await Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const SponsorScreen(),
+                    ],
+                  ),
+                ),
+              SoftActionTile(
+                icon: Icons.shield_outlined,
+                title: t.isEs
+                    ? 'Protección con padrino'
+                    : 'Sponsor protection',
+                subtitle: _hasSponsor
+                    ? (t.isEs
+                    ? 'Las acciones sensibles piden aprobación o una pausa autorizada.'
+                    : 'Sensitive actions can request approval or an authorized pause.')
+                    : (t.isEs
+                    ? 'Puedes agregar una persona de confianza para aprobar cambios importantes.'
+                    : 'You can add a trusted person to approve important changes.'),
+                trailing:
+                Icon(Icons.chevron_right_rounded, color: muted),
+                onTap: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const SponsorScreen(),
+                    ),
+                  );
+                  await _load();
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SectionTitle(
+          title: t.isEs
+              ? 'Preferencias generales'
+              : 'General preferences',
+          subtitle: t.isEs
+              ? 'Aspecto, idioma y tiempo de pantalla diario.'
+              : 'Appearance, language, and your daily screen-time target.',
+        ),
+        const SizedBox(height: 12),
+        GlassCard(
+          child: Column(
+            children: [
+              SoftActionTile(
+                icon: widget.darkMode
+                    ? Icons.dark_mode_rounded
+                    : Icons.light_mode_rounded,
+                title: t.darkMode,
+                subtitle: t.darkModeSubtitle,
+                trailing: Switch(
+                  value: widget.darkMode,
+                  onChanged: widget.onDarkModeChanged,
+                ),
+              ),
+              const SizedBox(height: 12),
+              SoftActionTile(
+                icon: Icons.language_rounded,
+                title: t.language,
+                subtitle:
+                widget.localeCode == 'es' ? 'Español' : 'English',
+                trailing: DropdownButton<String>(
+                  value: widget.localeCode,
+                  underline: const SizedBox.shrink(),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'en',
+                      child: Text('English'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'es',
+                      child: Text('Español'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) widget.onLocaleChanged(value);
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  color: isDark
+                      ? Colors.white.withOpacity(0.035)
+                      : const Color(0xFFF8FAFF),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withOpacity(0.06)
+                        : DetoxColors.lightCardBorder,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      t.dailyScreenTimeLimit,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      t.minutesLabel(_dailyLimit),
+                      style: TextStyle(color: muted),
+                    ),
+                    const SizedBox(height: 8),
+                    Slider(
+                      min: 30,
+                      max: 480,
+                      divisions: 15,
+                      label: t.minutesLabel(_dailyLimit),
+                      value: _dailyLimit.toDouble(),
+                      onChanged: (value) =>
+                          setState(() => _dailyLimit = value.round()),
+                      onChangeEnd: (value) =>
+                          _storageService.saveDailyLimitMinutes(
+                            value.round(),
                           ),
-                        );
-                        await _load();
-                      },
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-              SectionTitle(
-                title: t.isEs ? 'Preferencias generales' : 'General preferences',
-                subtitle: t.isEs
-                    ? 'Aspecto, idioma y tiempo de pantalla diario.'
-                    : 'Appearance, language, and your daily screen-time target.',
-              ),
-              const SizedBox(height: 12),
-              GlassCard(
-                child: Column(
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SectionTitle(
+          title: t.perAppLimits,
+          subtitle: t.pickAppsBody,
+          trailing: IconButton(
+            onPressed: _addAppLimit,
+            icon: const Icon(Icons.add),
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (_appLimits.isEmpty)
+          GlassCard(
+            child: Text(
+              t.noPerAppLimits,
+              style: TextStyle(color: muted),
+            ),
+          )
+        else
+          GlassCard(
+            child: Column(
+              children: _appLimits.asMap().entries.map((entry) {
+                final index = entry.key;
+                final item = entry.value;
+                return Column(
                   children: [
-                    SoftActionTile(
-                      icon: widget.darkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-                      title: t.darkMode,
-                      subtitle: t.darkModeSubtitle,
-                      trailing: Switch(
-                        value: widget.darkMode,
-                        onChanged: widget.onDarkModeChanged,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SoftActionTile(
-                      icon: Icons.language_rounded,
-                      title: t.language,
-                      subtitle: widget.localeCode == 'es' ? 'Español' : 'English',
-                      trailing: DropdownButton<String>(
-                        value: widget.localeCode,
-                        underline: const SizedBox.shrink(),
-                        items: const [
-                          DropdownMenuItem(value: 'en', child: Text('English')),
-                          DropdownMenuItem(value: 'es', child: Text('Español')),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) widget.onLocaleChanged(value);
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        color: isDark ? Colors.white.withOpacity(0.035) : const Color(0xFFF8FAFF),
-                        border: Border.all(
-                          color: isDark ? Colors.white.withOpacity(0.06) : DetoxColors.lightCardBorder,
+                    Row(
+                      children: [
+                        AppIconBadge(
+                          packageName: item.packageName,
+                          size: 38,
+                          borderRadius: 10,
                         ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            t.dailyScreenTimeLimit,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            t.minutesLabel(_dailyLimit),
-                            style: TextStyle(color: muted),
-                          ),
-                          const SizedBox(height: 8),
-                          Slider(
-                            min: 30,
-                            max: 480,
-                            divisions: 15,
-                            label: t.minutesLabel(_dailyLimit),
-                            value: _dailyLimit.toDouble(),
-                            onChanged: (value) => setState(() => _dailyLimit = value.round()),
-                            onChangeEnd: (value) => _storageService.saveDailyLimitMinutes(
-                              value.round(),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            item.appName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                        ],
+                        ),
+                        Switch(
+                          value: item.useInFocusMode,
+                          onChanged: (value) => _toggleFocus(item, value),
+                        ),
+                        IconButton(
+                          onPressed: () => _removeAppLimit(item),
+                          icon: const Icon(Icons.delete_outline),
+                          color: muted,
+                        ),
+                      ],
+                    ),
+                    if (index != _appLimits.length - 1) ...[
+                      const SizedBox(height: 12),
+                      Divider(
+                        height: 1,
+                        color: isDark
+                            ? Colors.white.withOpacity(0.06)
+                            : DetoxColors.lightCardBorder,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+        const SizedBox(height: 16),
+        SectionTitle(
+          title: t.isEs ? 'Horarios de Detox' : 'Detox schedules',
+          subtitle: t.isEs
+              ? 'Programa bloqueos automáticos y presets de apps para ciertos momentos del día, incluso sin usar zonas.'
+              : 'Schedule automatic blocking and app presets for certain moments of the day, even without using zones.',
+        ),
+        const SizedBox(height: 12),
+        GlassCard(
+          child: SoftActionTile(
+            icon: Icons.schedule_rounded,
+            title: t.isEs ? 'Horarios de Detox' : 'Detox schedules',
+            subtitle: t.isEs
+                ? 'Crea horarios automáticos y presets de apps para clases, trabajo o descanso.'
+                : 'Create automatic schedules and app presets for classes, work, or downtime.',
+            trailing: Icon(Icons.chevron_right_rounded, color: muted),
+            onTap: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const AutomationSettingsScreen(),
+                ),
+              );
+              await _load();
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
+        SectionTitle(
+          title: t.concentrationZones,
+          subtitle: t.isEs
+              ? 'Espacios donde el enfoque se puede activar solo.'
+              : 'Places where focus can activate automatically.',
+          trailing: IconButton(
+            onPressed: _addZone,
+            icon: const Icon(Icons.add_location_alt_outlined),
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (_zones.isEmpty)
+          GlassCard(
+            child: Text(
+              t.noConcentrationZonesYet,
+              style: TextStyle(color: muted),
+            ),
+          )
+        else
+          GlassCard(
+            child: Column(
+              children: _zones.map((zone) {
+                final inside = _zoneState.zoneName == zone.name &&
+                    _zoneState.insideZone;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      color: isDark
+                          ? Colors.white.withOpacity(0.035)
+                          : const Color(0xFFF8FAFF),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white.withOpacity(0.06)
+                            : DetoxColors.lightCardBorder,
                       ),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              SectionTitle(
-                title: t.perAppLimits,
-                subtitle: t.pickAppsBody,
-                trailing: IconButton(
-                  onPressed: _addAppLimit,
-                  icon: const Icon(Icons.add),
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (_appLimits.isEmpty)
-                GlassCard(
-                  child: Text(
-                    t.noPerAppLimits,
-                    style: TextStyle(color: muted),
-                  ),
-                )
-              else
-                GlassCard(
-                  child: Column(
-                    children: _appLimits.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final item = entry.value;
-                      return Column(
-                        children: [
-                          Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                color: (inside
+                                    ? DetoxColors.success
+                                    : DetoxColors.accentSoft)
+                                    .withOpacity(0.14),
+                              ),
+                              child: Icon(
+                                inside
+                                    ? Icons.school_rounded
+                                    : Icons.location_on_outlined,
+                                color: inside
+                                    ? DetoxColors.success
+                                    : DetoxColors.accentSoft,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    zone.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    zone.blockedPackages.isEmpty
+                                        ? t.zoneRadiusUsesFocus(
+                                      zone.radiusMeters.round(),
+                                    )
+                                        : t.zoneRadiusSelectedApps(
+                                      zone.radiusMeters.round(),
+                                      zone.blockedPackages.length,
+                                    ),
+                                    style: TextStyle(
+                                      color: muted,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => _editZone(zone),
+                              icon: const Icon(Icons.edit_outlined),
+                              color: muted,
+                            ),
+                            IconButton(
+                              onPressed: () => _removeZone(zone),
+                              icon: const Icon(Icons.delete_outline),
+                              color: muted,
+                            ),
+                          ],
+                        ),
+                        if (zone.blockedAppNames.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: zone.blockedAppNames
+                                .map((name) => Chip(label: Text(name)))
+                                .toList(),
+                          ),
+                        ],
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            color: isDark
+                                ? Colors.white.withOpacity(0.035)
+                                : const Color(0xFFF8FAFF),
+                            border: Border.all(
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.06)
+                                  : DetoxColors.lightCardBorder,
+                            ),
+                          ),
+                          child: Row(
                             children: [
-                              AppIconBadge(
-                                packageName: item.packageName,
-                                size: 38,
-                                borderRadius: 10,
+                              Icon(
+                                zone.enabled
+                                    ? Icons.location_searching_rounded
+                                    : Icons.location_disabled_outlined,
+                                color: zone.enabled
+                                    ? DetoxColors.accentSoft
+                                    : muted,
                               ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
-                                  item.appName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontWeight: FontWeight.w700),
+                                  t.isEs
+                                      ? 'Activar / desactivar'
+                                      : 'Enable / disable',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
                               Switch(
-                                value: item.useInFocusMode,
-                                onChanged: (value) => _toggleFocus(item, value),
-                              ),
-                              IconButton(
-                                onPressed: () => _removeAppLimit(item),
-                                icon: const Icon(Icons.delete_outline),
-                                color: muted,
-                              ),
-                            ],
-                          ),
-                          if (index != _appLimits.length - 1) ...[
-                            const SizedBox(height: 12),
-                            Divider(
-                              height: 1,
-                              color: isDark ? Colors.white.withOpacity(0.06) : DetoxColors.lightCardBorder,
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-                        ],
-                      );
-                    }).toList(),
-                  ),
-                ),
-              const SizedBox(height: 16),
-              SectionTitle(
-                title: t.isEs ? 'Horarios de Detox' : 'Detox schedules',
-                subtitle: t.isEs
-                    ? 'Programa bloqueos automáticos y presets de apps para ciertos momentos del día, incluso sin usar zonas.'
-                    : 'Schedule automatic blocking and app presets for certain moments of the day, even without using zones.',
-              ),
-              const SizedBox(height: 12),
-              GlassCard(
-                child: SoftActionTile(
-                  icon: Icons.schedule_rounded,
-                  title: t.isEs ? 'Horarios de Detox' : 'Detox schedules',
-                  subtitle: t.isEs
-                      ? 'Crea horarios automáticos y presets de apps para clases, trabajo o descanso.'
-                      : 'Create automatic schedules and app presets for classes, work, or downtime.',
-                  trailing: Icon(Icons.chevron_right_rounded, color: muted),
-                  onTap: () async {
-                    await Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const AutomationSettingsScreen(),
-                      ),
-                    );
-                    await _load();
-                  },
-                ),
-              ),
-              const SizedBox(height: 16),
-              SectionTitle(
-                title: t.concentrationZones,
-                subtitle: t.isEs
-                    ? 'Espacios donde el enfoque se puede activar solo.'
-                    : 'Places where focus can activate automatically.',
-                trailing: IconButton(
-                  onPressed: _addZone,
-                  icon: const Icon(Icons.add_location_alt_outlined),
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (_zones.isEmpty)
-                GlassCard(
-                  child: Text(
-                    t.noConcentrationZonesYet,
-                    style: TextStyle(color: muted),
-                  ),
-                )
-              else
-                GlassCard(
-                  child: Column(
-                    children: _zones.map((zone) {
-                      final inside = _zoneState.zoneName == zone.name && _zoneState.insideZone;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                            color: isDark ? Colors.white.withOpacity(0.035) : const Color(0xFFF8FAFF),
-                            border: Border.all(
-                              color: isDark ? Colors.white.withOpacity(0.06) : DetoxColors.lightCardBorder,
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    width: 42,
-                                    height: 42,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(14),
-                                      color: (inside ? DetoxColors.success : DetoxColors.accentSoft).withOpacity(0.14),
-                                    ),
-                                    child: Icon(
-                                      inside ? Icons.school_rounded : Icons.location_on_outlined,
-                                      color: inside ? DetoxColors.success : DetoxColors.accentSoft,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          zone.name,
-                                          style: const TextStyle(fontWeight: FontWeight.w700),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          zone.blockedPackages.isEmpty
-                                              ? t.zoneRadiusUsesFocus(zone.radiusMeters.round())
-                                              : t.zoneRadiusSelectedApps(zone.radiusMeters.round(), zone.blockedPackages.length),
-                                          style: TextStyle(color: muted, height: 1.3),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  IconButton(
-                                    onPressed: () => _editZone(zone),
-                                    icon: const Icon(Icons.edit_outlined),
-                                    color: muted,
-                                  ),
-                                  IconButton(
-                                    onPressed: () => _removeZone(zone),
-                                    icon: const Icon(Icons.delete_outline),
-                                    color: muted,
-                                  ),
-                                ],
-                              ),
-                              if (zone.blockedAppNames.isNotEmpty) ...[
-                                const SizedBox(height: 10),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: zone.blockedAppNames.map((name) => Chip(label: Text(name))).toList(),
-                                ),
-                              ],
-                              const SizedBox(height: 10),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(20),
-                                  color: isDark ? Colors.white.withOpacity(0.035) : const Color(0xFFF8FAFF),
-                                  border: Border.all(
-                                    color: isDark ? Colors.white.withOpacity(0.06) : DetoxColors.lightCardBorder,
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      zone.enabled ? Icons.location_searching_rounded : Icons.location_disabled_outlined,
-                                      color: zone.enabled ? DetoxColors.accentSoft : muted,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Text(
-                                        t.isEs ? 'Activar / desactivar' : 'Enable / disable',
-                                        style: const TextStyle(fontWeight: FontWeight.w700),
-                                      ),
-                                    ),
-                                    Switch(
-                                      value: zone.enabled,
-                                      onChanged: (value) => _toggleZone(zone, value),
-                                    ),
-                                  ],
-                                ),
+                                value: zone.enabled,
+                                onChanged: (value) =>
+                                    _toggleZone(zone, value),
                               ),
                             ],
                           ),
                         ),
-                      );
-                    }).toList(),
+                      ],
+                    ),
                   ),
-                ),
-            ],
-          );
+                );
+              }).toList(),
+            ),
+          ),
+      ],
+    );
   }
 }
 
@@ -1016,8 +1094,6 @@ class _AppPickerSheetState extends State<_AppPickerSheet> {
   };
 
   final TextEditingController _searchController = TextEditingController();
-  final TextEditingController _minutesController =
-      TextEditingController(text: '30');
 
   InstalledAppEntry? _selected;
   String _query = '';
@@ -1025,7 +1101,6 @@ class _AppPickerSheetState extends State<_AppPickerSheet> {
   @override
   void dispose() {
     _searchController.dispose();
-    _minutesController.dispose();
     super.dispose();
   }
 
@@ -1070,13 +1145,14 @@ class _AppPickerSheetState extends State<_AppPickerSheet> {
     final filtered = widget.apps
         .where((app) => !existingPackages.contains(app.packageName))
         .where((app) {
-          if (query.isEmpty) return true;
-          return app.name.toLowerCase().contains(query) ||
-              app.packageName.toLowerCase().contains(query);
-        })
+      if (query.isEmpty) return true;
+      return app.name.toLowerCase().contains(query) ||
+          app.packageName.toLowerCase().contains(query);
+    })
         .toList()
       ..sort((a, b) {
-        final priorityCompare = _priorityForApp(a).compareTo(_priorityForApp(b));
+        final priorityCompare =
+        _priorityForApp(a).compareTo(_priorityForApp(b));
         if (priorityCompare != 0) return priorityCompare;
         return a.name.toLowerCase().compareTo(b.name.toLowerCase());
       });
@@ -1111,106 +1187,100 @@ class _AppPickerSheetState extends State<_AppPickerSheet> {
                   labelText: t.searchApp,
                 ),
               ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _minutesController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.timer_outlined),
-                  labelText: t.dailyScreenTimeLimit,
-                ),
-              ),
               const SizedBox(height: 14),
               Expanded(
                 child: visibleApps.isEmpty
                     ? Center(
-                        child: Text(
-                          t.noAppsFound,
-                          style: const TextStyle(color: DetoxColors.muted),
-                        ),
-                      )
+                  child: Text(
+                    t.noAppsFound,
+                    style: const TextStyle(color: DetoxColors.muted),
+                  ),
+                )
                     : ListView.separated(
-                        itemCount: visibleApps.length,
-                        separatorBuilder: (context, _) => const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
-                          final app = visibleApps[index];
-                          final selected = _selected?.packageName == app.packageName;
+                  itemCount: visibleApps.length,
+                  separatorBuilder: (context, _) =>
+                  const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final app = visibleApps[index];
+                    final selected =
+                        _selected?.packageName == app.packageName;
 
-                          return Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(18),
-                              onTap: () => setState(() => _selected = app),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 160),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 12,
-                                ),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(18),
-                                  color: selected
-                                      ? DetoxColors.accent.withOpacity(0.16)
-                                      : (isDark
-                                          ? Colors.white.withOpacity(0.035)
-                                          : const Color(0xFFF8FAFF)),
-                                  border: Border.all(
-                                    color: selected
-                                        ? DetoxColors.accentSoft.withOpacity(0.45)
-                                        : (isDark
-                                            ? Colors.white.withOpacity(0.06)
-                                            : DetoxColors.lightCardBorder),
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: () => setState(() => _selected = app),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 160),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(18),
+                            color: selected
+                                ? DetoxColors.accent.withOpacity(0.16)
+                                : (isDark
+                                ? Colors.white.withOpacity(0.035)
+                                : const Color(0xFFF8FAFF)),
+                            border: Border.all(
+                              color: selected
+                                  ? DetoxColors.accentSoft
+                                  .withOpacity(0.45)
+                                  : (isDark
+                                  ? Colors.white.withOpacity(0.06)
+                                  : DetoxColors.lightCardBorder),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              AppIconBadge(
+                                packageName: app.packageName,
+                                iconBytes: app.iconBytes,
+                                size: 42,
+                                borderRadius: 12,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  app.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.titleMedium
+                                      ?.copyWith(
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                                child: Row(
-                                  children: [
-                                    AppIconBadge(
-                                      packageName: app.packageName,
-                                      iconBytes: app.iconBytes,
-                                      size: 42,
-                                      borderRadius: 12,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Text(
-                                        app.name,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: theme.textTheme.titleMedium?.copyWith(
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                    if (selected)
-                                      const Icon(
-                                        Icons.check_circle,
-                                        color: DetoxColors.accentSoft,
-                                      ),
-                                  ],
-                                ),
                               ),
-                            ),
-                          );
-                        },
+                              if (selected)
+                                const Icon(
+                                  Icons.check_circle,
+                                  color: DetoxColors.accentSoft,
+                                ),
+                            ],
+                          ),
+                        ),
                       ),
+                    );
+                  },
+                ),
               ),
               const SizedBox(height: 10),
               FilledButton(
                 onPressed: _selected == null
                     ? null
                     : () {
-                        final minutes =
-                            int.tryParse(_minutesController.text.trim()) ?? 30;
+                  const minutes = 30;
 
-                        Navigator.pop(
-                          context,
-                          AppLimit(
-                            appName: _selected!.name,
-                            packageName: _selected!.packageName,
-                            minutes: minutes,
-                          ),
-                        );
-                      },
+                  Navigator.pop(
+                    context,
+                    AppLimit(
+                      appName: _selected!.name,
+                      packageName: _selected!.packageName,
+                      minutes: minutes,
+                    ),
+                  );
+                },
                 child: Text(t.addSelectedApp),
               ),
             ],
@@ -1350,11 +1420,12 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
               Text(
                 widget.initialZone == null
                     ? t.newConcentrationZone
-                    : (t.isEs ? 'Editar zona de concentración' : 'Edit concentration zone'),
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                    : (t.isEs
+                    ? 'Editar zona de concentración'
+                    : 'Edit concentration zone'),
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -1386,9 +1457,7 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
                             initialCenter: _center,
                             initialZoom: 15,
                             onPositionChanged: (position, _) {
-                              setState(
-                                    () => _center = position.center,
-                              );
+                              setState(() => _center = position.center);
                             },
                             onTap: (_, point) {
                               _mapController.move(point, 15);
@@ -1407,10 +1476,9 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
                                   point: _center,
                                   radius: _radius,
                                   useRadiusInMeter: true,
-                                  color: DetoxColors.accent
-                                      .withOpacity(0.18),
-                                  borderColor:
-                                  DetoxColors.accentSoft,
+                                  color:
+                                  DetoxColors.accent.withOpacity(0.18),
+                                  borderColor: DetoxColors.accentSoft,
                                   borderStrokeWidth: 2,
                                 ),
                               ],
@@ -1431,9 +1499,7 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
                           right: 12,
                           child: FilledButton.icon(
                             onPressed: _loadCurrentPosition,
-                            icon: const Icon(
-                              Icons.my_location_rounded,
-                            ),
+                            icon: const Icon(Icons.my_location_rounded),
                             label: Text(t.myLocation),
                           ),
                         ),
@@ -1479,10 +1545,9 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
               const SizedBox(height: 4),
               Text(
                 t.appsBlockedInThisZone,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 8),
               if (selectableApps.isEmpty)
@@ -1500,8 +1565,7 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
                     return FilterChip(
                       label: Text(app.appName),
                       selected: selected,
-                      onSelected: (value) =>
-                          _toggleZoneApp(app, value),
+                      onSelected: (value) => _toggleZoneApp(app, value),
                     );
                   }).toList(),
                 ),
