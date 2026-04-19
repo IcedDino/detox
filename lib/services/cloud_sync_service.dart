@@ -211,6 +211,120 @@ class CloudSyncService {
     }
   }
 
+  Future<void> markAccountDeleted(AuthUser user) async {
+    final uid = _uid;
+    final doc = _userDoc;
+    if (uid == null || doc == null) return;
+
+    cancelPendingWrites();
+
+    final userSnapshot = await doc.get();
+    final userData = userSnapshot.data() ?? <String, dynamic>{};
+    final sponsorUid = (userData['sponsorUid'] as String?)?.trim();
+
+    final batch = _firestore.batch();
+    batch.set(
+      doc,
+      {
+        'accountDeleted': true,
+        'accountDeletedAt': FieldValue.serverTimestamp(),
+        'deletionSource': 'self_service_mobile',
+        'profile': {
+          'uid': uid,
+          'email': '',
+          'displayName': user.displayName,
+          'provider': 'deleted',
+          'phoneNumber': null,
+        },
+        'habits': FieldValue.delete(),
+        'appLimits': FieldValue.delete(),
+        'concentrationZones': FieldValue.delete(),
+        'dailyLimitMinutes': FieldValue.delete(),
+        'onboardingDone': FieldValue.delete(),
+        'sponsorUid': FieldValue.delete(),
+        'sponsorLinkedAt': FieldValue.delete(),
+        'settingsUnlockUntil': FieldValue.delete(),
+        'zoneOverrideUntil': FieldValue.delete(),
+        'shieldPauseUntil': FieldValue.delete(),
+        'unlinkEmailCode': FieldValue.delete(),
+        'unlinkEmailCodeExpiresAt': FieldValue.delete(),
+        'unlinkEmailRequestId': FieldValue.delete(),
+        'fcmToken': FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+
+    if (sponsorUid != null && sponsorUid.isNotEmpty) {
+      final sponsorRef = _firestore.collection('users').doc(sponsorUid);
+      final sponsorSnapshot = await sponsorRef.get();
+      final sponsorData = sponsorSnapshot.data() ?? <String, dynamic>{};
+      if (sponsorData['sponsorUid'] == uid) {
+        batch.set(
+          sponsorRef,
+          {
+            'sponsorUid': FieldValue.delete(),
+            'sponsorLinkedAt': FieldValue.delete(),
+            'settingsUnlockUntil': FieldValue.delete(),
+            'zoneOverrideUntil': FieldValue.delete(),
+            'shieldPauseUntil': FieldValue.delete(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      }
+    }
+
+    await batch.commit();
+    await _closeSponsorRequestDocs(uid);
+  }
+
+  Future<void> _closeSponsorRequestDocs(String uid) async {
+    Future<void> closeMatches({
+      required CollectionReference<Map<String, dynamic>> collection,
+      required String field,
+      required String closedStatus,
+    }) async {
+      final snapshot = await collection.where(field, isEqualTo: uid).get();
+      for (final doc in snapshot.docs) {
+        await doc.reference.set(
+          {
+            'status': closedStatus,
+            'closedBecause': 'account_deleted',
+            'closedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      }
+    }
+
+    final sponsorMeta = _firestore.collection('meta').doc('sponsor');
+    final linkRequests = sponsorMeta.collection('link_requests');
+    final unlockRequests = sponsorMeta.collection('unlock_requests');
+
+    await closeMatches(
+      collection: linkRequests,
+      field: 'requesterUid',
+      closedStatus: 'cancelled',
+    );
+    await closeMatches(
+      collection: linkRequests,
+      field: 'targetUid',
+      closedStatus: 'cancelled',
+    );
+    await closeMatches(
+      collection: unlockRequests,
+      field: 'requesterUid',
+      closedStatus: 'closed',
+    );
+    await closeMatches(
+      collection: unlockRequests,
+      field: 'sponsorUid',
+      closedStatus: 'closed',
+    );
+  }
+
   String _stableHash(dynamic value) {
     return jsonEncode(_canonicalize(value));
   }
