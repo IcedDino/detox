@@ -20,6 +20,10 @@ class AppVisibilityFilterService {
     'com.sec.android.app.launcher',
     'com.miui.home',
     'com.android.vending',
+    'com.google.android.gms',
+    'com.google.android.gsf',
+    'com.google.android.ext.services',
+    'com.google.android.ondevicepersonalization.services',
   };
 
   static const List<String> _blockedLabelFragments = [
@@ -35,6 +39,9 @@ class AppVisibilityFilterService {
     'play store',
     'ajustes',
     'settings',
+    'servicios de google play',
+    'google play services',
+    'google services framework',
   ];
 
   Future<bool> shouldShowApp({
