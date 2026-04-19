@@ -86,6 +86,10 @@ class AppStrings {
   String get concentrationZones => isEs ? 'Zonas de concentración' : 'Concentration zones';
 
   String get orUseEmail => isEs ? 'O usa correo' : 'Or use email';
+  String get useEmailFirst => isEs ? 'Accede con tu correo' : 'Sign in with your email';
+  String get otherWaysToContinue => isEs ? 'Otras formas de acceso' : 'Other ways to continue';
+  String get noAccountYet => isEs ? '¿No tienes cuenta aún?' : "Don't have an account yet?";
+  String get alreadyHaveAccount => isEs ? '¿Ya tienes cuenta?' : 'Already have an account?';
   String get permissionsOverview => isEs ? 'Resumen de permisos' : 'Permissions overview';
   String get iosSeparatePath => isEs ? 'En iOS esto usa una ruta nativa separada de Screen Time.' : 'iOS support uses a separate native Screen Time path.';
   String get iosAppsBody => isEs ? 'En iOS aún no se pueden listar apps instaladas de la misma manera.' : 'On iOS, installed apps cannot be listed the same way yet.';

@@ -57,15 +57,15 @@ class DetoxLogo extends StatelessWidget {
             Text(
               'Detox',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.2,
-              ),
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
             ),
             Text(
               'focus · block · control',
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: const Color(0xFF8A9BB0),
-              ),
+                    color: const Color(0xFF8A9BB0),
+                  ),
             ),
           ],
         ),

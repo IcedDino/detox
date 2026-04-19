@@ -9,6 +9,7 @@ import '../services/app_blocking_service.dart';
 import '../services/location_zone_service.dart';
 import '../services/sponsor_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/ui_kit.dart';
 
 class SponsorScreen extends StatefulWidget {
   const SponsorScreen({super.key});
@@ -696,377 +697,275 @@ class _SponsorScreenState extends State<SponsorScreen>
           child: _loading
               ? const Center(child: CircularProgressIndicator())
               : RefreshIndicator(
-            onRefresh: _refresh,
-            child: ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                _buildIncomingUnlockRequests(),
-                const SizedBox(height: 14),
-                if (_sponsor == null) ...[
-                  _buildIncomingSponsorLinks(),
-                  _buildOutgoingSponsorLinks(),
-                ],
-                GlassCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  onRefresh: _refresh,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
                     children: [
-                      Text(
-                        t.yourSponsorCode,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleLarge
-                            ?.copyWith(fontWeight: FontWeight.bold),
+                      AppPageHeader(
+                        eyebrow: t.isEs ? 'Padrino' : 'Sponsor',
+                        title: t.isEs ? 'Apoyo extra cuando lo necesitas' : 'Extra support when you need it',
+                        subtitle: t.isEs
+                            ? 'Aquí puedes vincular a una persona de confianza para aprobar pausas, cambios delicados y desbloqueos temporales.'
+                            : 'Link a trusted person who can approve pauses, sensitive changes, and temporary unlocks.',
+                        icon: Icons.handshake_outlined,
                       ),
-                      const SizedBox(height: 8),
-                      SelectableText(
-                        _myCode,
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        t.sponsorCodeShare,
-                        style: const TextStyle(color: DetoxColors.muted),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                if (_sponsor == null)
-                  GlassCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          t.addSponsor,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 10),
-                        TextField(
-                          controller: _codeController,
-                          textCapitalization: TextCapitalization.characters,
-                          decoration: InputDecoration(
-                            labelText: t.enterSponsorCodeHint,
-                            prefixIcon: const Icon(Icons.link_rounded),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        FilledButton.icon(
-                          onPressed: _linkSponsor,
-                          icon: const Icon(Icons.handshake_outlined),
-                          label: Text(t.linkSponsor),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          t.onlyOneSponsor,
-                          style: const TextStyle(color: DetoxColors.muted),
-                        ),
+                      const SizedBox(height: 18),
+                      _buildIncomingUnlockRequests(),
+                      const SizedBox(height: 14),
+                      if (_sponsor == null) ...[
+                        _buildIncomingSponsorLinks(),
+                        _buildOutgoingSponsorLinks(),
                       ],
-                    ),
-                  )
-                else ...[
-                  GlassCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const CircleAvatar(
-                              child: Icon(Icons.person_outline_rounded),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                      HeroInfoCard(
+                        icon: Icons.qr_code_rounded,
+                        title: t.yourSponsorCode,
+                        subtitle: t.sponsorCodeShare,
+                        badge: StatusPill(
+                          label: _sponsor == null
+                              ? (t.isEs ? 'Sin vínculo activo' : 'No active link')
+                              : (t.isEs ? 'Vinculado' : 'Linked'),
+                          icon: _sponsor == null ? Icons.link_off_rounded : Icons.check_circle_rounded,
+                          color: _sponsor == null ? DetoxColors.warning : DetoxColors.success,
+                        ),
+                        child: SelectableText(
+                          _myCode,
+                          style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.0,
+                              ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      if (_sponsor == null)
+                        HeroInfoCard(
+                          icon: Icons.person_add_alt_1_rounded,
+                          title: t.addSponsor,
+                          subtitle: t.onlyOneSponsor,
+                          child: Column(
+                            children: [
+                              TextField(
+                                controller: _codeController,
+                                textCapitalization: TextCapitalization.characters,
+                                decoration: InputDecoration(
+                                  labelText: t.enterSponsorCodeHint,
+                                  prefixIcon: const Icon(Icons.link_rounded),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              FilledButton.icon(
+                                onPressed: _linkSponsor,
+                                icon: const Icon(Icons.handshake_outlined),
+                                label: Text(t.linkSponsor),
+                              ),
+                            ],
+                          ),
+                        )
+                      else ...[
+                        HeroInfoCard(
+                          icon: Icons.person_outline_rounded,
+                          title: _sponsor!.displayName,
+                          subtitle: _sponsor!.email,
+                          badge: StatusPill(
+                            label: t.isEs ? 'Protección activa' : 'Protection active',
+                            icon: Icons.verified_user_outlined,
+                            color: DetoxColors.success,
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
                                 children: [
-                                  Text(
-                                    _sponsor!.displayName,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleLarge
-                                        ?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  Text(
-                                    _sponsor!.email,
-                                    style: const TextStyle(
-                                      color: DetoxColors.muted,
+                                  Expanded(
+                                    child: FilledButton.icon(
+                                      onPressed: () => _request('zone_override'),
+                                      icon: const Icon(Icons.pause_circle_outline),
+                                      label: Text(t.requestZonePause),
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: FilledButton.icon(
-                                onPressed: () => _request('zone_override'),
-                                icon:
-                                const Icon(Icons.pause_circle_outline),
-                                label: Text(t.requestZonePause),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: () => _request('settings_unlock'),
+                                      icon: const Icon(Icons.lock_open_rounded),
+                                      label: Text(t.requestSettingsApproval),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 10),
+                              TextButton.icon(
+                                onPressed: _unlink,
+                                icon: const Icon(Icons.link_off_rounded),
+                                label: Text(t.endSponsorLink),
+                              ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () => _request('settings_unlock'),
-                                icon: const Icon(Icons.lock_open_rounded),
-                                label: Text(
-                                  t.requestSettingsApproval,
+                      ],
+                      const SizedBox(height: 16),
+                      SectionTitle(
+                        title: t.yourOutgoingRequests,
+                        subtitle: t.isEs
+                            ? 'Solicitudes que enviaste y su estado actual.'
+                            : 'Requests you sent and their current status.',
+                      ),
+                      const SizedBox(height: 8),
+                      StreamBuilder<List<SponsorRequest>>(
+                        stream: _sponsorService.outgoingRequests(),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasError) {
+                            return GlassCard(
+                              child: Text(
+                                'Outgoing requests error: ${snapshot.error}',
+                                style: const TextStyle(
+                                  color: Colors.orangeAccent,
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        TextButton.icon(
-                          onPressed: _unlink,
-                          icon: const Icon(Icons.link_off_rounded),
-                          label: Text(t.endSponsorLink),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  GlassCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          t.currentSafeguards,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 12),
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(
-                            _zoneOverrideActive
-                                ? Icons.verified_rounded
-                                : Icons.block_rounded,
-                            color: _zoneOverrideActive
-                                ? Colors.greenAccent
-                                : DetoxColors.accentSoft,
-                          ),
-                          title: Text(t.zonePause),
-                          subtitle: Text(
-                            _zoneOverrideActive
-                                ? t.zoneActiveLabel(_timeLabel(_zoneUntil))
-                                : _zoneState.insideZone
-                                ? t.insideZoneLabel(
-                              _zoneState.zoneName ?? '',
-                            )
-                                : t.zoneInactive,
-                            style: const TextStyle(
-                              color: DetoxColors.muted,
-                            ),
-                          ),
-                        ),
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(
-                            _settingsUnlockActive
-                                ? Icons.verified_rounded
-                                : Icons.lock_outline_rounded,
-                            color: _settingsUnlockActive
-                                ? Colors.greenAccent
-                                : DetoxColors.accentSoft,
-                          ),
-                          title: Text(t.protectedSettings),
-                          subtitle: Text(
-                            _settingsUnlockActive
-                                ? '${t.settingsUnlockedLabel} · ${_timeLabel(_settingsUntil)}'
-                                : t.protectedSettingsBody,
-                            style: const TextStyle(
-                              color: DetoxColors.muted,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 14),
-                Text(
-                  t.yourOutgoingRequests,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                StreamBuilder<List<SponsorRequest>>(
-                  stream: _sponsorService.outgoingRequests(),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return GlassCard(
-                        child: Text(
-                          'Outgoing requests error: ${snapshot.error}',
-                          style: const TextStyle(
-                            color: Colors.orangeAccent,
-                          ),
-                        ),
-                      );
-                    }
+                            );
+                          }
 
-                    final requests =
-                    (snapshot.data ?? const <SponsorRequest>[])
-                        .take(6)
-                        .toList();
+                          final requests =
+                              (snapshot.data ?? const <SponsorRequest>[]).take(6).toList();
 
-                    if (requests.isEmpty) {
-                      return GlassCard(
-                        child: Text(
-                          t.noOutgoingRequests,
-                          style: const TextStyle(
-                            color: DetoxColors.muted,
-                          ),
-                        ),
-                      );
-                    }
-
-                    return Column(
-                      children: requests.map((request) {
-                        final status = request.isConsumed
-                            ? t.statusUsed
-                            : request.isApproved
-                            ? t.statusApproved
-                            : request.isRejected
-                            ? t.statusRejected
-                            : t.statusPending;
-
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: GlassCard(
-                            child: ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: Icon(
-                                request.isConsumed
-                                    ? Icons.verified_rounded
-                                    : request.isApproved
-                                    ? Icons.lock_open_rounded
-                                    : request.isRejected
-                                    ? Icons.cancel_outlined
-                                    : Icons.schedule_rounded,
-                                color: request.isConsumed
-                                    ? Colors.greenAccent
-                                    : request.isApproved
-                                    ? DetoxColors.accentSoft
-                                    : request.isRejected
-                                    ? Colors.redAccent
-                                    : Colors.orangeAccent,
-                              ),
-                              title: Text(request.prettyType),
-                              subtitle: Text(
-                                '$status · ${request.durationMinutes} min',
+                          if (requests.isEmpty) {
+                            return GlassCard(
+                              child: Text(
+                                t.noOutgoingRequests,
                                 style: const TextStyle(
                                   color: DetoxColors.muted,
                                 ),
                               ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    );
-                  },
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  t.historyLabel,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                StreamBuilder<List<SponsorRequest>>(
-                  stream: _sponsorService.outgoingHistory(),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return GlassCard(
-                        child: Text(
-                          'History error: ${snapshot.error}',
-                          style: const TextStyle(
-                            color: Colors.orangeAccent,
-                          ),
-                        ),
-                      );
-                    }
+                            );
+                          }
 
-                    final requests =
-                    (snapshot.data ?? const <SponsorRequest>[])
-                        .take(12)
-                        .toList();
+                          return Column(
+                            children: requests.map((request) {
+                              final status = request.isConsumed
+                                  ? t.statusUsed
+                                  : request.isApproved
+                                      ? t.statusApproved
+                                      : request.isRejected
+                                          ? t.statusRejected
+                                          : t.statusPending;
 
-                    if (requests.isEmpty) {
-                      return GlassCard(
-                        child: Text(
-                          t.noSponsorHistory,
-                          style: const TextStyle(
-                            color: DetoxColors.muted,
-                          ),
-                        ),
-                      );
-                    }
-
-                    return Column(
-                      children: requests.map((request) {
-                        final status = request.isConsumed
-                            ? t.statusCompleted
-                            : request.isApproved
-                            ? t.statusApproved
-                            : request.isRejected
-                            ? t.statusRejected
-                            : request.isEmailed
-                            ? t.statusEmailed
-                            : request.isExpired
-                            ? t.expired
-                            : t.statusPending;
-
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: GlassCard(
-                            child: ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: Icon(
-                                request.requestType == 'unlink_sponsor' ||
-                                    request.requestType ==
-                                        'unlink_email'
-                                    ? Icons.link_off_rounded
-                                    : request.isConsumed
-                                    ? Icons.history_toggle_off_rounded
-                                    : Icons.receipt_long_outlined,
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: GlassCard(
+                                  child: ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: Icon(
+                                      request.isConsumed
+                                          ? Icons.verified_rounded
+                                          : request.isApproved
+                                              ? Icons.lock_open_rounded
+                                              : request.isRejected
+                                                  ? Icons.cancel_outlined
+                                                  : Icons.schedule_rounded,
+                                      color: request.isConsumed
+                                          ? Colors.greenAccent
+                                          : request.isApproved
+                                              ? DetoxColors.accentSoft
+                                              : request.isRejected
+                                                  ? Colors.redAccent
+                                                  : Colors.orangeAccent,
+                                    ),
+                                    title: Text(request.prettyType),
+                                    subtitle: Text(
+                                      '$status · ${request.durationMinutes} min',
+                                      style: const TextStyle(
+                                        color: DetoxColors.muted,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      SectionTitle(
+                        title: t.historyLabel,
+                        subtitle: t.isEs
+                            ? 'Movimientos recientes para que todo quede claro.'
+                            : 'Recent activity so everything stays clear.',
+                      ),
+                      const SizedBox(height: 8),
+                      StreamBuilder<List<SponsorRequest>>(
+                        stream: _sponsorService.outgoingHistory(),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasError) {
+                            return GlassCard(
+                              child: Text(
+                                'History error: ${snapshot.error}',
+                                style: const TextStyle(
+                                  color: Colors.orangeAccent,
+                                ),
                               ),
-                              title: Text(request.prettyType),
-                              subtitle: Text(
-                                '$status${request.createdAt != null ? ' · ${request.createdAt!.toLocal().toString().substring(0, 16)}' : ''}',
+                            );
+                          }
+
+                          final requests =
+                              (snapshot.data ?? const <SponsorRequest>[]).take(12).toList();
+
+                          if (requests.isEmpty) {
+                            return GlassCard(
+                              child: Text(
+                                t.noSponsorHistory,
                                 style: const TextStyle(
                                   color: DetoxColors.muted,
                                 ),
                               ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    );
-                  },
+                            );
+                          }
+
+                          return Column(
+                            children: requests.map((request) {
+                              final status = request.isConsumed
+                                  ? t.statusCompleted
+                                  : request.isApproved
+                                      ? t.statusApproved
+                                      : request.isRejected
+                                          ? t.statusRejected
+                                          : request.isEmailed
+                                              ? t.statusEmailed
+                                              : request.isExpired
+                                                  ? t.expired
+                                                  : t.statusPending;
+
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: GlassCard(
+                                  child: ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: Icon(
+                                      request.requestType == 'unlink_sponsor' ||
+                                              request.requestType == 'unlink_email'
+                                          ? Icons.link_off_rounded
+                                          : request.isConsumed
+                                              ? Icons.history_toggle_off_rounded
+                                              : Icons.receipt_long_outlined,
+                                    ),
+                                    title: Text(request.prettyType),
+                                    subtitle: Text(
+                                      '$status${request.createdAt != null ? ' · ${request.createdAt!.toLocal().toString().substring(0, 16)}' : ''}',
+                                      style: const TextStyle(
+                                        color: DetoxColors.muted,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
-          ),
         ),
       ),
     );

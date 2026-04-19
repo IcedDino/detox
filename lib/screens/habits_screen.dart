@@ -5,6 +5,7 @@ import '../models/progress_models.dart';
 import '../services/focus_session_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/ui_kit.dart';
 
 class HabitsScreen extends StatefulWidget {
   const HabitsScreen({super.key});
@@ -13,7 +14,7 @@ class HabitsScreen extends StatefulWidget {
   State<HabitsScreen> createState() => _HabitsScreenState();
 }
 
-class _HabitsScreenState extends State<HabitsScreen> {
+class _HabitsScreenState extends State<HabitsScreen> with AutomaticKeepAliveClientMixin {
   final StorageService _storage = StorageService();
   ProgressSnapshot? _snapshot;
   bool _loading = true;
@@ -120,7 +121,11 @@ class _HabitsScreenState extends State<HabitsScreen> {
   }
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context);
     final t = AppStrings.of(context);
     final snapshot = _snapshot;
     if (_loading || snapshot == null) {
@@ -128,133 +133,138 @@ class _HabitsScreenState extends State<HabitsScreen> {
     }
 
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
       children: [
         Text(
-          t.progressTitle,
-          style: Theme.of(context)
-              .textTheme
-              .headlineMedium
-              ?.copyWith(fontWeight: FontWeight.bold),
+          t.habits,
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
         ),
-        const SizedBox(height: 14),
-        GlassCard(
+        const SizedBox(height: 18),
+        HeroInfoCard(
+          icon: Icons.local_fire_department_rounded,
+          title: t.isEs ? 'Tu racha actual' : 'Your current streak',
+          subtitle: snapshot.startedToday
+              ? (t.isEs ? 'Hoy ya registraste actividad positiva.' : 'You already logged positive activity today.')
+              : (t.isEs ? 'Todavía puedes empezar hoy con una sesión rápida.' : 'You can still begin today with a quick session.'),
+          badge: StatusPill(
+            label: snapshot.startedToday
+                ? (t.isEs ? 'Hoy activo' : 'Today active')
+                : (t.isEs ? 'Pendiente' : 'Pending'),
+            icon: snapshot.startedToday ? Icons.check_circle_rounded : Icons.schedule_rounded,
+            color: snapshot.startedToday ? DetoxColors.success : DetoxColors.warning,
+          ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
                   Expanded(
-                    child: _BigMetric(
-                      icon: Icons.local_fire_department,
-                      value: '${snapshot.currentStreak}',
+                    child: FriendlyStatTile(
                       label: t.currentStreak,
+                      value: '${snapshot.currentStreak}',
+                      helper: t.isEs ? 'días seguidos' : 'days in a row',
+                      icon: Icons.local_fire_department_rounded,
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _BigMetric(
-                      icon: Icons.emoji_events_outlined,
-                      value: '${snapshot.longestStreak}',
+                    child: FriendlyStatTile(
                       label: t.longestStreak,
+                      value: '${snapshot.longestStreak}',
+                      helper: t.isEs ? 'mejor marca' : 'best record',
+                      icon: Icons.emoji_events_outlined,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: _startProgressDay,
                 icon: const Icon(Icons.play_arrow_rounded),
-                label: Text(
-                  snapshot.startedToday ? t.continueToday : t.startStreak,
-                ),
+                label: Text(snapshot.startedToday ? t.continueToday : t.startStreak),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
+        SectionTitle(
+          title: t.achievements,
+          subtitle: t.isEs
+              ? 'Pequeños hitos que te ayudan a notar tu avance real.'
+              : 'Small milestones that help you notice your real progress.',
+        ),
+        const SizedBox(height: 12),
         GlassCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                t.achievements,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final crossAxisCount = constraints.maxWidth >= 760 ? 3 : 2;
-                  return GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: snapshot.achievements.length,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 0.88,
-                    ),
-                    itemBuilder: (context, index) {
-                      final item = snapshot.achievements[index];
-                      return _AchievementCard(item: item);
-                    },
-                  );
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final crossAxisCount = constraints.maxWidth >= 760 ? 3 : 2;
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: snapshot.achievements.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 0.88,
+                ),
+                itemBuilder: (context, index) {
+                  final item = snapshot.achievements[index];
+                  return _AchievementCard(item: item);
                 },
-              ),
-            ],
+              );
+            },
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
+        SectionTitle(
+          title: t.dailyChallenges,
+          subtitle: t.isEs
+              ? 'Tres acciones simples para mantener el día encaminado.'
+              : 'Three simple actions to keep the day on track.',
+        ),
+        const SizedBox(height: 12),
         GlassCard(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                t.dailyChallenges,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              ...snapshot.dailyChallenges.map(
-                    (item) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    item.done
-                        ? Icons.check_circle
-                        : Icons.radio_button_unchecked,
-                    color:
-                    item.done ? Colors.greenAccent : DetoxColors.muted,
+            children: snapshot.dailyChallenges.map(
+              (item) {
+                final done = item.done;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: SoftActionTile(
+                    icon: done ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+                    color: done ? DetoxColors.success : DetoxColors.accentSoft,
+                    title: item.title,
+                    subtitle: done
+                        ? (t.isEs ? 'Completado por hoy.' : 'Completed for today.')
+                        : (t.isEs ? 'Aún puedes hacerlo hoy.' : 'You can still complete it today.'),
+                    trailing: StatusPill(
+                      label: done ? (t.isEs ? 'Hecho' : 'Done') : (t.isEs ? 'Pendiente' : 'Pending'),
+                      color: done ? DetoxColors.success : DetoxColors.warning,
+                    ),
                   ),
-                  title: Text(item.title),
-                ),
-              ),
-            ],
+                );
+              },
+            ).toList(),
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
+        SectionTitle(
+          title: t.isEs ? 'Resumen rápido' : 'Quick summary',
+          subtitle: t.isEs
+              ? 'Las señales más útiles de tu progreso reciente.'
+              : 'The most useful signs of your recent progress.',
+        ),
+        const SizedBox(height: 12),
         GlassCard(
           child: Wrap(
             spacing: 10,
             runSpacing: 10,
             children: [
-              _PillStat(
-                label: t.sessionsCompleted,
-                value: '${snapshot.sessionsCompleted}',
-              ),
-              _PillStat(
-                label: t.suggestionsAccepted,
-                value: '${snapshot.suggestionsAccepted}',
-              ),
-              _PillStat(
-                label: t.pomodoroCycles,
-                value: '${snapshot.pomodoroCyclesCompleted}',
-              ),
+              _PillStat(label: t.sessionsCompleted, value: '${snapshot.sessionsCompleted}'),
+              _PillStat(label: t.suggestionsAccepted, value: '${snapshot.suggestionsAccepted}'),
+              _PillStat(label: t.pomodoroCycles, value: '${snapshot.pomodoroCyclesCompleted}'),
             ],
           ),
         ),
@@ -272,19 +282,19 @@ class _AchievementCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final unlocked = item.unlocked;
     final progressLabel =
-    item.goal > 0 ? '${item.progress.clamp(0, item.goal)}/${item.goal}' : null;
+        item.goal > 0 ? '${item.progress.clamp(0, item.goal)}/${item.goal}' : null;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final primary = Theme.of(context).colorScheme.primary;
     final borderColor = unlocked
         ? primary.withOpacity(0.28)
-        : Colors.white.withOpacity(0.06);
-    final background = unlocked ? primary.withOpacity(0.14) : const Color(0xFF161A20);
-    final textColor = unlocked ? Colors.white : Colors.white.withOpacity(0.70);
-    final mutedColor = unlocked
-        ? DetoxColors.muted
-        : Colors.white.withOpacity(0.48);
-    final badgeColor = unlocked
-        ? primary.withOpacity(0.16)
-        : Colors.white.withOpacity(0.06);
+        : (isDark ? Colors.white.withOpacity(0.06) : DetoxColors.lightCardBorder);
+    final background = unlocked
+        ? primary.withOpacity(isDark ? 0.16 : 0.10)
+        : (isDark ? Colors.white.withOpacity(0.035) : const Color(0xFFF8FAFF));
+    final textColor = unlocked
+        ? (isDark ? Colors.white : DetoxColors.lightText)
+        : (isDark ? Colors.white.withOpacity(0.78) : DetoxColors.lightText.withOpacity(0.78));
+    final mutedColor = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
 
     Widget content = Container(
       padding: const EdgeInsets.all(14),
@@ -303,7 +313,9 @@ class _AchievementCard extends StatelessWidget {
                 height: 44,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: badgeColor,
+                  color: unlocked
+                      ? primary.withOpacity(0.16)
+                      : (isDark ? Colors.white.withOpacity(0.06) : Colors.white),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Text(item.icon, style: const TextStyle(fontSize: 24)),
@@ -344,9 +356,9 @@ class _AchievementCard extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: item.ratio,
                 minHeight: 8,
-                backgroundColor: Colors.white.withOpacity(0.06),
+                backgroundColor: isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFE6EEFF),
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  unlocked ? DetoxColors.accentSoft : Colors.white38,
+                  unlocked ? DetoxColors.accentSoft : mutedColor,
                 ),
               ),
             ),
@@ -380,39 +392,6 @@ class _AchievementCard extends StatelessWidget {
     }
 
     return content;
-  }
-}
-
-class _BigMetric extends StatelessWidget {
-  const _BigMetric({required this.icon, required this.value, required this.label});
-  final IconData icon;
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: DetoxColors.accentSoft),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: Theme.of(context)
-                .textTheme
-                .headlineSmall
-                ?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Text(label, style: const TextStyle(color: DetoxColors.muted)),
-        ],
-      ),
-    );
   }
 }
 

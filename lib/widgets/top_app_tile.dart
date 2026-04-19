@@ -16,14 +16,19 @@ class TopAppTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final muted = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
+    final border = isDark ? Colors.white10 : DetoxColors.lightCardBorder;
+    final background = isDark ? Colors.white.withOpacity(0.04) : const Color(0xFFF8FAFF);
+
     return RepaintBoundary(
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
-          color: Colors.white.withOpacity(0.04),
-          border: Border.all(color: Colors.white10),
+          color: background,
+          border: Border.all(color: border),
         ),
         child: Row(
           children: [
@@ -44,7 +49,7 @@ class TopAppTile extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: DetoxColors.accent,
                       shape: BoxShape.circle,
-                      border: Border.all(color: DetoxColors.surface, width: 2),
+                      border: Border.all(color: Theme.of(context).colorScheme.surface, width: 2),
                     ),
                     alignment: Alignment.center,
                     child: Text(
@@ -71,7 +76,7 @@ class TopAppTile extends StatelessWidget {
                     '${entry.minutes} min today',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: DetoxColors.muted),
+                    style: TextStyle(color: muted),
                   ),
                 ],
               ),

@@ -5,6 +5,7 @@ import '../models/app_limit.dart';
 import '../models/automation_rule.dart';
 import '../theme/app_theme.dart';
 import '../services/storage_service.dart';
+import '../widgets/ui_kit.dart';
 
 class AutomationSettingsScreen extends StatefulWidget {
   const AutomationSettingsScreen({super.key});
@@ -17,7 +18,6 @@ class _AutomationSettingsScreenState extends State<AutomationSettingsScreen> {
   final StorageService _storage = StorageService();
   List<AutomationRule> _rules = const [];
   List<AppLimit> _appLimits = const [];
-  bool _strictMode = false;
   bool _loading = true;
 
   @override
@@ -29,12 +29,10 @@ class _AutomationSettingsScreenState extends State<AutomationSettingsScreen> {
   Future<void> _load() async {
     final rules = await _storage.loadAutomationRules();
     final limits = await _storage.loadAppLimits();
-    final strict = await _storage.loadStrictModeEnabled();
     if (!mounted) return;
     setState(() {
       _rules = rules;
       _appLimits = limits;
-      _strictMode = strict;
       _loading = false;
     });
   }
@@ -70,46 +68,54 @@ class _AutomationSettingsScreenState extends State<AutomationSettingsScreen> {
   Widget build(BuildContext context) {
     final t = AppStrings.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(t.automationTitle)),
+      appBar: AppBar(title: Text(t.isEs ? 'Horarios de Detox' : 'Detox schedules')),
       backgroundColor: Colors.transparent,
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                Text(t.automationSubtitle, style: const TextStyle(color: DetoxColors.muted)),
-                const SizedBox(height: 14),
-                GlassCard(
-                  child: SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: _strictMode,
-                    onChanged: (value) async {
-                      setState(() => _strictMode = value);
-                      await _storage.saveStrictModeEnabled(value);
-                    },
-                    title: Text(t.hardModeGlobal),
-                    subtitle: Text(t.hardModeGlobalSubtitle, style: const TextStyle(color: DetoxColors.muted)),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                GlassCard(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(t.smartPresets, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    Text(t.normalSchedulesBody, style: const TextStyle(color: DetoxColors.muted)),
+      body: DetoxBackground(
+        child: SafeArea(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : ListView(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                  children: [
+                    AppPageHeader(
+                      eyebrow: t.isEs ? 'Horarios de Detox' : 'Detox schedules',
+                      title: t.isEs ? 'Programa sesiones automáticas de Detox' : 'Schedule automatic Detox sessions',
+                      subtitle: t.isEs
+                          ? 'Úsalo como alternativa a las zonas: crea horarios y presets de apps para activar Detox en ciertos momentos del día.'
+                          : 'Use it as an alternative to zones: create schedules and app presets to activate Detox at specific times of day.',
+                      icon: Icons.schedule_rounded,
+                    ),
+                    const SizedBox(height: 16),
+                    SectionTitle(
+                      title: t.isEs ? 'Presets rápidos' : 'Quick presets',
+                      subtitle: t.isEs
+                          ? 'Atajos para crear horarios útiles en pocos toques.'
+                          : 'Shortcuts to create useful schedules in just a few taps.',
+                    ),
                     const SizedBox(height: 12),
-                    Wrap(spacing: 8, runSpacing: 8, children: [
-                      FilledButton.tonal(onPressed: () => _saveRules([..._rules, _socialPreset()]), child: Text(t.addSocialPreset)),
-                      FilledButton.tonal(onPressed: () => _saveRules([..._rules, _nightPreset()]), child: Text(t.addEntertainmentPreset)),
-                    ])
-                  ]),
-                ),
-                const SizedBox(height: 14),
-                GlassCard(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [
-                      Expanded(child: Text(t.scheduleRules, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold))),
-                      IconButton(
+                    GlassCard(
+                      child: Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          FilledButton.tonal(
+                            onPressed: () => _saveRules([..._rules, _socialPreset()]),
+                            child: Text(t.addSocialPreset),
+                          ),
+                          FilledButton.tonal(
+                            onPressed: () => _saveRules([..._rules, _nightPreset()]),
+                            child: Text(t.addEntertainmentPreset),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SectionTitle(
+                      title: t.isEs ? 'Horarios activos' : 'Active schedules',
+                      subtitle: t.isEs
+                          ? 'Bloqueos programados que se activan solos durante el día.'
+                          : 'Scheduled blocks that turn on automatically during the day.',
+                      trailing: IconButton(
                         onPressed: () async {
                           final created = await showModalBottomSheet<AutomationRule>(
                             context: context,
@@ -123,50 +129,127 @@ class _AutomationSettingsScreenState extends State<AutomationSettingsScreen> {
                           }
                         },
                         icon: const Icon(Icons.add),
-                      )
-                    ]),
-                    const SizedBox(height: 8),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     if (_rules.isEmpty)
-                      Text(t.noSchedulesYet, style: const TextStyle(color: DetoxColors.muted))
+                      GlassCard(
+                        child: Text(
+                          t.noSchedulesYet,
+                          style: const TextStyle(color: DetoxColors.muted),
+                        ),
+                      )
                     else
-                      ..._rules.map((rule) => Column(children: [
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(rule.name),
-                          subtitle: Text('${_format(rule.startMinuteOfDay)} - ${_format(rule.endMinuteOfDay)} • ${rule.onlyInsideZone ? t.zoneAndSchedule : t.scheduleOnly} • ${rule.strictMode ? t.strictModeLabel : t.normalMode}', style: const TextStyle(color: DetoxColors.muted)),
-                          trailing: Switch(
-                            value: rule.enabled,
-                            onChanged: (value) => _saveRules(_rules.map((e) => e.id == rule.id ? e.copyWith(enabled: value) : e).toList()),
-                          ),
-                          onTap: () async {
-                            final updated = await showModalBottomSheet<AutomationRule>(
-                              context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Theme.of(context).colorScheme.surface,
-                              shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
-                              builder: (_) => _AutomationRuleEditor(appLimits: _appLimits, initialRule: rule),
+                      GlassCard(
+                        child: Column(
+                          children: _rules.map((rule) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(20),
+                                  color: Theme.of(context).brightness == Brightness.dark
+                                      ? Colors.white.withOpacity(0.035)
+                                      : const Color(0xFFF8FAFF),
+                                  border: Border.all(
+                                    color: Theme.of(context).brightness == Brightness.dark
+                                        ? Colors.white.withOpacity(0.06)
+                                        : DetoxColors.lightCardBorder,
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(rule.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                '${_format(rule.startMinuteOfDay)} - ${_format(rule.endMinuteOfDay)} • ${rule.onlyInsideZone ? t.zoneAndSchedule : t.scheduleOnly}',
+                                                style: const TextStyle(color: DetoxColors.muted),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                rule.strictMode ? t.strictModeLabel : t.normalMode,
+                                                style: const TextStyle(color: DetoxColors.muted),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Switch(
+                                          value: rule.enabled,
+                                          onChanged: (value) => _saveRules(
+                                            _rules.map((e) => e.id == rule.id ? e.copyWith(enabled: value) : e).toList(),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: [
+                                        StatusPill(
+                                          label: rule.strictMode ? t.strictModeLabel : t.normalMode,
+                                          icon: rule.strictMode ? Icons.lock_outline_rounded : Icons.tune_rounded,
+                                          color: rule.strictMode ? DetoxColors.warning : DetoxColors.accentSoft,
+                                        ),
+                                        StatusPill(
+                                          label: '${rule.blockedPackages.length} ${t.isEs ? 'apps' : 'apps'}',
+                                          icon: Icons.apps_rounded,
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: OutlinedButton.icon(
+                                            onPressed: () async {
+                                              final updated = await showModalBottomSheet<AutomationRule>(
+                                                context: context,
+                                                isScrollControlled: true,
+                                                backgroundColor: Theme.of(context).colorScheme.surface,
+                                                shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+                                                builder: (_) => _AutomationRuleEditor(appLimits: _appLimits, initialRule: rule),
+                                              );
+                                              if (updated != null) {
+                                                await _saveRules(_rules.map((e) => e.id == rule.id ? updated : e).toList());
+                                              }
+                                            },
+                                            icon: const Icon(Icons.edit_outlined),
+                                            label: Text(t.editSchedule),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: OutlinedButton.icon(
+                                            onPressed: () => _saveRules(_rules.where((e) => e.id != rule.id).toList()),
+                                            icon: const Icon(Icons.delete_outline),
+                                            label: Text(t.deleteText),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
                             );
-                            if (updated != null) {
-                              await _saveRules(_rules.map((e) => e.id == rule.id ? updated : e).toList());
-                            }
-                          },
+                          }).toList(),
                         ),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            onPressed: () => _saveRules(_rules.where((e) => e.id != rule.id).toList()),
-                            icon: const Icon(Icons.delete_outline),
-                            label: Text(t.deleteText),
-                          ),
-                        ),
-                        const Divider(height: 1),
-                      ])),
-                  ]),
+                      ),
+                  ],
                 ),
-              ],
-            ),
+        ),
+      ),
     );
   }
+
 
   String _format(int minuteOfDay) {
     final h = (minuteOfDay ~/ 60).toString().padLeft(2, '0');

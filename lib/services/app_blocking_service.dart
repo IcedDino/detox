@@ -169,6 +169,26 @@ class AppBlockingService {
     } catch (_) {}
   }
 
+
+  Future<void> refreshStrictMode() async {
+    if (!_isAndroid || _requests.isEmpty) return;
+    final strictMode = await _storage.getStrictMode();
+    final updated = <String, _ShieldRequest>{};
+    for (final entry in _requests.entries) {
+      updated[entry.key] = _ShieldRequest(
+        source: entry.value.source,
+        blockedPackages: entry.value.blockedPackages,
+        reason: entry.value.reason,
+        hasSponsor: entry.value.hasSponsor,
+        strictMode: strictMode,
+      );
+    }
+    _requests
+      ..clear()
+      ..addAll(updated);
+    await _syncMergedState();
+  }
+
   Future<void> syncSponsorState(bool hasSponsor) async {
     if (!_isAndroid) return;
     final strictMode = await _storage.getStrictMode();

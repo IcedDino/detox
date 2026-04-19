@@ -62,7 +62,6 @@ class FocusNotificationService {
     final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
 
-    await androidPlugin?.requestNotificationsPermission();
 
     await androidPlugin?.createNotificationChannel(
       const AndroidNotificationChannel(
@@ -92,6 +91,30 @@ class FocusNotificationService {
     );
 
     _initialized = true;
+  }
+
+
+  Future<bool> hasPermission() async {
+    if (!_isAndroid) return true;
+    await initialize();
+
+    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    final enabled = await androidPlugin?.areNotificationsEnabled();
+    return enabled ?? false;
+  }
+
+  Future<bool> requestPermission() async {
+    if (!_isAndroid) return true;
+    await initialize();
+
+    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+
+    final granted = await androidPlugin?.requestNotificationsPermission();
+    if (granted != null) return granted;
+
+    return await hasPermission();
   }
 
   Future<void> _persistResponse(NotificationResponse response) async {

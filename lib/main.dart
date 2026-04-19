@@ -83,6 +83,8 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   int _index = 0;
+  late final PageController _pageController;
+  late final List<Widget> _coreScreens;
   late bool _darkMode;
   late bool _onboardingDone;
   AuthUser? _currentUser;
@@ -96,6 +98,13 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _pageController = PageController(initialPage: _index);
+    _coreScreens = const [
+      RepaintBoundary(child: DashboardScreen(key: PageStorageKey('dashboard'))),
+      RepaintBoundary(child: FocusScreen(key: PageStorageKey('focus'))),
+      RepaintBoundary(child: HabitsScreen(key: PageStorageKey('habits'))),
+      RepaintBoundary(child: StatsScreen(key: PageStorageKey('stats'))),
+    ];
     _darkMode = widget.initialDarkMode;
     _onboardingDone = widget.onboardingDone;
     _currentUser = widget.initialUser;
@@ -124,6 +133,9 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
           _index = 0;
           _sponsorCenterQueued = false;
         });
+        if (_pageController.hasClients) {
+          _pageController.jumpToPage(0);
+        }
         return;
       }
 
@@ -135,6 +147,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _authSubscription?.cancel();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -319,6 +332,9 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
       _index = 0;
       _sponsorCenterQueued = false;
     });
+    if (_pageController.hasClients) {
+      _pageController.jumpToPage(0);
+    }
   }
 
   @override
@@ -326,23 +342,6 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     final resolvedLocale =
         _locale ?? WidgetsBinding.instance.platformDispatcher.locale;
     final t = AppStrings(resolvedLocale);
-
-    final screens = [
-      const DashboardScreen(),
-      const FocusScreen(),
-      const HabitsScreen(),
-      const StatsScreen(),
-      SettingsScreen(
-        darkMode: _darkMode,
-        onDarkModeChanged: _setDarkMode,
-        currentUser: _currentUser,
-        onSignOut: _signOut,
-        localeCode:
-        (_locale ?? WidgetsBinding.instance.platformDispatcher.locale)
-            .languageCode,
-        onLocaleChanged: _setLocale,
-      ),
-    ];
 
     Widget home;
     if (_currentUser == null) {
@@ -353,9 +352,33 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
       home = Scaffold(
         body: DetoxBackground(
           child: SafeArea(
-            child: IndexedStack(
-              index: _index,
-              children: screens,
+            child: PageView.builder(
+              controller: _pageController,
+              allowImplicitScrolling: true,
+              itemCount: 5,
+              onPageChanged: (value) {
+                if (!mounted) return;
+                setState(() => _index = value);
+              },
+              itemBuilder: (context, index) {
+                if (index < _coreScreens.length) {
+                  return _coreScreens[index];
+                }
+
+                return RepaintBoundary(
+                  child: SettingsScreen(
+                    key: const PageStorageKey('settings'),
+                    darkMode: _darkMode,
+                    onDarkModeChanged: _setDarkMode,
+                    currentUser: _currentUser,
+                    onSignOut: _signOut,
+                    localeCode:
+                        (_locale ?? WidgetsBinding.instance.platformDispatcher.locale)
+                            .languageCode,
+                    onLocaleChanged: _setLocale,
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -366,7 +389,16 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
           child: NavigationBar(
             height: 74,
             selectedIndex: _index,
-            onDestinationSelected: (value) => setState(() => _index = value),
+            onDestinationSelected: (value) {
+              setState(() => _index = value);
+              if (_pageController.hasClients) {
+                _pageController.animateToPage(
+                  value,
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeOutCubic,
+                );
+              }
+            },
             destinations: [
               NavigationDestination(
                 icon: const Icon(Icons.home_outlined),
