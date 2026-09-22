@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
@@ -11,7 +13,6 @@ import 'models/auth_user.dart';
 import 'screens/auth_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/focus_screen.dart';
-import 'screens/permission_setup_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/sponsor_screen.dart';
 import 'screens/stats_screen.dart';
@@ -139,6 +140,19 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   bool _protectedServicesRunning = false;
   bool _sponsorCenterQueued = false;
   bool _openingSponsorCenter = false;
+  bool _promptedRuntimePermissions = false;
+
+  /// Jump to the Focus tab (index 1) from anywhere in the app.
+  void goToFocus() {
+    setState(() => _index = 1);
+    if (_pageController.hasClients) {
+      _pageController.animateToPage(
+        1,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -155,6 +169,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _configureProtectedServices();
       await _runDeferredStartup();
+      _maybePromptRuntimePermissions();
     });
 
     _authSubscription = AuthService.instance.authChanges().listen((user) async {
@@ -250,7 +265,13 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     await _consumePendingNotificationAction();
     await _consumePendingBlockAction();
 
-    final onboardingDone = await StorageService().loadOnboardingDone();
+    // There is no blocking permissions screen anymore; onboarding completes
+    // as soon as the user signs in and the app takes them straight home.
+    var onboardingDone = await StorageService().loadOnboardingDone();
+    if (!onboardingDone) {
+      onboardingDone = true;
+      await StorageService().saveOnboardingDone(true);
+    }
 
     if (!mounted) return;
     setState(() {
@@ -259,6 +280,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     });
 
     await _configureProtectedServices();
+    _maybePromptRuntimePermissions();
 
     if (_currentUser != null && _onboardingDone) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -353,20 +375,26 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     setState(() => _locale = Locale(code));
   }
 
-  Future<void> _finishOnboarding() async {
-    await StorageService().saveOnboardingDone(true);
+  /// First-launch convenience: fire the native Android pop-ups for the
+  /// standard permissions (notifications, then location) with a small delay
+  /// between them so the system dialogs do not stack.
+  void _maybePromptRuntimePermissions() {
+    if (_promptedRuntimePermissions) return;
+    if (_currentUser == null) return;
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
 
-    if (!mounted) return;
-    setState(() {
-      _onboardingDone = true;
-    });
+    _promptedRuntimePermissions = true;
+    unawaited(FocusNotificationService.instance.requestPermission());
 
-    await _configureProtectedServices();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _refreshProtectedState();
-      _tryOpenQueuedSponsorCenter();
-    });
+    unawaited(Future<void>.delayed(const Duration(milliseconds: 600), () async {
+      try {
+        final permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied ||
+            permission == LocationPermission.unableToDetermine) {
+          await Geolocator.requestPermission();
+        }
+      } catch (_) {}
+    }));
   }
 
   Future<void> _handleAuthenticated(AuthUser user) async {
@@ -421,8 +449,6 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     Widget home;
     if (_currentUser == null) {
       home = AuthScreen(onAuthenticated: _handleAuthenticated);
-    } else if (!_onboardingDone) {
-      home = PermissionSetupScreen(onFinished: _finishOnboarding);
     } else {
       home = Scaffold(
         body: DetoxBackground(
@@ -437,7 +463,10 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
               },
               itemBuilder: (context, index) {
                 if (index == 0) {
-                  return const DashboardScreen(key: PageStorageKey('dashboard'));
+                  return DashboardScreen(
+                    key: const PageStorageKey('dashboard'),
+                    onStartFocus: goToFocus,
+                  );
                 }
                 if (index == 1) {
                   return FocusScreen(

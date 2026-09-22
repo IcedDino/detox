@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 class DetoxLogo extends StatelessWidget {
   const DetoxLogo({super.key, this.size = 56, this.showLabel = false});
 
@@ -10,32 +12,31 @@ class DetoxLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     final logo = Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(size * 0.28),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x55256AF4),
-            blurRadius: 24,
-            spreadRadius: 1,
-          ),
-        ],
+        border: Border.all(
+          color: isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder,
+        ),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(size * 0.28),
         child: Image.asset(
           _logoPath,
           fit: BoxFit.cover,
+          opacity: const AlwaysStoppedAnimation(0.92),
           errorBuilder: (context, error, stackTrace) {
             return Container(
-              color: const Color(0xFF081223),
+              color: isDark ? DetoxColors.card : DetoxColors.lightCard,
               alignment: Alignment.center,
               child: Icon(
                 Icons.shield_rounded,
                 size: size * 0.5,
-                color: const Color(0xFF7DDCFF),
+                color: isDark ? DetoxColors.accent : DetoxColors.accentDeep,
               ),
             );
           },
@@ -45,29 +46,22 @@ class DetoxLogo extends StatelessWidget {
 
     if (!showLabel) return logo;
 
-    return Row(
+    return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         logo,
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Detox',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.2,
-                  ),
-            ),
-            Text(
-              'focus · block · control',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: const Color(0xFF8A9BB0),
-                  ),
-            ),
-          ],
+        const SizedBox(height: 12),
+        Text(
+          'Detox',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          'focus · block · control',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: isDark ? DetoxColors.muted : DetoxColors.lightMuted,
+              ),
         ),
       ],
     );

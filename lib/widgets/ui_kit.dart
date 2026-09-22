@@ -2,75 +2,50 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 
-/// Page header with eyebrow, title, subtitle and a rounded icon.
+/// Page header: eyebrow + title + subtitle, left aligned, no icon container.
 class AppPageHeader extends StatelessWidget {
   const AppPageHeader({
     super.key,
     required this.eyebrow,
     required this.title,
     required this.subtitle,
-    required this.icon,
+    this.icon,
   });
 
   final String eyebrow;
   final String title;
   final String subtitle;
-  final IconData icon;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 52,
-          height: 52,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [DetoxColors.accent, DetoxColors.accentSoft],
-            ),
-          ),
-          child: Icon(icon, color: Colors.white, size: 26),
+        Text(
+          eyebrow.toUpperCase(),
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: DetoxColors.accent,
+                letterSpacing: 1.2,
+              ),
         ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                eyebrow.toUpperCase(),
-                style: const TextStyle(
-                  color: DetoxColors.accent,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.2,
-                ),
+        const SizedBox(height: 6),
+        Text(title, style: Theme.of(context).textTheme.headlineMedium),
+        const SizedBox(height: 8),
+        Text(
+          subtitle,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? DetoxColors.muted
+                    : DetoxColors.lightMuted,
               ),
-              const SizedBox(height: 4),
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      height: 1.15,
-                    ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                subtitle,
-                style: const TextStyle(color: DetoxColors.muted, height: 1.3),
-              ),
-            ],
-          ),
         ),
       ],
     );
   }
 }
 
-/// Section title with an optional subtitle.
+/// Section title with an optional subtitle and optional trailing widget.
 class SectionTitle extends StatelessWidget {
   const SectionTitle({super.key, required this.title, this.subtitle, this.trailing});
 
@@ -80,6 +55,10 @@ class SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final muted = Theme.of(context).brightness == Brightness.dark
+        ? DetoxColors.muted
+        : DetoxColors.lightMuted;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -87,17 +66,12 @@ class SectionTitle extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-              ),
+              Text(title, style: Theme.of(context).textTheme.titleLarge),
               if (subtitle != null) ...[
                 const SizedBox(height: 4),
                 Text(
                   subtitle!,
-                  style: const TextStyle(color: DetoxColors.muted, height: 1.3),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
                 ),
               ],
             ],
@@ -112,7 +86,8 @@ class SectionTitle extends StatelessWidget {
   }
 }
 
-/// Small rounded status chip with an optional icon and semantic color.
+/// Semantic status chip. Reserve it for live states (session active, shield
+/// active, sponsor pending) — never for decoration.
 class StatusPill extends StatelessWidget {
   const StatusPill({
     super.key,
@@ -127,13 +102,17 @@ class StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveColor = color ?? DetoxColors.accent;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final effectiveColor = color ??
+        (isDark ? DetoxColors.accent : DetoxColors.accent);
+    final muted = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        color: effectiveColor.withOpacity(0.14),
-        border: Border.all(color: effectiveColor.withOpacity(0.35)),
+        borderRadius: BorderRadius.circular(detoxRadius),
+        color: effectiveColor.withOpacity(0.12),
+        border: Border.all(color: effectiveColor.withOpacity(0.30)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -147,40 +126,46 @@ class StatusPill extends StatelessWidget {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: effectiveColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: effectiveColor,
+                    fontWeight: FontWeight.w600,
+                  ),
             ),
           ),
+          // Muted color referenced for neutral pills.
+          if (effectiveColor == muted) const SizedBox.shrink(),
         ],
       ),
     );
   }
 }
 
-/// Hero card with icon, title, subtitle, optional badge and body content.
+/// Hero card: title + subtitle + optional semantic badge + body.
+/// No icon container, no stacked decoration — content carries the hierarchy.
 class HeroInfoCard extends StatelessWidget {
   const HeroInfoCard({
     super.key,
-    required this.icon,
     required this.title,
     required this.subtitle,
     this.badge,
     this.action,
+    this.icon,
     required this.child,
   });
 
-  final IconData icon;
   final String title;
   final String subtitle;
   final StatusPill? badge;
   final Widget? action;
+  final IconData? icon;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
+    final muted = Theme.of(context).brightness == Brightness.dark
+        ? DetoxColors.muted
+        : DetoxColors.lightMuted;
+
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -188,35 +173,15 @@ class HeroInfoCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  color: DetoxColors.accent.withOpacity(0.16),
-                  border: Border.all(color: DetoxColors.accent.withOpacity(0.35)),
-                ),
-                child: Icon(icon, color: DetoxColors.accent, size: 22),
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                    ),
+                    Text(title, style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: const TextStyle(
-                        color: DetoxColors.muted,
-                        fontSize: 12.5,
-                        height: 1.3,
-                      ),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
                     ),
                   ],
                 ),
@@ -231,7 +196,7 @@ class HeroInfoCard extends StatelessWidget {
             const SizedBox(height: 10),
             Align(alignment: Alignment.centerRight, child: action!),
           ],
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           child,
         ],
       ),
@@ -239,50 +204,54 @@ class HeroInfoCard extends StatelessWidget {
   }
 }
 
-/// Compact stat tile: big value on top, label and helper text below.
+/// Compact stat tile: value, label, optional helper. Border-minimal.
 class FriendlyStatTile extends StatelessWidget {
   const FriendlyStatTile({
     super.key,
     required this.label,
     required this.value,
     required this.helper,
-    required this.icon,
+    this.icon,
     this.color,
   });
 
   final String label;
   final String value;
   final String helper;
-  final IconData icon;
+  final IconData? icon;
   final Color? color;
 
   @override
   Widget build(BuildContext context) {
-    final effectiveColor = color ?? DetoxColors.accent;
+    final muted = Theme.of(context).brightness == Brightness.dark
+        ? DetoxColors.muted
+        : DetoxColors.lightMuted;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        color: effectiveColor.withOpacity(0.08),
-        border: Border.all(color: effectiveColor.withOpacity(0.25)),
+        borderRadius: BorderRadius.circular(detoxRadius),
+        border: Border.all(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? DetoxColors.cardBorder
+              : DetoxColors.lightCardBorder,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 16, color: effectiveColor),
-              const SizedBox(width: 6),
+              if (icon != null) ...[
+                Icon(icon, size: 14, color: color ?? muted),
+                const SizedBox(width: 6),
+              ],
               Expanded(
                 child: Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: DetoxColors.muted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(color: muted),
                 ),
               ),
             ],
@@ -292,16 +261,14 @@ class FriendlyStatTile extends StatelessWidget {
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+            style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 2),
           Text(
             helper,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: DetoxColors.muted, fontSize: 11.5),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(color: muted),
           ),
         ],
       ),
@@ -330,53 +297,36 @@ class SoftActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveColor = color ?? DetoxColors.accent;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final muted = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
+    final effectiveColor = color ?? (isDark ? DetoxColors.accent : DetoxColors.accent);
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(detoxRadius),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            color: Theme.of(context).brightness == Brightness.dark
-                ? Colors.white.withOpacity(0.04)
-                : Colors.white.withOpacity(0.7),
+            borderRadius: BorderRadius.circular(detoxRadius),
             border: Border.all(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? Colors.white10
-                  : DetoxColors.lightCardBorder,
+              color: isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder,
             ),
           ),
           child: Row(
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(13),
-                  color: effectiveColor.withOpacity(0.14),
-                ),
-                child: Icon(icon, color: effectiveColor, size: 21),
-              ),
+              Icon(icon, color: effectiveColor, size: 22),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
+                    Text(title, style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: const TextStyle(
-                        color: DetoxColors.muted,
-                        fontSize: 12.5,
-                        height: 1.3,
-                      ),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
                     ),
                   ],
                 ),

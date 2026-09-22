@@ -7,12 +7,15 @@ import '../services/storage_service.dart';
 import '../services/usage_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_icon_badge.dart';
-import '../widgets/detox_logo.dart';
 import '../widgets/top_app_tile.dart';
-import '../widgets/ui_kit.dart';
 
+/// "Today" screen. Answers one question: how am I doing?
+/// One hero number, one primary action, three supporting apps.
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  const DashboardScreen({super.key, this.onStartFocus});
+
+  /// Called when the user taps the single primary action.
+  final VoidCallback? onStartFocus;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -90,11 +93,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         : 'You already passed your goal today. It may help to protect the apps that distract you most.';
   }
 
-  String _progressLabel(AppStrings t, double progress) {
-    final pct = (progress * 100).round();
-    return t.isEs ? '$pct% de tu meta diaria' : '$pct% of your daily goal';
-  }
-
   @override
   bool get wantKeepAlive => true;
 
@@ -102,6 +100,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget build(BuildContext context) {
     super.build(context);
     final t = AppStrings.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final muted = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -114,210 +114,99 @@ class _DashboardScreenState extends State<DashboardScreen>
           final data = snapshot.data;
           final summary = data?.summary;
           final limit = data?.dailyLimit ?? 180;
-          final topApp = (summary != null && summary.topApps.isNotEmpty)
-              ? summary.topApps.first
-              : null;
+          final topApps = (summary?.topApps ?? const []).take(3).toList();
           final totalMinutes = summary?.totalMinutes ?? 0;
-          final percent = limit == 0
-              ? 0.0
-              : (totalMinutes / limit).clamp(0.0, 1.3);
+          final remaining = (limit - totalMinutes).clamp(0, limit);
+          final percent = limit == 0 ? 0.0 : (totalMinutes / limit).clamp(0.0, 1.0);
 
           return ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
             children: [
-              Row(
-                children: [
-                  const DetoxLogo(size: 34),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Detox',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.2,
-                        ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: () => setState(() => _future = _load()),
-                    icon: const Icon(Icons.refresh_rounded),
-                    style: IconButton.styleFrom(
-                      backgroundColor:
-                          Theme.of(context).brightness == Brightness.dark
-                              ? Colors.white.withOpacity(0.06)
-                              : Colors.white.withOpacity(0.82),
+              // ── Hero: the single number that matters ──
+              Text(
+                t.isEs ? 'HOY' : 'TODAY',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: muted,
+                      letterSpacing: 1.4,
                     ),
-                  ),
-                ],
               ),
-              const SizedBox(height: 18),
-              HeroInfoCard(
-                icon: Icons.timelapse_rounded,
-                title: t.isEs ? 'Resumen de hoy' : 'Today overview',
-                subtitle: _friendlyUsageLabel(t, totalMinutes, limit),
-                badge: summary != null && !summary.fromRealUsage
-                    ? StatusPill(
-                        label: t.demoDataNotice,
-                        icon: Icons.info_outline_rounded,
+              const SizedBox(height: 8),
+              Text(
+                summary == null ? '--' : _formatMinutes(totalMinutes),
+                style: Theme.of(context).textTheme.displayLarge,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                t.isEs
+                    ? 'de ${_formatMinutes(limit)} de tu meta diaria'
+                    : 'of your ${_formatMinutes(limit)} daily goal',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: muted),
+              ),
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: percent,
+                  minHeight: 6,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                _friendlyUsageLabel(t, totalMinutes, limit),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
+              ),
+              if (summary != null && !summary.fromRealUsage) ...[
+                const SizedBox(height: 10),
+                Text(
+                  t.demoDataNotice,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: DetoxColors.warning,
-                      )
-                    : null,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          summary == null ? '--' : _formatMinutes(totalMinutes),
-                          style: Theme.of(context)
-                              .textTheme
-                              .displaySmall
-                              ?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                height: 0.95,
-                              ),
-                        ),
-                        const SizedBox(width: 10),
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Text(
-                            t.isEs ? 'usados hoy' : 'used today',
-                            style: const TextStyle(color: DetoxColors.muted),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    LinearProgressIndicator(
-                      value: percent,
-                      minHeight: 12,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      '${_formatMinutes(limit)} · ${_progressLabel(t, percent)}',
-                      style: const TextStyle(color: DetoxColors.muted),
-                    ),
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: FriendlyStatTile(
-                            label: t.pickups,
-                            value: '${summary?.pickups ?? 0}',
-                            helper: t.isEs
-                                ? 'desbloqueos estimados'
-                                : 'estimated unlocks',
-                            icon: Icons.touch_app_rounded,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FriendlyStatTile(
-                            label: t.topApp,
-                            value: topApp?.appName ?? '—',
-                            helper: topApp == null
-                                ? (t.isEs
-                                    ? 'sin datos todavía'
-                                    : 'no data yet')
-                                : t.minToday(topApp.minutes),
-                            icon: Icons.star_outline_rounded,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                      ),
                 ),
+              ],
+
+              const SizedBox(height: 24),
+
+              // ── The one primary action ──
+              FilledButton.icon(
+                onPressed: widget.onStartFocus,
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: Text(t.isEs ? 'Empezar enfoque' : 'Start focus'),
               ),
-              const SizedBox(height: 16),
-              if (topApp != null)
-                GlassCard(
-                  child: Row(
-                    children: [
-                      AppIconBadge(
-                        packageName: topApp.packageName,
-                        iconBytes: topApp.iconBytes,
-                        size: 56,
-                        borderRadius: 16,
-                        fallbackIcon: Icons.auto_graph_outlined,
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              t.isEs
-                                  ? 'Tu app más demandante'
-                                  : 'Your most demanding app',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              topApp.appName,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleLarge
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              t.isEs
-                                  ? 'Lleva ${topApp.minutes} minutos hoy. Es una buena candidata para entrar en bloqueo.'
-                                  : 'It has ${topApp.minutes} minutes today. It is a strong candidate for blocking.',
-                              style: const TextStyle(
-                                color: DetoxColors.muted,
-                                height: 1.3,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              const SizedBox(height: 16),
-              SectionTitle(title: t.topAppsToday),
+
+              const SizedBox(height: 28),
+
+              // ── Supporting data: top 3 apps ──
+              Text(
+                t.topAppsToday,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               const SizedBox(height: 12),
               if (summary == null || summary.topApps.isEmpty)
-                GlassCard(
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(detoxRadius),
+                    border: Border.all(
+                      color: isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder,
+                    ),
+                  ),
                   child: Text(
                     t.noAppUsageYet,
-                    style: const TextStyle(color: DetoxColors.muted),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
                   ),
                 )
               else
-                GlassCard(
-                  child: Column(
-                    children: summary.topApps
-                        .take(5)
-                        .toList()
-                        .asMap()
-                        .entries
-                        .map(
-                          (entry) => Padding(
-                            padding: EdgeInsets.only(
-                              bottom: entry.key == 4 ? 0 : 10,
-                            ),
-                            child: TopAppTile(
-                              entry: entry.value,
-                              index: entry.key,
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ),
+                ...topApps.asMap().entries.map(
+                      (entry) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: TopAppTile(
+                          entry: entry.value,
+                          index: entry.key,
+                        ),
+                      ),
+                    ),
             ],
           );
         },

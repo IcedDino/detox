@@ -5,6 +5,7 @@ import '../models/progress_models.dart';
 import '../services/focus_session_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/blocking_permission_gate.dart';
 import '../widgets/ui_kit.dart';
 
 class HabitsScreen extends StatefulWidget {
@@ -111,6 +112,8 @@ class _HabitsScreenState extends State<HabitsScreen> with AutomaticKeepAliveClie
   }
 
   Future<void> _startProgressDay() async {
+    final allowed = await ensureBlockingPermissions(context);
+    if (!allowed || !mounted) return;
     await _storage.markProgressStartedToday();
     await FocusSessionService.instance.startQuickFocusHour();
     if (!mounted) return;

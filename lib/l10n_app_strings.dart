@@ -23,9 +23,9 @@ class AppStrings {
   String get signIn => isEs ? 'Iniciar sesión' : 'Sign in';
   String get createAccount => isEs ? 'Crear cuenta' : 'Create account';
   String get welcomeBack => isEs ? 'Bienvenido de vuelta' : 'Welcome back';
-  String get signInSubtitle => isEs ? 'Inicia sesión con el correo que ya vinculaste a Detox.' : 'Sign in with the email you already linked to Detox.';
-  String get createAccountTitle => isEs ? 'Crea tu cuenta Detox' : 'Create your Detox account';
-  String get createAccountSubtitle => isEs ? 'Empieza con correo y sincroniza tu progreso entre dispositivos.' : 'Start with email, then link your focus progress across devices.';
+  String get signInSubtitle => isEs ? 'Continúa donde lo dejaste.' : 'Pick up where you left off.';
+  String get createAccountTitle => isEs ? 'Crear cuenta' : 'Create account';
+  String get createAccountSubtitle => isEs ? 'Toma un minuto.' : 'Takes a minute.';
   String get name => isEs ? 'Nombre' : 'Name';
   String get email => isEs ? 'Correo' : 'Email';
   String get password => isEs ? 'Contraseña' : 'Password';
@@ -105,7 +105,7 @@ class AppStrings {
   String get concentrationZones => isEs ? 'Zonas de concentración' : 'Concentration zones';
 
   String get orUseEmail => isEs ? 'O usa correo' : 'Or use email';
-  String get useEmailFirst => isEs ? 'Accede con tu correo' : 'Sign in with your email';
+  String get useEmailFirst => isEs ? 'Enfoque sin distracciones' : 'Focus without distractions';
   String get otherWaysToContinue => isEs ? 'Otras formas de acceso' : 'Other ways to continue';
   String get noAccountYet => isEs ? '¿No tienes cuenta aún?' : "Don't have an account yet?";
   String get alreadyHaveAccount => isEs ? '¿Ya tienes cuenta?' : 'Already have an account?';
