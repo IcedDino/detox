@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 class CreateAccountScreen extends StatefulWidget {
   const CreateAccountScreen({super.key});
 
@@ -190,7 +192,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
               height: 4,
               decoration: BoxDecoration(
                 color: i <= _currentPage ? accentBlue : cardColor,
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.circular(detoxRadiusPill),
               ),
             ),
           );
@@ -229,7 +231,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             decoration: BoxDecoration(
               color: cardColor,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(detoxRadius),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -293,7 +295,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                     horizontal: 20, vertical: 16),
                 decoration: BoxDecoration(
                   color: selected ? accentBlue.withOpacity(0.15) : cardColor,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(detoxRadius),
                   border: Border.all(
                     color: selected ? accentBlue : Colors.transparent,
                     width: 1.5,
@@ -387,7 +389,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             backgroundColor: accentBlue,
             disabledBackgroundColor: cardColor,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(detoxRadius),
             ),
           ),
           child: Text(
@@ -440,11 +442,11 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         filled: true,
         fillColor: cardColor,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(detoxRadius),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(detoxRadius),
           borderSide: const BorderSide(color: accentBlue, width: 1.5),
         ),
       ),

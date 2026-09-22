@@ -121,7 +121,7 @@ class _AutomationSettingsScreenState extends State<AutomationSettingsScreen> {
                             context: context,
                             isScrollControlled: true,
                             backgroundColor: Theme.of(context).colorScheme.surface,
-                            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+                            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(detoxRadius))),
                             builder: (_) => _AutomationRuleEditor(appLimits: _appLimits),
                           );
                           if (created != null) {
@@ -148,13 +148,13 @@ class _AutomationSettingsScreenState extends State<AutomationSettingsScreen> {
                               child: Container(
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(20),
+                                  borderRadius: BorderRadius.circular(detoxRadius),
                                   color: Theme.of(context).brightness == Brightness.dark
-                                      ? Colors.white.withOpacity(0.035)
-                                      : const Color(0xFFF8FAFF),
+                                      ? DetoxColors.cardSubtle
+                                      : DetoxColors.lightCardSubtle,
                                   border: Border.all(
                                     color: Theme.of(context).brightness == Brightness.dark
-                                        ? Colors.white.withOpacity(0.06)
+                                        ? DetoxColors.cardBorder
                                         : DetoxColors.lightCardBorder,
                                   ),
                                 ),
@@ -167,7 +167,7 @@ class _AutomationSettingsScreenState extends State<AutomationSettingsScreen> {
                                           child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              Text(rule.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                              Text(rule.name, style: const TextStyle(fontWeight: detoxWeightEmphasis)),
                                               const SizedBox(height: 4),
                                               Text(
                                                 '${_format(rule.startMinuteOfDay)} - ${_format(rule.endMinuteOfDay)} • ${rule.onlyInsideZone ? t.zoneAndSchedule : t.scheduleOnly}',
@@ -215,7 +215,7 @@ class _AutomationSettingsScreenState extends State<AutomationSettingsScreen> {
                                                 context: context,
                                                 isScrollControlled: true,
                                                 backgroundColor: Theme.of(context).colorScheme.surface,
-                                                shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+                                                shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(detoxRadius))),
                                                 builder: (_) => _AutomationRuleEditor(appLimits: _appLimits, initialRule: rule),
                                               );
                                               if (updated != null) {

@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../l10n_app_strings.dart';
+
 class SponsorRequest {
   const SponsorRequest({
     required this.id,
@@ -31,18 +33,20 @@ class SponsorRequest {
   bool get isExpired => expiresAt != null && DateTime.now().isAfter(expiresAt!);
   bool get isEmailed => status == 'emailed';
   bool get isRejected => status == 'rejected';
+  /// Human label for the request type, in the language the user chose.
   String get prettyType {
+    final t = AppStrings.current;
     switch (requestType) {
       case 'settings_unlock':
-        return 'Settings changes';
+        return t.requestTypeSettingsUnlock;
       case 'zone_override':
-        return 'Zone pause';
+        return t.requestTypeZoneOverride;
       case 'shield_pause':
-        return 'App shield pause';
+        return t.requestTypeShieldPause;
       case 'unlink_sponsor':
-        return 'Sponsor unlink';
+        return t.requestTypeUnlinkSponsor;
       case 'unlink_email':
-        return 'Email unlink';
+        return t.requestTypeUnlinkEmail;
       default:
         return requestType;
     }
@@ -52,7 +56,8 @@ class SponsorRequest {
     return SponsorRequest(
       id: id,
       requesterUid: map['requesterUid'] as String? ?? '',
-      requesterName: map['requesterName'] as String? ?? 'Detox user',
+      requesterName:
+          map['requesterName'] as String? ?? AppStrings.current.defaultUserName,
       sponsorUid: map['sponsorUid'] as String? ?? '',
       requestType: map['requestType'] as String? ?? 'zone_override',
       status: map['status'] as String? ?? 'pending',

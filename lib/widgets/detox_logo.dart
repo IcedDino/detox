@@ -8,7 +8,7 @@ class DetoxLogo extends StatelessWidget {
   final double size;
   final bool showLabel;
 
-  static const String _logoPath = 'assets/images/Logo_detox.png';
+  static const String _logoPath = 'assets/images/detox_logo.png';
 
   @override
   Widget build(BuildContext context) {

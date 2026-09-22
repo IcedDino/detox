@@ -367,7 +367,7 @@ class _SettingsScreenState extends State<SettingsScreen>
             Text(
               t.accountOptions,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
+                fontWeight: detoxWeightEmphasis,
               ),
             ),
             const SizedBox(height: 14),
@@ -478,6 +478,12 @@ class _SettingsScreenState extends State<SettingsScreen>
         : ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
       children: [
+        AppPageHeader(
+          eyebrow: t.isEs ? 'Ajustes' : 'Settings',
+          title: t.settings,
+          subtitle: t.settingsPageSubtitle,
+        ),
+        const SizedBox(height: 18),
         if (widget.currentUser != null) ...[
           GestureDetector(
             onTap: _deletingAccount ? null : _openAccountActions,
@@ -490,7 +496,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     width: 46,
                     height: 46,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(detoxRadius),
                       color: DetoxColors.accent
                           .withOpacity(isDark ? 0.18 : 0.10),
                     ),
@@ -515,7 +521,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                                   .textTheme
                                   .titleLarge
                                   ?.copyWith(
-                                fontWeight: FontWeight.w800,
+                                fontWeight: detoxWeightEmphasis,
                               ),
                             ),
                             StatusPill(
@@ -673,13 +679,13 @@ class _SettingsScreenState extends State<SettingsScreen>
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(detoxRadius),
                   color: isDark
-                      ? Colors.white.withOpacity(0.035)
-                      : const Color(0xFFF8FAFF),
+                      ? DetoxColors.cardSubtle
+                      : DetoxColors.lightCardSubtle,
                   border: Border.all(
                     color: isDark
-                        ? Colors.white.withOpacity(0.06)
+                        ? DetoxColors.cardBorder
                         : DetoxColors.lightCardBorder,
                   ),
                 ),
@@ -692,7 +698,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                           .textTheme
                           .titleMedium
                           ?.copyWith(
-                        fontWeight: FontWeight.w700,
+                        fontWeight: detoxWeightEmphasis,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -759,7 +765,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontWeight: FontWeight.w700,
+                              fontWeight: detoxWeightEmphasis,
                             ),
                           ),
                         ),
@@ -779,7 +785,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       Divider(
                         height: 1,
                         color: isDark
-                            ? Colors.white.withOpacity(0.06)
+                            ? DetoxColors.cardBorder
                             : DetoxColors.lightCardBorder,
                       ),
                       const SizedBox(height: 12),
@@ -845,13 +851,13 @@ class _SettingsScreenState extends State<SettingsScreen>
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(detoxRadius),
                       color: isDark
-                          ? Colors.white.withOpacity(0.035)
-                          : const Color(0xFFF8FAFF),
+                          ? DetoxColors.cardSubtle
+                          : DetoxColors.lightCardSubtle,
                       border: Border.all(
                         color: isDark
-                            ? Colors.white.withOpacity(0.06)
+                            ? DetoxColors.cardBorder
                             : DetoxColors.lightCardBorder,
                       ),
                     ),
@@ -864,7 +870,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                               width: 42,
                               height: 42,
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(14),
+                                borderRadius: BorderRadius.circular(detoxRadius),
                                 color: (inside
                                     ? DetoxColors.success
                                     : DetoxColors.accentSoft)
@@ -888,7 +894,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                                   Text(
                                     zone.name,
                                     style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
+                                      fontWeight: detoxWeightEmphasis,
                                     ),
                                   ),
                                   const SizedBox(height: 4),
@@ -938,13 +944,13 @@ class _SettingsScreenState extends State<SettingsScreen>
                             vertical: 12,
                           ),
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(detoxRadius),
                             color: isDark
-                                ? Colors.white.withOpacity(0.035)
-                                : const Color(0xFFF8FAFF),
+                                ? DetoxColors.cardSubtle
+                                : DetoxColors.lightCardSubtle,
                             border: Border.all(
                               color: isDark
-                                  ? Colors.white.withOpacity(0.06)
+                                  ? DetoxColors.cardBorder
                                   : DetoxColors.lightCardBorder,
                             ),
                           ),
@@ -965,7 +971,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                                       ? 'Activar / desactivar'
                                       : 'Enable / disable',
                                   style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
+                                    fontWeight: detoxWeightEmphasis,
                                   ),
                                 ),
                               ),
@@ -1208,7 +1214,7 @@ class _AppPickerSheetState extends State<_AppPickerSheet> {
                     return Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        borderRadius: BorderRadius.circular(18),
+                        borderRadius: BorderRadius.circular(detoxRadius),
                         onTap: () => setState(() => _selected = app),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 160),
@@ -1217,18 +1223,18 @@ class _AppPickerSheetState extends State<_AppPickerSheet> {
                             vertical: 12,
                           ),
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(18),
+                            borderRadius: BorderRadius.circular(detoxRadius),
                             color: selected
                                 ? DetoxColors.accent.withOpacity(0.16)
                                 : (isDark
-                                ? Colors.white.withOpacity(0.035)
-                                : const Color(0xFFF8FAFF)),
+                                ? DetoxColors.cardSubtle
+                                : DetoxColors.lightCardSubtle),
                             border: Border.all(
                               color: selected
                                   ? DetoxColors.accentSoft
                                   .withOpacity(0.45)
                                   : (isDark
-                                  ? Colors.white.withOpacity(0.06)
+                                  ? DetoxColors.cardBorder
                                   : DetoxColors.lightCardBorder),
                             ),
                           ),
@@ -1248,7 +1254,7 @@ class _AppPickerSheetState extends State<_AppPickerSheet> {
                                   overflow: TextOverflow.ellipsis,
                                   style: theme.textTheme.titleMedium
                                       ?.copyWith(
-                                    fontWeight: FontWeight.w700,
+                                    fontWeight: detoxWeightEmphasis,
                                   ),
                                 ),
                               ),
@@ -1448,7 +1454,7 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
               else
                 Expanded(
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(detoxRadius),
                     child: Stack(
                       children: [
                         FlutterMap(
@@ -1510,7 +1516,7 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
                           child: DecoratedBox(
                             decoration: BoxDecoration(
                               color: Colors.black.withOpacity(0.44),
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(detoxRadius),
                             ),
                             child: Padding(
                               padding: const EdgeInsets.all(12),

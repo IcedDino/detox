@@ -116,7 +116,7 @@ class _BlockingPermissionsDialogState extends State<_BlockingPermissionsDialog>
     final mutedColor = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
 
     return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(detoxRadius)),
       title: Text(t.isEs ? 'Activa 2 permisos' : 'Enable 2 permissions'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -210,7 +210,7 @@ class _BlockingPermissionsDialogState extends State<_BlockingPermissionsDialog>
                   : (t.isEs ? 'Pendiente' : 'Pending')),
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: color,
-                fontWeight: FontWeight.w700,
+                fontWeight: detoxWeightEmphasis,
               ),
         ),
       ],

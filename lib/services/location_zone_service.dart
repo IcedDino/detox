@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../l10n_app_strings.dart';
 import '../models/app_limit.dart';
 import '../models/concentration_zone.dart';
 import 'app_blocking_service.dart';
@@ -306,8 +307,8 @@ class LocationZoneService {
           insideZone: true,
           zoneName: matched.name,
           message: packages.isEmpty
-              ? 'You are in ${matched.name}, but no apps are selected for this zone.'
-              : 'Educational focus is active in ${matched.name}.',
+              ? AppStrings.current.zoneNoAppsSelected(matched.name)
+              : AppStrings.current.zoneFocusActive(matched.name),
         ));
       } else {
         if (_activeShieldKey != null) {
@@ -315,17 +316,17 @@ class LocationZoneService {
           _activeShieldKey = null;
         }
         _lastMatchedZoneId = null;
-        _emit(const ZoneState(
+        _emit(ZoneState(
           enabled: true,
           insideZone: false,
-          message: 'You are outside concentration zones.',
+          message: AppStrings.current.zoneOutsideAll,
         ));
       }
     } catch (_) {
-      _emit(const ZoneState(
+      _emit(ZoneState(
         enabled: false,
         insideZone: false,
-        message: 'Zone automation was paused after an error.',
+        message: AppStrings.current.zoneAutomationPaused,
       ));
       await AppBlockingService.instance.stopShield(source: 'zone');
       _activeShieldKey = null;

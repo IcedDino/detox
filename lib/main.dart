@@ -13,6 +13,7 @@ import 'models/auth_user.dart';
 import 'screens/auth_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/focus_screen.dart';
+import 'screens/habits_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/sponsor_screen.dart';
 import 'screens/stats_screen.dart';
@@ -65,6 +66,20 @@ class _DetoxBootstrapAppState extends State<DetoxBootstrapApp> {
     final prefs = await SharedPreferences.getInstance();
     final darkMode = prefs.getBool('dark_mode') ?? true;
     final localeCode = prefs.getString('locale_code');
+
+    // Services and notifications have no BuildContext, so record the active
+    // language here before anything else renders user-facing text. The device
+    // fallback mirrors MaterialApp's own resolution over supportedLocales.
+    final deviceLanguage =
+        WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+    final resolvedLanguage =
+        const ['en', 'es'].contains(deviceLanguage) ? deviceLanguage : 'es';
+    AppLocale.set(
+      Locale(
+        localeCode != null && localeCode.isNotEmpty ? localeCode : resolvedLanguage,
+      ),
+    );
+
     final onboardingDone = await StorageService().loadOnboardingDone();
     final currentUser = await AuthService.instance.getCurrentUser();
 
@@ -371,6 +386,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   Future<void> _setLocale(String code) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('locale_code', code);
+    AppLocale.setLanguageCode(code);
     if (!mounted) return;
     setState(() => _locale = Locale(code));
   }
@@ -456,7 +472,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
             child: PageView.builder(
               controller: _pageController,
               allowImplicitScrolling: false,
-              itemCount: 4,
+              itemCount: 5,
               onPageChanged: (value) {
                 if (!mounted) return;
                 setState(() => _index = value);
@@ -475,6 +491,9 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
                   );
                 }
                 if (index == 2) {
+                  return const HabitsScreen(key: PageStorageKey('progress'));
+                }
+                if (index == 3) {
                   return const StatsScreen(key: PageStorageKey('stats'));
                 }
 
@@ -495,7 +514,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
         ),
         bottomNavigationBar: ClipRRect(
           borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(28),
+            top: Radius.circular(detoxRadius),
           ),
           child: NavigationBar(
             height: 74,
@@ -520,6 +539,11 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
                 icon: const Icon(Icons.timer_outlined),
                 selectedIcon: const Icon(Icons.timer),
                 label: t.focus,
+              ),
+              NavigationDestination(
+                icon: const Icon(Icons.local_fire_department_outlined),
+                selectedIcon: const Icon(Icons.local_fire_department),
+                label: t.habits,
               ),
               NavigationDestination(
                 icon: const Icon(Icons.bar_chart_outlined),

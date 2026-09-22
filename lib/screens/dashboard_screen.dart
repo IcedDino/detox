@@ -8,6 +8,7 @@ import '../services/usage_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_icon_badge.dart';
 import '../widgets/top_app_tile.dart';
+import '../widgets/ui_kit.dart';
 
 /// "Today" screen. Answers one question: how am I doing?
 /// One hero number, one primary action, three supporting apps.
@@ -145,7 +146,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
               const SizedBox(height: 16),
               ClipRRect(
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: BorderRadius.circular(detoxRadiusPill),
                 child: LinearProgressIndicator(
                   value: percent,
                   minHeight: 6,
@@ -159,10 +160,39 @@ class _DashboardScreenState extends State<DashboardScreen>
               if (summary != null && !summary.fromRealUsage) ...[
                 const SizedBox(height: 10),
                 Text(
-                  t.demoDataNotice,
+                  t.usageUnavailableNotice,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: DetoxColors.warning,
                       ),
+                ),
+              ],
+
+              if (summary != null) ...[
+                const SizedBox(height: 24),
+
+                // ── Supporting metrics: estimated pickups + top app ──
+                Row(
+                  children: [
+                    Expanded(
+                      child: FriendlyStatTile(
+                        label: t.estimatedUnlocks,
+                        value: '${summary.pickups}',
+                        helper: t.today,
+                        icon: Icons.touch_app_outlined,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FriendlyStatTile(
+                        label: t.topApp,
+                        value: topApps.isEmpty ? '—' : topApps.first.appName,
+                        helper: topApps.isEmpty
+                            ? t.noDataYet
+                            : t.minToday(topApps.first.minutes),
+                        icon: Icons.star_outline_rounded,
+                      ),
+                    ),
+                  ],
                 ),
               ],
 

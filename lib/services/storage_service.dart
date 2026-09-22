@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n_app_strings.dart';
 import '../models/app_limit.dart';
 import '../models/automation_rule.dart';
 import '../models/concentration_zone.dart';
@@ -44,23 +45,26 @@ class StorageService {
   factory StorageService() => instance;
   StorageService._internal();
 
-  List<Habit> _defaultHabits() => [
-    Habit(
-      id: '1',
-      title: 'No social media before breakfast',
-      targetDescription: 'Start the day without mindless scrolling',
-    ),
-    Habit(
-      id: '2',
-      title: 'One 25-minute focus session',
-      targetDescription: 'Finish one distraction-free session',
-    ),
-    Habit(
-      id: '3',
-      title: 'Keep screen time under 3 hours',
-      targetDescription: 'Respect your daily limit',
-    ),
-  ];
+  List<Habit> _defaultHabits() {
+    final t = AppStrings.current;
+    return [
+      Habit(
+        id: '1',
+        title: t.habitNoSocialBeforeBreakfast,
+        targetDescription: t.habitNoSocialBeforeBreakfastTarget,
+      ),
+      Habit(
+        id: '2',
+        title: t.habitOneFocusSession,
+        targetDescription: t.habitOneFocusSessionTarget,
+      ),
+      Habit(
+        id: '3',
+        title: t.habitScreenTimeUnderThreeHours,
+        targetDescription: t.habitScreenTimeUnderThreeHoursTarget,
+      ),
+    ];
+  }
 
   List<AppLimit> _defaultAppLimits() => [
     AppLimit(appName: 'Instagram', packageName: 'com.instagram.android', minutes: 30),

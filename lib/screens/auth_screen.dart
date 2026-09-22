@@ -435,20 +435,18 @@ class _SegmentButton extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(vertical: 12),
+        // Flat selection: separation comes from surface color and border,
+        // never from a shadow.
         decoration: BoxDecoration(
           color: selected
               ? (isDark ? DetoxColors.card : Colors.white)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: (isDark ? Colors.black : DetoxColors.lightText).withOpacity(0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
+          borderRadius: BorderRadius.circular(detoxRadius),
+          border: Border.all(
+            color: selected
+                ? (isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder)
+                : Colors.transparent,
+          ),
         ),
         child: Text(
           label,

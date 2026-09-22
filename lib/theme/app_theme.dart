@@ -5,8 +5,16 @@ import 'package:flutter/material.dart';
 /// Principles:
 /// - One accent color; green/red reserved for real semantic states.
 /// - Flat surfaces: separation via space and surface color, never shadows.
-/// - Single corner radius (16) and an 8pt spacing rhythm.
-/// - Hierarchy through size and weight (max w600), never through color noise.
+/// - Single corner radius ([detoxRadius]); pills and progress tracks use
+///   [detoxRadiusPill]. Never an in-between value.
+/// - Hierarchy through size and weight ([detoxWeightEmphasis] is the ceiling),
+///   never through color noise.
+///
+/// Screen patterns (keep new screens on one of these two shapes):
+/// - Hero-first screens (Dashboard, Focus) open with the one number that
+///   matters and no page header.
+/// - Section screens (Progress, Stats, Settings, Sponsor, Automation) open with
+///   `AppPageHeader` from `widgets/ui_kit.dart`.
 class DetoxColors {
   // Dark palette (default). Calm teal-sage accent on warm charcoal neutrals.
   static const Color bg = Color(0xFF0D1210);
@@ -14,6 +22,7 @@ class DetoxColors {
   static const Color card = Color(0xFF151C19);
   static const Color surface = Color(0xFF151C19);
   static const Color cardBorder = Color(0x14FFFFFF);
+  static const Color cardSubtle = Color(0x0AFFFFFF);
   static const Color accent = Color(0xFF7FB8A4);
   static const Color accentSoft = Color(0xFFA8CFC0);
   static const Color accentDeep = Color(0xFF3E5D52);
@@ -29,6 +38,7 @@ class DetoxColors {
   static const Color lightCard = Colors.white;
   static const Color lightSurface = Colors.white;
   static const Color lightCardBorder = Color(0x14202B26);
+  static const Color lightCardSubtle = Color(0xFFF8FAFF);
   static const Color lightText = Color(0xFF202B26);
   static const Color lightMuted = Color(0xFF6E7A72);
 }
@@ -46,6 +56,13 @@ const TextTheme _detoxTextTheme = TextTheme(
 );
 
 const double detoxRadius = 16;
+
+/// Fully round shapes (progress bars, pills). The only radius besides
+/// [detoxRadius] that the system allows.
+const double detoxRadiusPill = 999;
+
+/// The single allowed font weight ceiling for emphasis.
+const FontWeight detoxWeightEmphasis = FontWeight.w600;
 
 class DetoxTheme {
   static ThemeData get dark {

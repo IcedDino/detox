@@ -42,6 +42,6 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: assets/images/Logo_detox.png
-  adaptive_icon_foreground: assets/images/Logo_detox.png
+  image_path: assets/images/detox_logo.png
+  adaptive_icon_foreground: assets/images/detox_logo.png
   adaptive_icon_background: '#0F172A'

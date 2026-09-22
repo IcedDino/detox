@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../l10n_app_strings.dart';
 import '../models/auth_user.dart';
 import 'cloud_sync_service.dart';
 import 'storage_service.dart';
@@ -18,6 +19,9 @@ class AuthException implements Exception {
 class AuthService {
   AuthService._();
   static final AuthService instance = AuthService._();
+
+  /// Error messages follow the language selected in the app.
+  AppStrings get _t => AppStrings.current;
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _google = GoogleSignIn();
@@ -46,7 +50,7 @@ class AuthService {
       }
       final current = _auth.currentUser;
       if (current == null) {
-        throw AuthException('Account created, but session could not be restored.');
+        throw AuthException(_t.authSessionNotRestored);
       }
       final mapped = _mapUser(current);
       await CloudSyncService.instance.saveUserProfile(mapped);
@@ -66,7 +70,7 @@ class AuthService {
         password: password,
       );
       final user = cred.user;
-      if (user == null) throw AuthException('Could not start your session.');
+      if (user == null) throw AuthException(_t.authSessionNotStarted);
       final mapped = _mapUser(user);
       await CloudSyncService.instance.saveUserProfile(mapped);
       return mapped;
@@ -81,7 +85,7 @@ class AuthService {
       await _google.signOut().catchError((_) {});
       final googleUser = await _google.signIn();
       if (googleUser == null) {
-        throw AuthException('Google sign-in was cancelled.');
+        throw AuthException(_t.authGoogleCancelled);
       }
       final googleAuth = await googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
@@ -90,7 +94,7 @@ class AuthService {
       );
       final userCredential = await _auth.signInWithCredential(credential);
       final user = userCredential.user;
-      if (user == null) throw AuthException('Google sign-in failed.');
+      if (user == null) throw AuthException(_t.authGoogleFailed);
       final mapped = _mapUser(user);
       await CloudSyncService.instance.saveUserProfile(mapped);
       return mapped;
@@ -98,9 +102,7 @@ class AuthService {
       throw AuthException(_friendlyAuthMessage(e));
     } catch (e) {
       if (e is AuthException) rethrow;
-      throw AuthException(
-        'Google sign-in failed on this build. Verify Google is enabled in Firebase and that the Android SHA fingerprints were added.',
-      );
+      throw AuthException(_t.authGoogleBuildSetup);
     }
   }
 
@@ -156,9 +158,7 @@ class AuthService {
       throw AuthException(_friendlyAuthMessage(e));
     } catch (e) {
       if (e is AuthException) rethrow;
-      throw AuthException(
-        'Phone sign-in could not be started. Make sure Phone authentication is enabled in Firebase.',
-      );
+      throw AuthException(_t.authPhoneStartFailed);
     }
   }
 
@@ -168,7 +168,7 @@ class AuthService {
   Future<AuthUser> verifySmsCode(String code) async {
     final verificationId = _verificationId;
     if (verificationId == null || verificationId.isEmpty) {
-      throw AuthException('No SMS verification is active. Request a code first.');
+      throw AuthException(_t.authNoSmsVerification);
     }
     try {
       final credential = PhoneAuthProvider.credential(
@@ -178,7 +178,7 @@ class AuthService {
       final result = await _auth.signInWithCredential(credential);
       final user = result.user;
       if (user == null) {
-        throw AuthException('The SMS code could not be verified.');
+        throw AuthException(_t.authSmsVerifyFailed);
       }
       _verificationId = null;
       final mapped = _mapUser(user);
@@ -193,7 +193,7 @@ class AuthService {
   Future<void> deleteAccount() async {
     final user = _auth.currentUser;
     if (user == null) {
-      throw AuthException('No active session to delete.');
+      throw AuthException(_t.authNoActiveSession);
     }
 
     try {
@@ -222,9 +222,7 @@ class AuthService {
       await _auth.signOut().catchError((_) {});
 
       if (e.code == 'requires-recent-login') {
-        throw AuthException(
-          'Your Detox data was deleted, but Firebase requires a recent sign-in to remove the access account completely. Sign in again and repeat the deletion once more.',
-        );
+        throw AuthException(_t.authDeleteRequiresRecentLogin);
       }
       throw AuthException(_friendlyAuthMessage(e));
     }
@@ -266,28 +264,28 @@ class AuthService {
   String _friendlyAuthMessage(FirebaseAuthException e) {
     switch (e.code) {
       case 'email-already-in-use':
-        return 'That email is already in use.';
+        return _t.authEmailInUse;
       case 'invalid-email':
-        return 'Enter a valid email address.';
+        return _t.authInvalidEmail;
       case 'user-not-found':
-        return 'No account exists with that email.';
+        return _t.authUserNotFound;
       case 'wrong-password':
       case 'invalid-credential':
-        return 'Incorrect email or password.';
+        return _t.authWrongCredentials;
       case 'weak-password':
-        return 'Use a stronger password.';
+        return _t.authWeakPassword;
       case 'network-request-failed':
-        return 'Network error. Check your connection and try again.';
+        return _t.authNetworkError;
       case 'too-many-requests':
-        return 'Too many attempts. Try again later.';
+        return _t.authTooManyRequests;
       case 'operation-not-allowed':
-        return 'This sign-in method is not enabled in Firebase yet.';
+        return _t.authMethodNotAllowed;
       case 'invalid-verification-code':
-        return 'The SMS code is not valid.';
+        return _t.authInvalidSmsCode;
       case 'session-expired':
-        return 'The SMS code expired. Request another one.';
+        return _t.authSmsExpired;
       default:
-        return e.message ?? 'Authentication failed.';
+        return e.message ?? _t.authFailed;
     }
   }
 }

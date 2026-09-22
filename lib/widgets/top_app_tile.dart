@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n_app_strings.dart';
 import '../models/usage_models.dart';
 import '../theme/app_theme.dart';
 import 'app_icon_badge.dart';
@@ -16,17 +17,18 @@ class TopAppTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppStrings.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
-    final border = isDark ? Colors.white10 : DetoxColors.lightCardBorder;
-    final background = isDark ? Colors.white.withOpacity(0.04) : const Color(0xFFF8FAFF);
+    final border = isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder;
+    final background = isDark ? DetoxColors.cardSubtle : DetoxColors.lightCardSubtle;
 
     return RepaintBoundary(
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(detoxRadius),
           color: background,
           border: Border.all(color: border),
         ),
@@ -69,11 +71,11 @@ class TopAppTile extends StatelessWidget {
                     entry.appName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    style: const TextStyle(fontWeight: detoxWeightEmphasis),
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '${entry.minutes} min today',
+                    t.minToday(entry.minutes),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(color: muted),

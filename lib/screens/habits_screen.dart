@@ -27,6 +27,8 @@ class _HabitsScreenState extends State<HabitsScreen> with AutomaticKeepAliveClie
   }
 
   Future<void> _load() async {
+    // No BuildContext: `_load` runs before the first frame finishes.
+    final t = AppStrings.current;
     final counters = await _storage.loadProgressCounters();
     final startedToday = await _storage.isProgressStartedToday();
     final current = counters['currentStreak'] ?? 0;
@@ -36,7 +38,7 @@ class _HabitsScreenState extends State<HabitsScreen> with AutomaticKeepAliveClie
       AchievementItem(
         id: 'streak3',
         title: '🔥 3',
-        body: '3-day streak',
+        body: t.achievementStreak3Body,
         unlocked: current >= 3,
         progress: current,
         goal: 3,
@@ -45,7 +47,7 @@ class _HabitsScreenState extends State<HabitsScreen> with AutomaticKeepAliveClie
       AchievementItem(
         id: 'focus5',
         title: '⏱ 5',
-        body: '5 sessions',
+        body: t.achievementFocus5Body,
         unlocked: (counters['focusCompleted'] ?? 0) >= 5,
         progress: counters['focusCompleted'] ?? 0,
         goal: 5,
@@ -54,7 +56,7 @@ class _HabitsScreenState extends State<HabitsScreen> with AutomaticKeepAliveClie
       AchievementItem(
         id: 'smart5',
         title: '🧠 5',
-        body: '5 accepted tips',
+        body: t.achievementSmart5Body,
         unlocked: (counters['suggestionsAccepted'] ?? 0) >= 5,
         progress: counters['suggestionsAccepted'] ?? 0,
         goal: 5,
@@ -63,7 +65,7 @@ class _HabitsScreenState extends State<HabitsScreen> with AutomaticKeepAliveClie
       AchievementItem(
         id: 'pomodoro8',
         title: '🍅 8',
-        body: '8 cycles',
+        body: t.achievementPomodoro8Body,
         unlocked: (counters['pomodoroCyclesCompleted'] ?? 0) >= 8,
         progress: counters['pomodoroCyclesCompleted'] ?? 0,
         goal: 8,
@@ -74,17 +76,17 @@ class _HabitsScreenState extends State<HabitsScreen> with AutomaticKeepAliveClie
     final dailyChallenges = <DailyChallengeItem>[
       DailyChallengeItem(
         id: 'activate',
-        title: 'Start today',
+        title: t.challengeStartToday,
         done: startedToday,
       ),
       DailyChallengeItem(
         id: 'smart',
-        title: 'Accept 1 tip',
+        title: t.challengeAcceptOneTip,
         done: (counters['suggestionsAccepted'] ?? 0) > 0,
       ),
       DailyChallengeItem(
         id: 'focus',
-        title: 'Complete 1 session',
+        title: t.challengeCompleteOneSession,
         done: (counters['focusCompleted'] ?? 0) > 0,
       ),
     ];
@@ -138,11 +140,10 @@ class _HabitsScreenState extends State<HabitsScreen> with AutomaticKeepAliveClie
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
       children: [
-        Text(
-          t.habits,
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
+        AppPageHeader(
+          eyebrow: t.isEs ? 'Panel' : 'Overview',
+          title: t.progressTitle,
+          subtitle: t.progressSubtitle,
         ),
         const SizedBox(height: 18),
         HeroInfoCard(
@@ -283,6 +284,7 @@ class _AchievementCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppStrings.of(context);
     final unlocked = item.unlocked;
     final progressLabel =
         item.goal > 0 ? '${item.progress.clamp(0, item.goal)}/${item.goal}' : null;
@@ -290,10 +292,10 @@ class _AchievementCard extends StatelessWidget {
     final primary = Theme.of(context).colorScheme.primary;
     final borderColor = unlocked
         ? primary.withOpacity(0.28)
-        : (isDark ? Colors.white.withOpacity(0.06) : DetoxColors.lightCardBorder);
+        : (isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder);
     final background = unlocked
         ? primary.withOpacity(isDark ? 0.16 : 0.10)
-        : (isDark ? Colors.white.withOpacity(0.035) : const Color(0xFFF8FAFF));
+        : (isDark ? DetoxColors.cardSubtle : DetoxColors.lightCardSubtle);
     final textColor = unlocked
         ? (isDark ? Colors.white : DetoxColors.lightText)
         : (isDark ? Colors.white.withOpacity(0.78) : DetoxColors.lightText.withOpacity(0.78));
@@ -303,7 +305,7 @@ class _AchievementCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(detoxRadius),
         border: Border.all(color: borderColor),
       ),
       child: Column(
@@ -318,8 +320,8 @@ class _AchievementCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: unlocked
                       ? primary.withOpacity(0.16)
-                      : (isDark ? Colors.white.withOpacity(0.06) : Colors.white),
-                  borderRadius: BorderRadius.circular(14),
+                      : (isDark ? DetoxColors.cardSubtle : Colors.white),
+                  borderRadius: BorderRadius.circular(detoxRadius),
                 ),
                 child: Text(item.icon, style: const TextStyle(fontSize: 24)),
               ),
@@ -338,7 +340,7 @@ class _AchievementCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: textColor,
-              fontWeight: FontWeight.w700,
+              fontWeight: detoxWeightEmphasis,
             ),
           ),
           const SizedBox(height: 6),
@@ -355,11 +357,11 @@ class _AchievementCard extends StatelessWidget {
           const Spacer(),
           if (progressLabel != null) ...[
             ClipRRect(
-              borderRadius: BorderRadius.circular(999),
+              borderRadius: BorderRadius.circular(detoxRadiusPill),
               child: LinearProgressIndicator(
                 value: item.ratio,
                 minHeight: 8,
-                backgroundColor: isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFE6EEFF),
+                backgroundColor: isDark ? DetoxColors.cardSubtle : DetoxColors.lightCardSubtle,
                 valueColor: AlwaysStoppedAnimation<Color>(
                   unlocked ? DetoxColors.accentSoft : mutedColor,
                 ),
@@ -369,11 +371,11 @@ class _AchievementCard extends StatelessWidget {
             Align(
               alignment: Alignment.centerRight,
               child: Text(
-                unlocked ? 'Done' : progressLabel,
+                unlocked ? t.done : progressLabel,
                 style: TextStyle(
                   color: unlocked ? DetoxColors.accentSoft : mutedColor,
                   fontSize: 11,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: detoxWeightEmphasis,
                 ),
               ),
             ),
@@ -408,7 +410,7 @@ class _PillStat extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(detoxRadiusPill),
         color: Theme.of(context).colorScheme.primary.withOpacity(0.12),
       ),
       child: Text('$label · $value'),

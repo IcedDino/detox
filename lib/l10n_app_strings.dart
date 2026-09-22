@@ -8,6 +8,10 @@ class AppStrings {
 
   bool get isEs => locale.languageCode.toLowerCase().startsWith('es');
 
+  /// Strings for the current app language, usable outside the widget tree
+  /// (notifications, background services, snackbar messages from services).
+  static AppStrings get current => AppStrings(AppLocale.current);
+
   String get home => isEs ? 'Inicio' : 'Home';
   String get focus => isEs ? 'Enfoque' : 'Focus';
   String get habits => isEs ? 'Progreso' : 'Progress';
@@ -42,10 +46,6 @@ class AppStrings {
   String get smsCodeSent => isEs ? 'Código SMS enviado.' : 'SMS code sent.';
 
   String get welcomeToDetox => isEs ? 'Bienvenido a Detox' : 'Welcome to Detox';
-  String get permissionsIntro => isEs
-      ? 'Reduce el scroll impulsivo, protege tu enfoque y crea hábitos digitales que sí se mantengan.'
-      : 'Reduce mindless scrolling, protect your focus, and build digital habits that actually stick.';
-  String get whatDetoxUses => isEs ? 'Lo que usará Detox' : 'What Detox will use';
   String get permReadUsage => isEs ? 'Leer el tiempo de uso y las apps principales.' : 'Read screen-time usage and top apps.';
   String get permShield => isEs ? 'Cubrir apps seleccionadas durante sesiones de enfoque.' : 'Shield selected apps during focus sessions.';
   String get permZones => isEs ? 'Activar zonas de estudio automáticamente cuando llegues.' : 'Auto-activate study zones when you arrive at them.';
@@ -113,8 +113,6 @@ class AppStrings {
   String get iosSeparatePath => isEs ? 'En iOS esto usa una ruta nativa separada de Screen Time.' : 'iOS support uses a separate native Screen Time path.';
   String get iosAppsBody => isEs ? 'En iOS aún no se pueden listar apps instaladas de la misma manera.' : 'On iOS, installed apps cannot be listed the same way yet.';
 
-  String get dashboardTitle => isEs ? 'Panel Detox' : 'Detox Dashboard';
-  String get dashboardSubtitle => isEs ? 'Reduce el scroll impulsivo y construye hábitos digitales con intención.' : 'Reduce mindless scrolling and build intentional digital habits.';
   String get today => isEs ? 'Hoy' : 'Today';
   String get pickups => isEs ? 'Desbloqueos' : 'Pickups';
   String get topApp => isEs ? 'App principal' : 'Top app';
@@ -124,10 +122,11 @@ class AppStrings {
   String minToday(int mins) => isEs ? '$mins min hoy' : '$mins min today';
   String get noDataYet => isEs ? 'Sin datos aún' : 'No data yet';
   String get noAppUsageYet => isEs ? 'Aún no hay uso de apps disponible.' : 'No app usage available yet.';
-  String get realUsageInactive => isEs ? 'El uso real del dispositivo aún no está activo en esta plataforma. En Android se actualiza automáticamente después de conceder Acceso de uso.' : 'Real device usage is not active yet on this platform. Android updates automatically after you grant Usage Access.';
+  String get usageUnavailableNotice => isEs
+      ? 'Sin datos reales todavía — concede Acceso de uso en Android para verlos.'
+      : 'No real data yet — grant Usage Access on Android to see it.';
 
   String get focusTitle => isEs ? 'Temporizador de enfoque' : 'Focus timer';
-  String get focusSubtitle => isEs ? 'Inicia una sesión y cubre tus apps de distracción.' : 'Start a session and shield your distraction apps.';
   String get focusBeforeStart => isEs ? 'Antes de empezar' : 'Before you start';
   String get focusNeedUsage => isEs ? 'Concede Acceso de uso en Configuración para que Detox detecte la app al frente y la cubra.' : 'Grant Usage Access in Settings so Detox can detect the foreground app and shield it.';
   String get focusNeedOverlay => isEs ? 'Concede permiso de superposición para que Detox pueda cubrir apps bloqueadas durante el enfoque.' : 'Grant overlay permission so Detox can cover blocked apps during focus.';
@@ -304,6 +303,9 @@ class AppStrings {
   String insideZoneLabel(String name) => isEs ? 'Dentro de $name' : 'Inside $name';
   String get zoneInactive => isEs ? 'Inactiva' : 'Inactive';
   String get settingsUnlockedLabel => isEs ? 'Desbloqueado' : 'Unlocked';
+  String get settingsPageSubtitle => isEs
+      ? 'Tu cuenta, tus protecciones y tus preferencias.'
+      : 'Your account, your safeguards, and your preferences.';
   String waitingForName(String name) => isEs ? 'Esperando que $name acepte tu solicitud.' : 'Waiting for $name to accept your request.';
 
 
@@ -332,7 +334,6 @@ class AppStrings {
   String get completedToday => isEs ? 'Completado hoy' : 'Completed today';
   String get notCompletedToday => isEs ? 'Pendiente hoy' : 'Not done today';
   String get completionThisMonth => isEs ? 'Completado este mes' : 'Completion this month';
-  String get demoDataNotice => isEs ? 'Mostrando datos de ejemplo — concede Acceso de uso para ver datos reales.' : 'Showing sample data — grant Usage Access to see real data.';
   String monthName(int month) {
     const es = ['', 'Enero','Febrero','Marzo','Abril','Mayo','Junio',
       'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -388,5 +389,220 @@ class AppStrings {
       : 'This is your personal summary. Your sponsor still receives your progress without showing this section as a special panel.';
   String get topApps => isEs ? 'Apps más usadas' : 'Top apps';
 
+  // ── Sponsor request types ──
+  String get requestTypeSettingsUnlock =>
+      isEs ? 'Cambios de ajustes' : 'Settings changes';
+  String get requestTypeZoneOverride => isEs ? 'Pausa de zona' : 'Zone pause';
+  String get requestTypeShieldPause =>
+      isEs ? 'Pausa del escudo de apps' : 'App shield pause';
+  String get requestTypeUnlinkSponsor =>
+      isEs ? 'Desvincular padrino' : 'Sponsor unlink';
+  String get requestTypeUnlinkEmail =>
+      isEs ? 'Desvinculación por correo' : 'Email unlink';
+  String get defaultUserName => isEs ? 'Usuario de Detox' : 'Detox user';
 
+  // ── Notifications ──
+  String get notifySponsorRequestTitle =>
+      isEs ? 'Solicitud del padrino' : 'Sponsor request';
+  String notifySponsorRequestBody(String name, String type) =>
+      isEs ? '$name solicitó $type.' : '$name requested $type.';
+  String get notifyPauseApprovedTitle =>
+      isEs ? 'Pausa de 15 minutos aprobada' : '15-minute pause approved';
+  String get notifyPauseApprovedBody => isEs
+      ? 'Tu padrino aprobó una pausa del escudo de apps.'
+      : 'Your sponsor approved an app shield pause.';
+  String get notifyCodeReadyTitle =>
+      isEs ? 'Tu código de padrino está listo' : 'Your sponsor code is ready';
+  String notifyCodeReadyBody(String type) => isEs
+      ? 'Código de $type recibido. Expira en 3 minutos.'
+      : '$type code received. It expires in 3 minutes.';
+  String get notifyUnlinkEmailTitle => isEs
+      ? 'Código de desvinculación solicitado'
+      : 'Unlink code email requested';
+  String get notifyUnlinkEmailBody => isEs
+      ? 'Revisa tu correo para el código de desvinculación de Detox.'
+      : 'Check your email for the Detox unlink code.';
+
+  // ── Zone state messages ──
+  String zoneNoAppsSelected(String name) => isEs
+      ? 'Estás en $name, pero no hay apps seleccionadas para esta zona.'
+      : 'You are in $name, but no apps are selected for this zone.';
+  String zoneFocusActive(String name) => isEs
+      ? 'El enfoque educativo está activo en $name.'
+      : 'Educational focus is active in $name.';
+  String get zoneOutsideAll =>
+      isEs ? 'Estás fuera de las zonas de concentración.' : 'You are outside concentration zones.';
+  String get zoneAutomationPaused => isEs
+      ? 'La automatización de zonas se pausó tras un error.'
+      : 'Zone automation was paused after an error.';
+
+  // ── Sponsor service errors ──
+  String get errSignInFirst => isEs ? 'Inicia sesión primero.' : 'Sign in first.';
+  String get errNeedSignIn =>
+      isEs ? 'Necesitas iniciar sesión primero.' : 'You need to sign in first.';
+  String get errRequestNotFound =>
+      isEs ? 'No se encontró la solicitud.' : 'Request not found.';
+  String get errRequestNotYours => isEs
+      ? 'Esa solicitud no te pertenece.'
+      : 'That request does not belong to you.';
+  String get errRequestNotForYou =>
+      isEs ? 'Esta solicitud no es para ti.' : 'This request is not for you.';
+  String get errManualCodeFlow => isEs
+      ? 'Este tipo de solicitud todavía requiere el flujo de código manual.'
+      : 'This request type still requires the manual code flow.';
+  String get errRequestNotPending => isEs
+      ? 'Esta solicitud ya no está pendiente.'
+      : 'This request is no longer pending.';
+  String get errRequestNotApprovable => isEs
+      ? 'Esta solicitud ya no se puede aprobar.'
+      : 'This request can no longer be approved.';
+  String get errUnsupportedRequestType =>
+      isEs ? 'Tipo de solicitud no soportado.' : 'Unsupported request type.';
+  String get errEnterValidSponsorCode => isEs
+      ? 'Ingresa un código de padrino válido.'
+      : 'Enter a valid sponsor code.';
+  String get errEnterSponsorCode =>
+      isEs ? 'Ingresa el código del padrino.' : 'Enter the sponsor code.';
+  String get errAlreadyHasSponsor => isEs
+      ? 'Ya tienes un padrino vinculado.'
+      : 'You already have a sponsor linked.';
+  String get errSponsorCodeNotFound =>
+      isEs ? 'No se encontró ese código de padrino.' : 'That sponsor code was not found.';
+  String get errOwnSponsorCode => isEs
+      ? 'No puedes usar tu propio código de padrino.'
+      : 'You cannot use your own sponsor code.';
+  String get errTargetHasSponsor => isEs
+      ? 'Ese usuario ya tiene un padrino vinculado.'
+      : 'That user already has a sponsor linked.';
+  String get errPendingRequestExists =>
+      isEs ? 'Ya existe una solicitud pendiente.' : 'A pending request already exists.';
+  String get errSponsorRequestAccepted => isEs
+      ? 'Esta solicitud de padrino ya fue aceptada.'
+      : 'This sponsor request was already accepted.';
+  String get errUsersAlreadyLinked =>
+      isEs ? 'Uno de los usuarios ya está vinculado.' : 'One of the users is already linked.';
+  String get errLinkSponsorFirst =>
+      isEs ? 'Vincula un padrino primero.' : 'Link a sponsor first.';
+  String get errAddEmailFirst => isEs
+      ? 'Agrega un correo a tu cuenta primero.'
+      : 'Add an email address to your account first.';
+  String get errEmailUnlinkPending => isEs
+      ? 'Ya tienes una solicitud de desvinculación por correo activa.'
+      : 'You already have an active email unlink request.';
+  String get errEnterEmailCode =>
+      isEs ? 'Ingresa el código del correo.' : 'Enter the email code.';
+  String get errEmailCodeInvalid => isEs
+      ? 'Ese código de correo es inválido o expiró.'
+      : 'That email code is invalid or expired.';
+  String get errCodeInvalid =>
+      isEs ? 'Ese código es inválido o expiró.' : 'That code is invalid or expired.';
+  String get errCodeAlreadyUsed =>
+      isEs ? 'Ese código ya se usó.' : 'That code was already used.';
+  String get unlinkCodeEmailSubject =>
+      isEs ? 'Código de desvinculación de Detox' : 'Detox unlink code';
+  String unlinkCodeEmailText(String code) => isEs
+      ? 'Tu código de desvinculación de Detox es $code. Expira en 10 minutos.'
+      : 'Your Detox unlink code is $code. It expires in 10 minutes.';
+  String unlinkCodeEmailHtml(String code) => isEs
+      ? '<p>Tu código de desvinculación de Detox es <strong>$code</strong>.</p><p>Expira en 10 minutos.</p>'
+      : '<p>Your Detox unlink code is <strong>$code</strong>.</p><p>It expires in 10 minutes.</p>';
+
+  // ── Auth service errors ──
+  String get authSessionNotRestored => isEs
+      ? 'La cuenta se creó, pero no se pudo restaurar la sesión.'
+      : 'Account created, but session could not be restored.';
+  String get authSessionNotStarted =>
+      isEs ? 'No se pudo iniciar tu sesión.' : 'Could not start your session.';
+  String get authGoogleCancelled =>
+      isEs ? 'Se canceló el acceso con Google.' : 'Google sign-in was cancelled.';
+  String get authGoogleFailed =>
+      isEs ? 'Falló el acceso con Google.' : 'Google sign-in failed.';
+  String get authGoogleBuildSetup => isEs
+      ? 'El acceso con Google falló en esta compilación. Verifica que Google esté habilitado en Firebase y que las huellas SHA de Android estén registradas.'
+      : 'Google sign-in failed on this build. Verify Google is enabled in Firebase and that the Android SHA fingerprints were added.';
+  String get authPhoneStartFailed => isEs
+      ? 'No se pudo iniciar el acceso con teléfono. Verifica que la autenticación por teléfono esté habilitada en Firebase.'
+      : 'Phone sign-in could not be started. Make sure Phone authentication is enabled in Firebase.';
+  String get authNoSmsVerification => isEs
+      ? 'No hay una verificación por SMS activa. Solicita un código primero.'
+      : 'No SMS verification is active. Request a code first.';
+  String get authSmsVerifyFailed =>
+      isEs ? 'No se pudo verificar el código SMS.' : 'The SMS code could not be verified.';
+  String get authNoActiveSession =>
+      isEs ? 'No hay una sesión activa que eliminar.' : 'No active session to delete.';
+  String get authDeleteRequiresRecentLogin => isEs
+      ? 'Tus datos de Detox se eliminaron, pero Firebase requiere un inicio de sesión reciente para borrar la cuenta de acceso por completo. Inicia sesión de nuevo y repite la eliminación una vez más.'
+      : 'Your Detox data was deleted, but Firebase requires a recent sign-in to remove the access account completely. Sign in again and repeat the deletion once more.';
+  String get authEmailInUse =>
+      isEs ? 'Ese correo ya está en uso.' : 'That email is already in use.';
+  String get authInvalidEmail =>
+      isEs ? 'Ingresa un correo válido.' : 'Enter a valid email address.';
+  String get authUserNotFound =>
+      isEs ? 'No existe una cuenta con ese correo.' : 'No account exists with that email.';
+  String get authWrongCredentials =>
+      isEs ? 'Correo o contraseña incorrectos.' : 'Incorrect email or password.';
+  String get authWeakPassword =>
+      isEs ? 'Usa una contraseña más fuerte.' : 'Use a stronger password.';
+  String get authNetworkError => isEs
+      ? 'Error de red. Revisa tu conexión e inténtalo de nuevo.'
+      : 'Network error. Check your connection and try again.';
+  String get authTooManyRequests =>
+      isEs ? 'Demasiados intentos. Inténtalo más tarde.' : 'Too many attempts. Try again later.';
+  String get authMethodNotAllowed => isEs
+      ? 'Este método de acceso aún no está habilitado en Firebase.'
+      : 'This sign-in method is not enabled in Firebase yet.';
+  String get authInvalidSmsCode =>
+      isEs ? 'El código SMS no es válido.' : 'The SMS code is not valid.';
+  String get authSmsExpired =>
+      isEs ? 'El código SMS expiró. Solicita otro.' : 'The SMS code expired. Request another one.';
+  String get authFailed =>
+      isEs ? 'Falló la autenticación.' : 'Authentication failed.';
+
+  // ── Progress achievements & challenges ──
+  String get achievementStreak3Body => isEs ? 'Racha de 3 días' : '3-day streak';
+  String get achievementFocus5Body => isEs ? '5 sesiones' : '5 sessions';
+  String get achievementSmart5Body =>
+      isEs ? '5 consejos aceptados' : '5 accepted tips';
+  String get achievementPomodoro8Body => isEs ? '8 ciclos' : '8 cycles';
+  String get challengeStartToday => isEs ? 'Empezar hoy' : 'Start today';
+  String get challengeAcceptOneTip => isEs ? 'Acepta 1 consejo' : 'Accept 1 tip';
+  String get challengeCompleteOneSession =>
+      isEs ? 'Completa 1 sesión' : 'Complete 1 session';
+
+  // ── Default seeded habits ──
+  String get habitNoSocialBeforeBreakfast =>
+      isEs ? 'Sin redes antes del desayuno' : 'No social media before breakfast';
+  String get habitNoSocialBeforeBreakfastTarget => isEs
+      ? 'Empieza el día sin scroll impulsivo'
+      : 'Start the day without mindless scrolling';
+  String get habitOneFocusSession =>
+      isEs ? 'Una sesión de enfoque de 25 minutos' : 'One 25-minute focus session';
+  String get habitOneFocusSessionTarget => isEs
+      ? 'Termina una sesión sin distracciones'
+      : 'Finish one distraction-free session';
+  String get habitScreenTimeUnderThreeHours =>
+      isEs ? 'Mantén el tiempo de pantalla bajo 3 horas' : 'Keep screen time under 3 hours';
+  String get habitScreenTimeUnderThreeHoursTarget =>
+      isEs ? 'Respeta tu límite diario' : 'Respect your daily limit';
+}
+
+/// Process-wide language holder.
+///
+/// Widgets read the locale from `Localizations`, but background services and
+/// notifications have no `BuildContext`, so the app records the active locale
+/// here and services render text through `AppStrings.current`.
+class AppLocale {
+  AppLocale._();
+
+  static Locale current = const Locale('es');
+
+  static void set(Locale? locale) {
+    if (locale == null) return;
+    current = locale;
+  }
+
+  static void setLanguageCode(String? code) {
+    if (code == null || code.isEmpty) return;
+    current = Locale(code);
+  }
 }

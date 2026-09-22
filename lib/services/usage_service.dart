@@ -24,21 +24,17 @@ class UsageService {
   String? _weeklyUsageDayToken;
 
   Future<DailyUsageSummary> getTodaySummary() async {
-    if (kIsWeb) return _fallbackSummary();
+    if (kIsWeb) return _emptySummary();
 
     if (defaultTargetPlatform == TargetPlatform.android) {
       return _loadAndroidTodaySummary();
     }
 
-    if (defaultTargetPlatform == TargetPlatform.iOS) {
-      return _iosSummaryPlaceholder();
-    }
-
-    return _fallbackSummary();
+    return _emptySummary();
   }
 
   Future<List<WeeklyUsagePoint>> getWeeklyUsage() async {
-    if (kIsWeb) return _fallbackWeeklyUsage();
+    if (kIsWeb) return _emptyWeeklyUsage();
 
     if (defaultTargetPlatform == TargetPlatform.android) {
       final now = DateTime.now();
@@ -84,7 +80,7 @@ class UsageService {
           );
         }
       } catch (_) {
-        return _fallbackWeeklyUsage();
+        return _emptyWeeklyUsage();
       }
 
       _weeklyUsageCache = points;
@@ -93,19 +89,7 @@ class UsageService {
       return points;
     }
 
-    if (defaultTargetPlatform == TargetPlatform.iOS) {
-      return const [
-        WeeklyUsagePoint(dateLabel: 'Mon', minutes: 0),
-        WeeklyUsagePoint(dateLabel: 'Tue', minutes: 0),
-        WeeklyUsagePoint(dateLabel: 'Wed', minutes: 0),
-        WeeklyUsagePoint(dateLabel: 'Thu', minutes: 0),
-        WeeklyUsagePoint(dateLabel: 'Fri', minutes: 0),
-        WeeklyUsagePoint(dateLabel: 'Sat', minutes: 0),
-        WeeklyUsagePoint(dateLabel: 'Sun', minutes: 0),
-      ];
-    }
-
-    return _fallbackWeeklyUsage();
+    return _emptyWeeklyUsage();
   }
 
   Future<PermissionStatusModel> getPermissionStatus() async {
@@ -159,14 +143,11 @@ class UsageService {
   }
 
   Future<List<AppUsageEntry>> getTodayAppUsageEntries() async {
-    if (kIsWeb) return _fallbackSummary().topApps;
+    if (kIsWeb) return const [];
     if (defaultTargetPlatform == TargetPlatform.android) {
       return _loadAndroidTodayEntries();
     }
-    if (defaultTargetPlatform == TargetPlatform.iOS) {
-      return const [];
-    }
-    return _fallbackSummary().topApps;
+    return const [];
   }
 
   Future<DailyUsageSummary> _loadAndroidTodaySummary() async {
@@ -174,7 +155,7 @@ class UsageService {
       final entries = await _loadAndroidTodayEntries();
       final totalMinutes = entries.fold<int>(0, (sum, item) => sum + item.minutes);
 
-      if (entries.isEmpty) return _fallbackSummary();
+      if (entries.isEmpty) return _emptySummary();
 
       return DailyUsageSummary(
         totalMinutes: totalMinutes,
@@ -183,7 +164,7 @@ class UsageService {
         fromRealUsage: true,
       );
     } catch (_) {
-      return _fallbackSummary();
+      return _emptySummary();
     }
   }
 
@@ -240,7 +221,9 @@ class UsageService {
     return entries;
   }
 
-  DailyUsageSummary _iosSummaryPlaceholder() {
+  /// Honest empty state: when real usage is unavailable we return zeros and
+  /// an empty app list instead of inventing usage the user never had.
+  DailyUsageSummary _emptySummary() {
     return const DailyUsageSummary(
       totalMinutes: 0,
       pickups: 0,
@@ -249,50 +232,15 @@ class UsageService {
     );
   }
 
-  DailyUsageSummary _fallbackSummary() {
-    return const DailyUsageSummary(
-      totalMinutes: 132,
-      pickups: 34,
-      topApps: [
-        AppUsageEntry(
-          appName: 'Instagram',
-          minutes: 48,
-          packageName: 'com.instagram.android',
-        ),
-        AppUsageEntry(
-          appName: 'YouTube',
-          minutes: 34,
-          packageName: 'com.google.android.youtube',
-        ),
-        AppUsageEntry(
-          appName: 'TikTok',
-          minutes: 28,
-          packageName: 'com.zhiliaoapp.musically',
-        ),
-        AppUsageEntry(
-          appName: 'Chrome',
-          minutes: 14,
-          packageName: 'com.android.chrome',
-        ),
-        AppUsageEntry(
-          appName: 'WhatsApp',
-          minutes: 8,
-          packageName: 'com.whatsapp',
-        ),
-      ],
-      fromRealUsage: false,
-    );
-  }
-
-  List<WeeklyUsagePoint> _fallbackWeeklyUsage() {
+  List<WeeklyUsagePoint> _emptyWeeklyUsage() {
     return const [
-      WeeklyUsagePoint(dateLabel: 'Mon', minutes: 145),
-      WeeklyUsagePoint(dateLabel: 'Tue', minutes: 132),
-      WeeklyUsagePoint(dateLabel: 'Wed', minutes: 118),
-      WeeklyUsagePoint(dateLabel: 'Thu', minutes: 160),
-      WeeklyUsagePoint(dateLabel: 'Fri', minutes: 170),
-      WeeklyUsagePoint(dateLabel: 'Sat', minutes: 124),
-      WeeklyUsagePoint(dateLabel: 'Sun', minutes: 96),
+      WeeklyUsagePoint(dateLabel: 'Mon', minutes: 0),
+      WeeklyUsagePoint(dateLabel: 'Tue', minutes: 0),
+      WeeklyUsagePoint(dateLabel: 'Wed', minutes: 0),
+      WeeklyUsagePoint(dateLabel: 'Thu', minutes: 0),
+      WeeklyUsagePoint(dateLabel: 'Fri', minutes: 0),
+      WeeklyUsagePoint(dateLabel: 'Sat', minutes: 0),
+      WeeklyUsagePoint(dateLabel: 'Sun', minutes: 0),
     ];
   }
 

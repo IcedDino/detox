@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../l10n_app_strings.dart';
 import '../models/auth_user.dart';
 import '../models/link_requests.dart';
 import '../models/sponsor_profile.dart';
@@ -42,6 +43,9 @@ class SponsorUserContext {
 class SponsorService {
   SponsorService._();
   static final SponsorService instance = SponsorService._();
+
+  /// User-facing messages follow the language selected in the app.
+  AppStrings get _t => AppStrings.current;
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -166,7 +170,7 @@ class SponsorService {
   Future<void> approveDirectRequest(String requestId) async {
     final uid = _uid;
     if (uid == null) {
-      throw SponsorException('Sign in first.');
+      throw SponsorException(_t.errSignInFirst);
     }
 
     final ref = _requestsCollectionRef.doc(requestId);
@@ -176,25 +180,23 @@ class SponsorService {
       final data = snap.data();
 
       if (data == null) {
-        throw SponsorException('Request not found.');
+        throw SponsorException(_t.errRequestNotFound);
       }
 
       final request = SponsorRequest.fromDoc(snap.id, data);
 
       if (request.sponsorUid != uid) {
-        throw SponsorException('That request does not belong to you.');
+        throw SponsorException(_t.errRequestNotYours);
       }
 
       if (request.requestType != 'zone_override' &&
           request.requestType != 'settings_unlock' &&
           request.requestType != 'shield_pause') {
-        throw SponsorException(
-          'This request type still requires the manual code flow.',
-        );
+        throw SponsorException(_t.errManualCodeFlow);
       }
 
       if (!request.isPending) {
-        throw SponsorException('This request is no longer pending.');
+        throw SponsorException(_t.errRequestNotPending);
       }
 
       final requesterRef =
@@ -215,7 +217,7 @@ class SponsorService {
           field = 'shieldPauseUntil';
           break;
         default:
-          throw SponsorException('Unsupported request type.');
+          throw SponsorException(_t.errUnsupportedRequestType);
       }
 
       tx.set(
@@ -247,7 +249,7 @@ class SponsorService {
   Future<void> rejectRequest(String requestId) async {
     final uid = _uid;
     if (uid == null) {
-      throw SponsorException('Sign in first.');
+      throw SponsorException(_t.errSignInFirst);
     }
 
     final ref = _requestsCollectionRef.doc(requestId);
@@ -257,17 +259,17 @@ class SponsorService {
       final data = snap.data();
 
       if (data == null) {
-        throw SponsorException('Request not found.');
+        throw SponsorException(_t.errRequestNotFound);
       }
 
       final request = SponsorRequest.fromDoc(snap.id, data);
 
       if (request.sponsorUid != uid) {
-        throw SponsorException('That request does not belong to you.');
+        throw SponsorException(_t.errRequestNotYours);
       }
 
       if (!request.isPending) {
-        throw SponsorException('This request is no longer pending.');
+        throw SponsorException(_t.errRequestNotPending);
       }
 
       tx.set(
@@ -287,7 +289,7 @@ class SponsorService {
 
   Future<String> getMySponsorCode() async {
     if (!isSignedIn) {
-      throw SponsorException('You need to sign in first.');
+      throw SponsorException(_t.errNeedSignIn);
     }
     final context = await loadCurrentUserContext(includeSponsorProfile: false);
     return context.sponsorCode;
@@ -337,12 +339,12 @@ class SponsorService {
     final meDoc = _userDoc;
 
     if (uid == null || meDoc == null) {
-      throw SponsorException('Sign in first.');
+      throw SponsorException(_t.errSignInFirst);
     }
 
     final normalized = code.trim().toUpperCase();
     if (normalized.isEmpty) {
-      throw SponsorException('Enter a valid sponsor code.');
+      throw SponsorException(_t.errEnterValidSponsorCode);
     }
 
     await ensureCurrentUserInitialized();
@@ -351,7 +353,7 @@ class SponsorService {
     final meData = meSnap.data() ?? <String, dynamic>{};
 
     if ((meData['sponsorUid'] as String?)?.isNotEmpty == true) {
-      throw SponsorException('You already have a sponsor linked.');
+      throw SponsorException(_t.errAlreadyHasSponsor);
     }
 
     final targetQuery = await _firestore
@@ -361,18 +363,18 @@ class SponsorService {
         .get();
 
     if (targetQuery.docs.isEmpty) {
-      throw SponsorException('That sponsor code was not found.');
+      throw SponsorException(_t.errSponsorCodeNotFound);
     }
 
     final targetDoc = targetQuery.docs.first;
     final targetData = targetDoc.data();
 
     if (targetDoc.id == uid) {
-      throw SponsorException('You cannot use your own sponsor code.');
+      throw SponsorException(_t.errOwnSponsorCode);
     }
 
     if ((targetData['sponsorUid'] as String?)?.isNotEmpty == true) {
-      throw SponsorException('That user already has a sponsor linked.');
+      throw SponsorException(_t.errTargetHasSponsor);
     }
 
     final requestId = _linkRequestId(uid, targetDoc.id);
@@ -383,14 +385,14 @@ class SponsorService {
       final freshMeData = freshMeSnap.data() ?? <String, dynamic>{};
 
       if ((freshMeData['sponsorUid'] as String?)?.isNotEmpty == true) {
-        throw SponsorException('You already have a sponsor linked.');
+        throw SponsorException(_t.errAlreadyHasSponsor);
       }
 
       final freshTargetSnap = await tx.get(targetDoc.reference);
       final freshTargetData = freshTargetSnap.data() ?? <String, dynamic>{};
 
       if ((freshTargetData['sponsorUid'] as String?)?.isNotEmpty == true) {
-        throw SponsorException('That user already has a sponsor linked.');
+        throw SponsorException(_t.errTargetHasSponsor);
       }
 
       final existingSnap = await tx.get(requestRef);
@@ -405,11 +407,11 @@ class SponsorService {
         final stillLinkedTogether = requesterStillLinked && targetStillLinked;
 
         if (status == 'pending') {
-          throw SponsorException('A pending request already exists.');
+          throw SponsorException(_t.errPendingRequestExists);
         }
 
         if (status == 'accepted' && stillLinkedTogether) {
-          throw SponsorException('This sponsor request was already accepted.');
+          throw SponsorException(_t.errSponsorRequestAccepted);
         }
       }
 
@@ -458,7 +460,7 @@ class SponsorService {
   Future<void> rejectLinkRequest(String requestId) async {
     final uid = _uid;
     if (uid == null) {
-      throw SponsorException('Sign in first.');
+      throw SponsorException(_t.errSignInFirst);
     }
 
     final reqRef = _linkRequestsRef.doc(requestId);
@@ -468,11 +470,11 @@ class SponsorService {
       final data = snap.data();
 
       if (data == null) {
-        throw SponsorException('Request not found.');
+        throw SponsorException(_t.errRequestNotFound);
       }
 
       if (data['targetUid'] != uid) {
-        throw SponsorException('This request is not for you.');
+        throw SponsorException(_t.errRequestNotForYou);
       }
 
       final status = data['status'] as String?;
@@ -480,7 +482,7 @@ class SponsorService {
         return;
       }
       if (status != 'pending') {
-        throw SponsorException('This request is no longer pending.');
+        throw SponsorException(_t.errRequestNotPending);
       }
 
       tx.set(
@@ -500,7 +502,7 @@ class SponsorService {
     final meDoc = _userDoc;
 
     if (uid == null || meDoc == null) {
-      throw SponsorException('Sign in first.');
+      throw SponsorException(_t.errSignInFirst);
     }
 
     final reqRef = _linkRequestsRef.doc(requestId);
@@ -510,11 +512,11 @@ class SponsorService {
       final reqData = reqSnap.data();
 
       if (reqData == null) {
-        throw SponsorException('Request not found.');
+        throw SponsorException(_t.errRequestNotFound);
       }
 
       if (reqData['targetUid'] != uid) {
-        throw SponsorException('This request is not for you.');
+        throw SponsorException(_t.errRequestNotForYou);
       }
 
       final status = reqData['status'] as String?;
@@ -522,7 +524,7 @@ class SponsorService {
         return;
       }
       if (status != 'pending') {
-        throw SponsorException('This request is no longer pending.');
+        throw SponsorException(_t.errRequestNotPending);
       }
 
       final requesterUid = reqData['requesterUid'] as String;
@@ -535,7 +537,7 @@ class SponsorService {
       final requesterSponsor = requesterSnap.data()?['sponsorUid'] as String?;
 
       if ((mySponsor ?? '').isNotEmpty || (requesterSponsor ?? '').isNotEmpty) {
-        throw SponsorException('One of the users is already linked.');
+        throw SponsorException(_t.errUsersAlreadyLinked);
       }
 
       tx.set(
@@ -575,7 +577,7 @@ class SponsorService {
     final meDoc = _userDoc;
 
     if (uid == null || meDoc == null) {
-      throw SponsorException('Sign in first.');
+      throw SponsorException(_t.errSignInFirst);
     }
 
     String? unlinkedSponsorUid;
@@ -628,18 +630,18 @@ class SponsorService {
     final meDoc = _userDoc;
 
     if (uid == null || meDoc == null) {
-      throw SponsorException('Sign in first.');
+      throw SponsorException(_t.errSignInFirst);
     }
 
     final sponsorUid = await getSponsorUid();
     if (sponsorUid == null) {
-      throw SponsorException('Link a sponsor first.');
+      throw SponsorException(_t.errLinkSponsorFirst);
     }
 
     final me = _auth.currentUser;
     final email = me?.email?.trim();
     if (email == null || email.isEmpty) {
-      throw SponsorException('Add an email address to your account first.');
+      throw SponsorException(_t.errAddEmailFirst);
     }
 
     final code = _generateNumericCode();
@@ -655,7 +657,7 @@ class SponsorService {
         final existing = SponsorRequest.fromDoc(requestSnap.id, requestData);
         if (!existing.isConsumed &&
             (existing.isPending || (existing.isApproved && !existing.isExpired))) {
-          throw SponsorException('You already have an active email unlink request.');
+          throw SponsorException(_t.errEmailUnlinkPending);
         }
       }
 
@@ -685,10 +687,9 @@ class SponsorService {
     await _mailCollectionRef.add({
       'to': [email],
       'message': {
-        'subject': 'Detox unlink code',
-        'text': 'Your Detox unlink code is $code. It expires in 10 minutes.',
-        'html':
-        '<p>Your Detox unlink code is <strong>$code</strong>.</p><p>It expires in 10 minutes.</p>',
+        'subject': _t.unlinkCodeEmailSubject,
+        'text': _t.unlinkCodeEmailText(code),
+        'html': _t.unlinkCodeEmailHtml(code),
       },
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -699,12 +700,12 @@ class SponsorService {
     final userDoc = _userDoc;
 
     if (uid == null || userDoc == null) {
-      throw SponsorException('Sign in first.');
+      throw SponsorException(_t.errSignInFirst);
     }
 
     final value = code.trim();
     if (value.isEmpty) {
-      throw SponsorException('Enter the email code.');
+      throw SponsorException(_t.errEnterEmailCode);
     }
 
     String? unlinkedSponsorUid;
@@ -721,7 +722,7 @@ class SponsorService {
           expires == null ||
           DateTime.now().isAfter(expires) ||
           savedCode != value) {
-        throw SponsorException('That email code is invalid or expired.');
+        throw SponsorException(_t.errEmailCodeInvalid);
       }
 
       if (requestId != null && requestId.isNotEmpty) {
@@ -879,13 +880,13 @@ class SponsorService {
   }) async {
     final uid = _uid;
     if (uid == null) {
-      throw SponsorException('Sign in first.');
+      throw SponsorException(_t.errSignInFirst);
     }
 
     final me = _auth.currentUser;
     final sponsorUid = await getSponsorUid();
     if (sponsorUid == null) {
-      throw SponsorException('Link a sponsor first.');
+      throw SponsorException(_t.errLinkSponsorFirst);
     }
 
     final requestId = _unlockRequestId(uid, requestType);
@@ -975,7 +976,7 @@ class SponsorService {
   Future<String> approveRequest(String requestId) async {
     final uid = _uid;
     if (uid == null) {
-      throw SponsorException('Sign in first.');
+      throw SponsorException(_t.errSignInFirst);
     }
 
     final ref = _requestsCollectionRef.doc(requestId);
@@ -985,13 +986,13 @@ class SponsorService {
       final data = snap.data();
 
       if (data == null) {
-        throw SponsorException('Request not found.');
+        throw SponsorException(_t.errRequestNotFound);
       }
 
       final request = SponsorRequest.fromDoc(snap.id, data);
 
       if (request.sponsorUid != uid) {
-        throw SponsorException('That request does not belong to you.');
+        throw SponsorException(_t.errRequestNotYours);
       }
 
       if (request.isApproved && !request.isExpired && request.code != null) {
@@ -999,7 +1000,7 @@ class SponsorService {
       }
 
       if (!request.isPending) {
-        throw SponsorException('This request can no longer be approved.');
+        throw SponsorException(_t.errRequestNotApprovable);
       }
 
       final code = _generateNumericCode();
@@ -1025,12 +1026,12 @@ class SponsorService {
     final userDoc = _userDoc;
 
     if (uid == null || userDoc == null) {
-      throw SponsorException('Sign in first.');
+      throw SponsorException(_t.errSignInFirst);
     }
 
     final normalized = code.trim();
     if (normalized.isEmpty) {
-      throw SponsorException('Enter the sponsor code.');
+      throw SponsorException(_t.errEnterSponsorCode);
     }
 
     final requestRef = _requestsCollectionRef.doc(_unlockRequestId(uid, requestType));
@@ -1041,7 +1042,7 @@ class SponsorService {
       final data = requestSnap.data();
 
       if (data == null) {
-        throw SponsorException('That code is invalid or expired.');
+        throw SponsorException(_t.errCodeInvalid);
       }
 
       final request = SponsorRequest.fromDoc(requestSnap.id, data);
@@ -1051,11 +1052,11 @@ class SponsorService {
           request.code != normalized ||
           !request.isApproved ||
           request.isExpired) {
-        throw SponsorException('That code is invalid or expired.');
+        throw SponsorException(_t.errCodeInvalid);
       }
 
       if (request.isConsumed) {
-        throw SponsorException('That code was already used.');
+        throw SponsorException(_t.errCodeAlreadyUsed);
       }
 
       if (requestType == 'unlink_sponsor') {

@@ -768,7 +768,7 @@ class _SponsorScreenState extends State<SponsorScreen>
                         child: SelectableText(
                           _myCode,
                           style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                                fontWeight: FontWeight.w800,
+                                fontWeight: detoxWeightEmphasis,
                                 letterSpacing: 1.0,
                               ),
                         ),

@@ -53,6 +53,7 @@ class _AppIconBadgeState extends State<AppIconBadge> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final radius = BorderRadius.circular(widget.borderRadius ?? widget.size * 0.28);
     return Container(
       width: widget.size,
@@ -60,7 +61,9 @@ class _AppIconBadgeState extends State<AppIconBadge> {
       decoration: BoxDecoration(
         borderRadius: radius,
         color: DetoxColors.accent.withOpacity(0.16),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(
+          color: isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder,
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: _bytes == null

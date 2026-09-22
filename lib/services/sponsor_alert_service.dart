@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../l10n_app_strings.dart';
 import '../models/sponsor_request.dart';
 import 'app_blocking_service.dart';
 import 'focus_notification_service.dart';
@@ -144,9 +145,11 @@ class SponsorAlertService {
         unawaited(
           FocusNotificationService.instance.showSponsorAlert(
             id: request.id.hashCode & 0x7fffffff,
-            title: 'Sponsor request',
-            body:
-            '${request.requesterName} requested ${request.prettyType.toLowerCase()}.',
+            title: AppStrings.current.notifySponsorRequestTitle,
+            body: AppStrings.current.notifySponsorRequestBody(
+              request.requesterName,
+              request.prettyType,
+            ),
           ),
         );
       }
@@ -175,8 +178,8 @@ class SponsorAlertService {
         unawaited(
           FocusNotificationService.instance.showSponsorAlert(
             id: (request.id.hashCode + 150000) & 0x7fffffff,
-            title: '15-minute pause approved',
-            body: 'Your sponsor approved an app shield pause.',
+            title: AppStrings.current.notifyPauseApprovedTitle,
+            body: AppStrings.current.notifyPauseApprovedBody,
           ),
         );
       } else if (request.isApproved &&
@@ -185,8 +188,8 @@ class SponsorAlertService {
         unawaited(
           FocusNotificationService.instance.showSponsorAlert(
             id: (request.id.hashCode + 100000) & 0x7fffffff,
-            title: 'Your sponsor code is ready',
-            body: '${request.prettyType} code received. It expires in 3 minutes.',
+            title: AppStrings.current.notifyCodeReadyTitle,
+            body: AppStrings.current.notifyCodeReadyBody(request.prettyType),
           ),
         );
       }
@@ -195,8 +198,8 @@ class SponsorAlertService {
         unawaited(
           FocusNotificationService.instance.showSponsorAlert(
             id: (request.id.hashCode + 200000) & 0x7fffffff,
-            title: 'Unlink code email requested',
-            body: 'Check your email for the Detox unlink code.',
+            title: AppStrings.current.notifyUnlinkEmailTitle,
+            body: AppStrings.current.notifyUnlinkEmailBody,
           ),
         );
       }
