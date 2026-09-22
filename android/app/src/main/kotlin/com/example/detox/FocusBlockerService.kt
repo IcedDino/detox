@@ -20,6 +20,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
@@ -318,6 +319,15 @@ class FocusBlockerService : Service() {
             }
     }
 
+    private fun isScreenInteractive(): Boolean {
+        return try {
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            pm.isInteractive
+        } catch (_: Exception) {
+            true
+        }
+    }
+
     private fun inspectForegroundApp() {
         val blockedPackages = blockedPackagesCache
         val shieldSuspended = suspendUntilMillisCache > System.currentTimeMillis()
@@ -328,6 +338,14 @@ class FocusBlockerService : Service() {
         }
 
         if (shieldSuspended) {
+            hideOverlay(force = true)
+            return
+        }
+
+        if (!isScreenInteractive()) {
+            // With the screen off, the 5-minute usage-events fallback can still
+            // report the blocked app as foreground. Showing the overlay then
+            // would steal audio focus and waste the poll; re-evaluate on wake.
             hideOverlay(force = true)
             return
         }

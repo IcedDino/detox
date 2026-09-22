@@ -8,10 +8,6 @@ class NativeBlockAction {
   static const String suspendShield15 = 'suspend_shield_15';
 }
 
-class NativeNavigationTarget {
-  static const String sponsorCenter = 'sponsor_center';
-}
-
 class _ShieldRequest {
   const _ShieldRequest({
     required this.source,
@@ -149,26 +145,6 @@ class AppBlockingService {
       return null;
     }
   }
-
-  Future<String?> consumePendingNavigationTarget() async {
-    if (!_isAndroid) return null;
-    try {
-      return await _channel
-          .invokeMethod<String>('consumePendingNavigationTarget');
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<void> setSignedInState(bool signedIn) async {
-    if (!_isAndroid) return;
-    try {
-      await _channel.invokeMethod('setSignedInState', {
-        'signedIn': signedIn,
-      });
-    } catch (_) {}
-  }
-
 
   Future<void> refreshStrictMode() async {
     if (!_isAndroid || _requests.isEmpty) return;

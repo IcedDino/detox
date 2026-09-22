@@ -33,6 +33,7 @@ val releaseAdmobAppId =
     gradleOrEnv("detox.admob.appId.release")?.trim().takeUnless { it.isNullOrEmpty() }
 val releaseRewardedAdUnitId =
     gradleOrEnv("detox.admob.rewardedId.release")?.trim().takeUnless { it.isNullOrEmpty() }
+    ?: "ca-app-pub-5614533913981580/4419678966"
 
 val hasReleaseSigning = listOf(
     "storeFile",

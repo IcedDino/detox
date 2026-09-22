@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import '../l10n_app_strings.dart';
 import '../models/link_requests.dart';
 import '../models/sponsor_profile.dart';
@@ -100,6 +101,9 @@ class _SponsorScreenState extends State<SponsorScreen>
   }
 
   Future<void> _request(String type) async {
+    if (type == 'zone_override' && !await _ensureLocationForZonePause()) {
+      return;
+    }
     try {
       await _sponsorService.createUnlockRequest(
         requestType: type,
@@ -114,6 +118,40 @@ class _SponsorScreenState extends State<SponsorScreen>
     } catch (e) {
       _snack(e.toString());
     }
+  }
+
+  /// Zone pauses only make sense with location permission: the shield must
+  /// know when the user is actually inside a concentration zone. Without it,
+  /// ask for the permission first; if the user declines, the pause request is
+  /// not sent.
+  Future<bool> _ensureLocationForZonePause() async {
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.whileInUse ||
+        permission == LocationPermission.always) {
+      return true;
+    }
+
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.unableToDetermine) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.whileInUse ||
+          permission == LocationPermission.always) {
+        await LocationZoneService.instance.refresh();
+        return true;
+      }
+    }
+
+    if (!mounted) return false;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          t.isEs
+              ? 'Necesitamos el permiso de ubicación para usar pausas por zona. Actívalo para solicitar esta pausa.'
+              : 'Location permission is needed for zone pauses. Enable it to request this pause.',
+        ),
+      ),
+    );
+    return false;
   }
 
   Future<void> _requestEmailUnlinkCode() async {

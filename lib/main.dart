@@ -11,7 +11,6 @@ import 'models/auth_user.dart';
 import 'screens/auth_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/focus_screen.dart';
-import 'screens/habits_screen.dart';
 import 'screens/permission_setup_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/sponsor_screen.dart';
@@ -431,7 +430,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
             child: PageView.builder(
               controller: _pageController,
               allowImplicitScrolling: false,
-              itemCount: 5,
+              itemCount: 4,
               onPageChanged: (value) {
                 if (!mounted) return;
                 setState(() => _index = value);
@@ -447,9 +446,6 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
                   );
                 }
                 if (index == 2) {
-                  return const HabitsScreen(key: PageStorageKey('habits'));
-                }
-                if (index == 3) {
                   return const StatsScreen(key: PageStorageKey('stats'));
                 }
 
@@ -495,11 +491,6 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
                 icon: const Icon(Icons.timer_outlined),
                 selectedIcon: const Icon(Icons.timer),
                 label: t.focus,
-              ),
-              NavigationDestination(
-                icon: const Icon(Icons.checklist_outlined),
-                selectedIcon: const Icon(Icons.checklist),
-                label: t.habits,
               ),
               NavigationDestination(
                 icon: const Icon(Icons.bar_chart_outlined),

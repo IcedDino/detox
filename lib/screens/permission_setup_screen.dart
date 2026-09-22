@@ -44,8 +44,11 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
   String _locationMessage = '…';
 
   bool get _isAndroid => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
-  bool get _allReady =>
-      _usageReady && _overlayReady && _notificationsReady && _locationReady;
+
+  /// Permissions that must be granted before entering the app. Usage access
+  /// and overlay are required for the core blocking feature; notifications and
+  /// location are optional extras the user can grant later.
+  bool get _requiredReady => _usageReady && _overlayReady;
   int get _grantedCount => [
         _usageReady,
         _overlayReady,
@@ -119,7 +122,7 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
     });
 
     final skipStrictPermissions = kIsWeb || defaultTargetPlatform != TargetPlatform.android;
-    if (_allReady || skipStrictPermissions) {
+    if (_requiredReady || skipStrictPermissions) {
       await _storageService.saveOnboardingDone(true);
       if (mounted) widget.onFinished();
     }
@@ -249,10 +252,10 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
               const Center(child: DetoxLogo(size: 84, showLabel: true)),
               const SizedBox(height: 20),
               AppPageHeader(
-                title: t.isEs ? 'Activa los 4 permisos' : 'Turn on all 4 permissions',
+                title: t.isEs ? 'Activa los permisos clave' : 'Turn on the key permissions',
                 subtitle: t.isEs
-                    ? 'Necesitamos estos permisos para bloquear apps bien, mostrar el escudo de enfoque y activar automatizaciones sin fallos.'
-                    : 'Detox needs these permissions to block apps correctly, show the focus shield, and run automations reliably.',
+                    ? 'Necesitamos estos permisos para bloquear apps bien, mostrar el escudo de enfoque y activar automatizaciones sin fallos. Notificaciones y ubicación son opcionales y puedes activarlas después.'
+                    : 'Detox needs these permissions to block apps correctly, show the focus shield, and run automations reliably. Notifications and location are optional and can be enabled later.',
                 eyebrow: t.isEs ? 'Último paso antes de entrar' : 'Last step before you start',
                 icon: Icons.shield_rounded,
               ),
@@ -266,23 +269,23 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
                         Expanded(
                           child: Text(
                             t.isEs
-                                ? 'Llevas $_grantedCount de 4 permisos listos'
-                                : 'You have $_grantedCount of 4 permissions ready',
+                                ? 'Llevas $_grantedCount de 4 permisos · 2 obligatorios'
+                                : 'You have $_grantedCount of 4 permissions · 2 required',
                             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.w800,
                                 ),
                           ),
                         ),
                         StatusPill(
-                          label: _allReady
+                          label: _requiredReady
                               ? (t.isEs ? 'Todo listo' : 'All set')
                               : (t.isEs ? 'Faltan pasos' : 'More steps'),
-                          icon: _allReady
+                          icon: _requiredReady
                               ? Icons.check_circle_rounded
                               : (_checking
                                   ? Icons.autorenew_rounded
                                   : Icons.pending_actions_rounded),
-                          color: _allReady
+                          color: _requiredReady
                               ? DetoxColors.success
                               : (_checking ? DetoxColors.accentSoft : DetoxColors.warning),
                         ),
@@ -302,8 +305,8 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
                     const SizedBox(height: 12),
                     Text(
                       t.isEs
-                          ? 'La app avanzará automáticamente cuando los 4 permisos estén aceptados.'
-                          : 'The app will continue automatically as soon as all 4 permissions are accepted.',
+                          ? 'Datos de uso y superposición son necesarios. Notificaciones y ubicación son opcionales: la app entrará automáticamente cuando los obligatorios estén aceptados.'
+                          : 'Usage access and overlay are required. Notifications and location are optional: the app will continue as soon as the required ones are accepted.',
                       style: TextStyle(color: mutedColor, height: 1.4),
                     ),
                   ],
@@ -337,29 +340,31 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
               ),
               const SizedBox(height: 12),
               _PermissionCard(
-                title: t.isEs ? 'Notificaciones' : 'Notifications',
+                title: t.isEs ? 'Notificaciones (opcional)' : 'Notifications (optional)',
                 subtitle: t.isEs
-                    ? 'Muestran el temporizador activo, recordatorios y avisos importantes.'
-                    : 'Shows your active timer, reminders, and important alerts.',
+                    ? 'Muestran el temporizador activo, recordatorios y avisos importantes. Puedes activarlas después en Configuración.'
+                    : 'Shows your active timer, reminders, and important alerts. You can enable them later in Settings.',
                 detail: _notificationsMessage,
                 icon: Icons.notifications_active_rounded,
                 ready: _notificationsReady,
                 waiting: _waitingFromNotifications,
                 actionLabel: t.isEs ? 'Permitir notificaciones' : 'Allow notifications',
                 onPressed: _checking ? null : _requestNotificationPermission,
+                optional: true,
               ),
               const SizedBox(height: 12),
               _PermissionCard(
-                title: t.isEs ? 'Ubicación' : 'Location',
+                title: t.isEs ? 'Ubicación (opcional)' : 'Location (optional)',
                 subtitle: t.isEs
-                    ? 'Se usa para activar zonas de concentración y horarios automáticos según tu lugar.'
-                    : 'Used to start concentration zones and automatic schedules based on where you are.',
+                    ? 'Se usa para activar zonas de concentración según tu lugar. Si no la concedes, las funciones de zona no estarán disponibles.'
+                    : 'Used to start concentration zones based on where you are. Without it, zone features will not be available.',
                 detail: _locationMessage,
                 icon: Icons.location_on_rounded,
                 ready: _locationReady,
                 waiting: _waitingFromLocation,
                 actionLabel: t.isEs ? 'Permitir ubicación' : 'Allow location',
                 onPressed: _checking ? null : _enableLocation,
+                optional: true,
               ),
               const SizedBox(height: 16),
               GlassCard(
@@ -420,6 +425,7 @@ class _PermissionCard extends StatelessWidget {
     required this.waiting,
     required this.actionLabel,
     required this.onPressed,
+    this.optional = false,
   });
 
   final String title;
@@ -430,6 +436,7 @@ class _PermissionCard extends StatelessWidget {
   final bool waiting;
   final String actionLabel;
   final VoidCallback? onPressed;
+  final bool optional;
 
   @override
   Widget build(BuildContext context) {
@@ -477,6 +484,15 @@ class _PermissionCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
+              if (optional && !ready)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: StatusPill(
+                    label: AppStrings.of(context).isEs ? 'Opcional' : 'Optional',
+                    icon: Icons.add_circle_outline_rounded,
+                    color: DetoxColors.accentSoft,
+                  ),
+                ),
               StatusPill(
                 label: waiting
                     ? (AppStrings.of(context).isEs ? 'Revisando...' : 'Checking...')

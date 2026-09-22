@@ -135,7 +135,10 @@ class LocationZoneService {
     _overrideTimer = null;
     await _positionSub?.cancel();
     _positionSub = null;
-    _activeShieldKey = null;
+    if (_activeShieldKey != null) {
+      _activeShieldKey = null;
+      await AppBlockingService.instance.stopShield(source: 'zone');
+    }
     _lastMatchedZoneId = null;
     _currentAccuracy = null;
     _currentDistanceFilter = null;

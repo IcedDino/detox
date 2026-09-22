@@ -1,0 +1,62 @@
+{
+  "project_info": {
+    "project_number": "957513789397",
+    "project_id": "detox-c0790",
+    "storage_bucket": "detox-c0790.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:957513789397:android:ab36f4c7b4989f47e8975c",
+        "android_client_info": {
+          "package_name": "com.example.detox"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "957513789397-6pu2gqdl9jj89jtmtkn3kft3vupacqqm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.detox",
+            "certificate_hash": "263eb046159d15dc09c5e2d897b0c39667b9d581"
+          }
+        },
+        {
+          "client_id": "957513789397-vfi61qpaju1etd0dfmrnnaqbuj4kcu9s.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.detox",
+            "certificate_hash": "fb35951f66f32d8fc54eb43dea8ce3b09605fa18"
+          }
+        },
+        {
+          "client_id": "957513789397-7rnrclagedk1461na4mc74jjsi4crika.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCgYO9qPz1iGEKIoWz4wgI5Hsy3ghfIwWo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "957513789397-7rnrclagedk1461na4mc74jjsi4crika.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "957513789397-iqhqirqm7gsnfk16bmjocfdnf0l9p42d.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.floresr.detox"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

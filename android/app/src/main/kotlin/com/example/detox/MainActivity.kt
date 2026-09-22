@@ -112,6 +112,7 @@ class MainActivity : FlutterActivity() {
                             prefs.edit()
                                 .remove("blocked_packages")
                                 .remove("block_reason")
+                                .remove("suspend_until_millis")
                                 .putBoolean("strict_mode", false)
                                 .apply()
                             val intent = Intent(this, FocusBlockerService::class.java).apply {

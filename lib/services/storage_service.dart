@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/app_limit.dart';
@@ -291,12 +293,17 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getStringList(_automationRulesKey);
     if (raw == null || raw.isEmpty) return const [];
-    return raw.map(AutomationRule.fromJson).toList();
+    return raw
+        .map((e) => AutomationRule.fromJson(jsonDecode(e) as Map<String, dynamic>))
+        .toList();
   }
 
   Future<void> saveAutomationRules(List<AutomationRule> rules) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_automationRulesKey, rules.map((e) => e.toJson()).toList());
+    await prefs.setStringList(
+      _automationRulesKey,
+      rules.map((e) => jsonEncode(e.toJson())).toList(),
+    );
   }
 
   Future<bool> loadStrictMode() async {
