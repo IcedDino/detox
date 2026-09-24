@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:atlas_icons/atlas_icons.dart';
 
 import '../l10n_app_strings.dart';
 import '../models/app_limit.dart';
@@ -29,6 +30,8 @@ class SettingsScreen extends StatefulWidget {
     super.key,
     required this.darkMode,
     required this.onDarkModeChanged,
+    this.timeAtmosphereEnabled = false,
+    this.onTimeAtmosphereChanged,
     required this.currentUser,
     required this.onSignOut,
     required this.localeCode,
@@ -38,6 +41,8 @@ class SettingsScreen extends StatefulWidget {
 
   final bool darkMode;
   final ValueChanged<bool> onDarkModeChanged;
+  final bool timeAtmosphereEnabled;
+  final ValueChanged<bool>? onTimeAtmosphereChanged;
   final AuthUser? currentUser;
   final Future<void> Function() onSignOut;
   final String localeCode;
@@ -666,14 +671,27 @@ class _SettingsScreenState extends State<SettingsScreen>
             child: Column(
               children: [
                 SoftActionTile(
-                  icon: widget.darkMode
-                      ? Icons.dark_mode_rounded
-                      : Icons.light_mode_rounded,
+                  icon: widget.darkMode ? Atlas.moon : Atlas.sunny,
                   title: t.darkMode,
                   subtitle: t.darkModeSubtitle,
                   trailing: Switch(
                     value: widget.darkMode,
                     onChanged: widget.onDarkModeChanged,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SoftActionTile(
+                  icon: Atlas.sunrise,
+                  title: t.isEs
+                      ? 'Ambiente según la hora'
+                      : 'Time of day atmosphere',
+                  subtitle: t.isEs
+                      ? 'Luz cálida al amanecer y estrellas de noche. Solo en modo oscuro.'
+                      : 'Warm light at sunrise and stars at night. Dark mode only.',
+                  trailing: Switch(
+                    value: widget.timeAtmosphereEnabled && widget.darkMode,
+                    onChanged:
+                        widget.darkMode ? widget.onTimeAtmosphereChanged : null,
                   ),
                 ),
                 const SizedBox(height: 12),

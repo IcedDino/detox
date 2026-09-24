@@ -1,10 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:atlas_icons/atlas_icons.dart';
 
 import '../l10n_app_strings.dart';
 import '../models/dashboard_data.dart';
 import '../models/usage_models.dart';
+import '../models/app_limit.dart';
+import '../models/concentration_zone.dart';
+import '../models/automation_rule.dart';
 import '../services/smart_usage_recommendation_service.dart';
 import '../services/storage_service.dart';
 import '../services/usage_service.dart';
@@ -19,14 +24,37 @@ class DashboardScreen extends StatefulWidget {
     super.key,
     this.onStartFocus,
     this.isCurrentPage = true,
+    this.onOpenSettings,
   });
 
   /// Called when the user taps the single primary action.
   final VoidCallback? onStartFocus;
   final bool isCurrentPage;
+  final VoidCallback? onOpenSettings;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _SetupShortcut extends StatelessWidget {
+  const _SetupShortcut({required this.icon, required this.title, this.onTap});
+  final IconData icon;
+  final String title;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 9),
+        child: OutlinedButton.icon(
+          onPressed: onTap,
+          icon: Icon(icon),
+          label: Text(title),
+          style: OutlinedButton.styleFrom(
+              alignment: Alignment.centerLeft,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 15)),
+        ),
+      );
 }
 
 class _DashboardScreenState extends State<DashboardScreen>
@@ -36,6 +64,10 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   late Future<DashboardData> _future;
   Timer? _usageRefreshTimer;
+  bool _showZoneShortcut = false;
+  bool _showRestrictionsShortcut = false;
+  bool _showScheduleShortcut = false;
+  bool _hideSetupAdvice = false;
 
   @override
   void initState() {
@@ -99,6 +131,21 @@ class _DashboardScreenState extends State<DashboardScreen>
     ]);
     final summary = results[0] as DailyUsageSummary;
     final limit = results[1] as int;
+    final setup = await Future.wait<dynamic>([
+      _storageService.loadConcentrationZones(),
+      _storageService.loadAppLimits(),
+      _storageService.loadAutomationRules(),
+      SharedPreferences.getInstance(),
+    ]);
+    final prefs = setup[3] as SharedPreferences;
+    if (mounted) {
+      setState(() {
+        _hideSetupAdvice = prefs.getBool('hide_setup_advice') ?? false;
+        _showZoneShortcut = (setup[0] as List<ConcentrationZone>).isEmpty;
+        _showRestrictionsShortcut = (setup[1] as List<AppLimit>).isEmpty;
+        _showScheduleShortcut = (setup[2] as List<AutomationRule>).isEmpty;
+      });
+    }
 
     if (summary.topApps.isNotEmpty) {
       unawaited(
@@ -109,6 +156,31 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
 
     return DashboardData(summary: summary, dailyLimit: limit);
+  }
+
+  Future<void> _hideAdviceForever() async {
+    final t = AppStrings.of(context);
+    final hide = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(t.isEs ? 'Consejos de inicio' : 'Getting started tips'),
+        content: Text(t.isEs
+            ? 'Estos accesos te ayudan a configurar las funciones que aún no usas. ¿Quieres dejar de mostrarlos?'
+            : 'These shortcuts help set up features you have not used yet. Would you like to stop showing them?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(t.cancel)),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(t.isEs ? 'No mostrar de nuevo' : 'Don’t show again')),
+        ],
+      ),
+    );
+    if (hide != true) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hide_setup_advice', true);
+    if (mounted) setState(() => _hideSetupAdvice = true);
   }
 
   String _formatMinutes(int minutes) {
@@ -375,6 +447,51 @@ class _DashboardScreenState extends State<DashboardScreen>
                   icon: const Icon(Icons.refresh_rounded),
                   label: Text(t.isEs ? 'Reintentar' : 'Retry'),
                 ),
+
+              if (!_hideSetupAdvice &&
+                  (_showZoneShortcut ||
+                      _showRestrictionsShortcut ||
+                      _showScheduleShortcut)) ...[
+                const SizedBox(height: 28),
+                Text(t.isEs ? 'Completa tu configuración' : 'Finish your setup',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 6),
+                Text(
+                    t.isEs
+                        ? 'Accesos rápidos a las opciones que aún no has configurado.'
+                        : 'Quick links to options you have not set up yet.',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: muted)),
+                const SizedBox(height: 12),
+                if (_showZoneShortcut)
+                  _SetupShortcut(
+                      icon: Atlas.pin_destination,
+                      title: t.isEs ? 'Añadir zonas Detox' : 'Add Detox zones',
+                      onTap: widget.onOpenSettings),
+                if (_showRestrictionsShortcut)
+                  _SetupShortcut(
+                      icon: Atlas.block_prohibited,
+                      title: t.isEs
+                          ? 'Configurar restricciones de apps'
+                          : 'Configure app restrictions',
+                      onTap: widget.onOpenSettings),
+                if (_showScheduleShortcut)
+                  _SetupShortcut(
+                      icon: Atlas.calendar_schedule,
+                      title: t.isEs
+                          ? 'Crear horarios Detox'
+                          : 'Create Detox schedules',
+                      onTap: widget.onOpenSettings),
+                Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                        onPressed: _hideAdviceForever,
+                        child: Text(t.isEs
+                            ? 'No mostrar estos consejos de nuevo'
+                            : 'Don’t show these tips again'))),
+              ],
             ],
           );
         },

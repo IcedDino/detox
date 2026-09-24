@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
+  atlas_icons: ^0.0.12
   shared_preferences: ^2.5.3
   flutter_localizations:
     sdk: flutter
