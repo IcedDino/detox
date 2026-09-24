@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "957513789397-cgkhffp8gqds8g19oru2t63s5dvs1ont.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.detox",
+            "certificate_hash": "b0430edde53962f550589969e1089f108edd42bf"
+          }
+        },
+        {
           "client_id": "957513789397-vfi61qpaju1etd0dfmrnnaqbuj4kcu9s.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
