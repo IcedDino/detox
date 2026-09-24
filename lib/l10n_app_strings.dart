@@ -170,6 +170,9 @@ class AppStrings {
   String get searchApp => isEs ? 'Buscar app' : 'Search app';
   String get noAppsFound => isEs ? 'No se encontraron apps.' : 'No apps found.';
   String get addSelectedApp => isEs ? 'Agregar app seleccionada' : 'Add selected app';
+  String selectedAppsCount(int count) => isEs ? '$count apps seleccionadas' : '$count apps selected';
+  String addSelectedApps(int count) => isEs ? 'Agregar $count apps' : 'Add $count apps';
+  String get retryLoadingApps => isEs ? 'No se pudieron cargar las apps. Reintentar' : 'Could not load apps. Retry';
   String get newConcentrationZone => isEs ? 'Nueva zona de concentración' : 'New concentration zone';
   String get zoneName => isEs ? 'Nombre de la zona' : 'Zone name';
   String get mapZoneHelp => isEs ? 'Mueve el mapa al lugar que quieras. El pin permanece en el centro, así puedes guardar una universidad, biblioteca, oficina o cualquier punto lejano.' : 'Move the map to any place you want. The pin stays in the center, so you can save a university, library, office, or any faraway point.';

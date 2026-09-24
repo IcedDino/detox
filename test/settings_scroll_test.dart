@@ -1,4 +1,5 @@
 import 'package:detox/models/app_limit.dart';
+import 'package:detox/services/app_catalog_service.dart';
 import 'package:detox/screens/settings_screen.dart';
 import 'package:detox/widgets/app_icon_badge.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -8,6 +9,7 @@ import 'package:firebase_core_platform_interface/test.dart';
 // ignore: depend_on_referenced_packages
 import 'package:firebase_auth_platform_interface/firebase_auth_platform_interface.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -97,5 +99,61 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     controller.dispose();
+  });
+
+  testWidgets('App picker keeps multiple selections in one opening',
+      (tester) async {
+    AppCatalogService.clearCache();
+    SharedPreferences.setMockInitialValues({});
+    const channel = MethodChannel('detox/device_control');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      channel,
+      (call) async {
+        if (call.method == 'getLaunchableApps') {
+          return [
+            {'name': 'Alpha', 'packageName': 'example.alpha'},
+            {'name': 'Beta', 'packageName': 'example.beta'},
+          ];
+        }
+        return null;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+      AppCatalogService.clearCache();
+    });
+
+    await tester.pumpWidget(MaterialApp(
+      locale: const Locale('en'),
+      home: Scaffold(
+        body: SettingsScreen(
+          darkMode: false,
+          onDarkModeChanged: (_) {},
+          currentUser: null,
+          onSignOut: () async {},
+          localeCode: 'en',
+          onLocaleChanged: (_) {},
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    final scrollable = find.descendant(
+      of: find.byKey(const PageStorageKey('settings-list')),
+      matching: find.byType(Scrollable),
+    );
+    await tester.scrollUntilVisible(
+      find.byIcon(Icons.add),
+      300,
+      scrollable: scrollable,
+    );
+    final addButton = find.byIcon(Icons.add).first;
+    await tester.tap(addButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Alpha'));
+    await tester.tap(find.text('Beta'));
+    await tester.pumpAndSettle();
+    expect(find.text('2 apps selected'), findsOneWidget);
+    expect(find.text('Add 2 apps'), findsOneWidget);
   });
 }

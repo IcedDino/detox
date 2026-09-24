@@ -31,6 +31,7 @@ class AutomationService {
   final UsageService _usage = UsageService();
 
   Timer? _timer;
+  Timer? _midnightTimer;
   String? _activeKey;
 
   Future<void> start() async {
@@ -39,11 +40,24 @@ class AutomationService {
     _timer = Timer.periodic(const Duration(minutes: 1), (_) {
       unawaited(refresh());
     });
+    _scheduleMidnightRefresh();
+  }
+
+  void _scheduleMidnightRefresh() {
+    _midnightTimer?.cancel();
+    final now = DateTime.now();
+    final nextMidnight = DateTime(now.year, now.month, now.day + 1);
+    _midnightTimer = Timer(nextMidnight.difference(now), () {
+      _scheduleMidnightRefresh();
+      unawaited(refresh());
+    });
   }
 
   void stop() {
     _timer?.cancel();
     _timer = null;
+    _midnightTimer?.cancel();
+    _midnightTimer = null;
   }
 
   Future<AutomationSnapshot> buildSnapshot() async {
@@ -82,6 +96,13 @@ class AutomationService {
           .toSet()
           .toList()
         ..sort();
+    }
+
+    final completedAt = DateTime.now();
+    if (completedAt.year != now.year ||
+        completedAt.month != now.month ||
+        completedAt.day != now.day) {
+      return buildSnapshot();
     }
 
     return AutomationSnapshot(

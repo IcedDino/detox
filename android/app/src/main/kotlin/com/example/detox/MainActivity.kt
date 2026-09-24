@@ -6,6 +6,7 @@ import android.app.usage.UsageStatsManager
 import java.util.Calendar
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.Drawable
@@ -29,6 +30,7 @@ class MainActivity : FlutterActivity() {
     private val iconExecutor = Executors.newSingleThreadExecutor()
     private val usageExecutor = Executors.newSingleThreadExecutor()
     private val weeklyUsageExecutor = Executors.newSingleThreadExecutor()
+    private val appCatalogExecutor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val iconCache = object : LinkedHashMap<String, ByteArray>(32, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>?): Boolean =
@@ -50,6 +52,19 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
+                    "getLaunchableApps" -> {
+                        appCatalogExecutor.execute {
+                            try {
+                                val apps = queryLaunchableApps()
+                                mainHandler.post { result.success(apps) }
+                            } catch (e: Exception) {
+                                mainHandler.post {
+                                    result.error("APP_CATALOG_ERROR", e.message, null)
+                                }
+                            }
+                        }
+                    }
+
                     "hasOverlayPermission" -> {
                         result.success(
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -285,6 +300,22 @@ class MainActivity : FlutterActivity() {
             }
     }
 
+    private fun queryLaunchableApps(): List<Map<String, String>> {
+        val packageManager = packageManager
+        val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val activities = packageManager.queryIntentActivities(launcherIntent, 0)
+        val seen = HashSet<String>()
+        return activities.mapNotNull { activity ->
+            val app = activity.activityInfo?.applicationInfo ?: return@mapNotNull null
+            if ((app.flags and ApplicationInfo.FLAG_SYSTEM) != 0 ||
+                !seen.add(app.packageName)) return@mapNotNull null
+            mapOf(
+                "name" to packageManager.getApplicationLabel(app).toString(),
+                "packageName" to app.packageName,
+            )
+        }
+    }
+
     private fun hasUsageAccess(): Boolean {
         return try {
             val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
@@ -347,73 +378,17 @@ class MainActivity : FlutterActivity() {
     private fun queryUsageRows(start: Long, end: Long): List<Map<String, Any>> {
         return try {
             val manager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-            val stats = manager.queryAndAggregateUsageStats(start, end)
-            val usageMillis = stats.mapValuesTo(mutableMapOf()) {
-                it.value.totalTimeInForeground
-            }
+            val eventEnd = minOf(end, System.currentTimeMillis())
+            if (eventEnd <= start) return emptyList()
 
-            // UsageStats can lag while an app remains in the foreground. Add
-            // the latest activity intervals so today's list updates as soon
-            // as the user returns from another app.
-            if (end > System.currentTimeMillis()) try {
-                val eventEnd = minOf(end, System.currentTimeMillis())
-                val events = manager.queryEvents(start, eventEnd)
-                val event = UsageEvents.Event()
-                var foregroundPackage: String? = null
-                var foregroundSince = 0L
-                val eventMillis = mutableMapOf<String, Long>()
-
-                while (events.hasNextEvent()) {
-                    events.getNextEvent(event)
-                    val packageName = event.packageName ?: continue
-                    val timestamp = event.timeStamp
-                    when (event.eventType) {
-                        UsageEvents.Event.ACTIVITY_RESUMED,
-                        UsageEvents.Event.MOVE_TO_FOREGROUND -> {
-                            if (foregroundPackage != null &&
-                                foregroundPackage != packageName &&
-                                timestamp > foregroundSince
-                            ) {
-                                eventMillis[foregroundPackage] =
-                                    (eventMillis[foregroundPackage] ?: 0L) +
-                                        timestamp - foregroundSince
-                            }
-                            if (foregroundPackage != packageName) {
-                                foregroundPackage = packageName
-                                foregroundSince = timestamp
-                            }
-                        }
-
-                        UsageEvents.Event.ACTIVITY_PAUSED,
-                        UsageEvents.Event.ACTIVITY_STOPPED,
-                        UsageEvents.Event.MOVE_TO_BACKGROUND -> {
-                            if (foregroundPackage == packageName &&
-                                timestamp > foregroundSince
-                            ) {
-                                eventMillis[packageName] =
-                                    (eventMillis[packageName] ?: 0L) +
-                                        timestamp - foregroundSince
-                                foregroundPackage = null
-                                foregroundSince = 0L
-                            }
-                        }
-                    }
-                }
-
-                if (foregroundPackage != null && eventEnd > foregroundSince) {
-                    eventMillis[foregroundPackage] =
-                        (eventMillis[foregroundPackage] ?: 0L) + eventEnd - foregroundSince
-                }
-                eventMillis.forEach { (packageName, duration) ->
-                    usageMillis[packageName] = maxOf(
-                        usageMillis[packageName] ?: 0L,
-                        duration,
-                    )
-                }
+            // Events have exact timestamps; aggregate buckets may expand the
+            // requested range and include time from an adjacent local day.
+            val usageMillis = try {
+                queryUsageEventMillis(manager, start, eventEnd)
             } catch (_: Exception) {
-                // Fall back to aggregated UsageStats on devices that restrict
-                // access to detailed usage events.
-            }
+                null
+            } ?: manager.queryAndAggregateUsageStats(start, eventEnd)
+                .mapValuesTo(mutableMapOf()) { it.value.totalTimeInForeground }
 
             usageMillis.mapNotNull { (packageName, duration) ->
                 val minutes = (duration / 60_000L).toInt()
@@ -426,6 +401,78 @@ class MainActivity : FlutterActivity() {
         } catch (_: Exception) {
             emptyList()
         }
+    }
+
+    private fun queryUsageEventMillis(
+        manager: UsageStatsManager,
+        start: Long,
+        end: Long,
+    ): MutableMap<String, Long>? {
+        // Read the preceding day to identify an app already open at midnight.
+        // Every credited interval is clipped to [start, end), so yesterday's
+        // minutes never become part of today's total.
+        val lookbackStart = maxOf(0L, start - 24L * 60L * 60L * 1000L)
+        val events = manager.queryEvents(lookbackStart, end) ?: return null
+        val event = UsageEvents.Event()
+        val usageMillis = mutableMapOf<String, Long>()
+        var foregroundPackage: String? = null
+        var foregroundClass: String? = null
+        var foregroundSince = 0L
+        var sawEvent = false
+
+        fun closeAt(timestamp: Long) {
+            val packageName = foregroundPackage
+            if (packageName != null) {
+                val clippedStart = maxOf(start, foregroundSince)
+                val clippedEnd = minOf(end, timestamp)
+                if (clippedEnd > clippedStart) {
+                    usageMillis[packageName] =
+                        (usageMillis[packageName] ?: 0L) + clippedEnd - clippedStart
+                }
+            }
+            foregroundPackage = null
+            foregroundClass = null
+            foregroundSince = 0L
+        }
+
+        while (events.hasNextEvent()) {
+            sawEvent = true
+            events.getNextEvent(event)
+            val packageName = event.packageName
+            val timestamp = event.timeStamp
+            when (event.eventType) {
+                UsageEvents.Event.ACTIVITY_RESUMED,
+                UsageEvents.Event.MOVE_TO_FOREGROUND -> {
+                    if (packageName.isNullOrBlank()) continue
+                    if (foregroundPackage != packageName ||
+                        foregroundClass != event.className
+                    ) {
+                        closeAt(timestamp)
+                        foregroundPackage = packageName
+                        foregroundClass = event.className
+                        foregroundSince = timestamp
+                    }
+                }
+
+                UsageEvents.Event.ACTIVITY_PAUSED,
+                UsageEvents.Event.ACTIVITY_STOPPED,
+                UsageEvents.Event.MOVE_TO_BACKGROUND -> {
+                    if (foregroundPackage == packageName &&
+                        foregroundClass == event.className
+                    ) closeAt(timestamp)
+                }
+
+                UsageEvents.Event.SCREEN_NON_INTERACTIVE,
+                UsageEvents.Event.KEYGUARD_SHOWN,
+                UsageEvents.Event.DEVICE_SHUTDOWN -> closeAt(timestamp)
+            }
+        }
+        if (!sawEvent && end < System.currentTimeMillis() - 24L * 60L * 60L * 1000L) {
+            // Some devices keep fewer detailed events than daily aggregates.
+            return null
+        }
+        closeAt(end)
+        return usageMillis
     }
 
     private fun getAppIcon(targetPackage: String?): ByteArray? {

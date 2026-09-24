@@ -241,6 +241,9 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       unawaited(_verifyUsageAccess());
       unawaited(_drainPendingLaunchActions());
+      if (_protectedServicesRunning) {
+        unawaited(AutomationService.instance.refresh());
+      }
     }
   }
 
@@ -621,7 +624,13 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
                     );
                   }
                   if (index == 2) {
-                    return const StatsScreen(key: PageStorageKey('stats'));
+                    return ValueListenableBuilder<int>(
+                      valueListenable: _index,
+                      builder: (context, selectedIndex, child) => StatsScreen(
+                        key: const PageStorageKey('stats'),
+                        isCurrentPage: selectedIndex == 2,
+                      ),
+                    );
                   }
 
                   return ValueListenableBuilder<int>(

@@ -64,6 +64,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   late Future<DashboardData> _future;
   Timer? _usageRefreshTimer;
+  Timer? _midnightRefreshTimer;
   bool _showZoneShortcut = false;
   bool _showRestrictionsShortcut = false;
   bool _showScheduleShortcut = false;
@@ -75,6 +76,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     WidgetsBinding.instance.addObserver(this);
     _future = _load();
     _updateUsageRefreshTimer();
+    _scheduleMidnightRefresh();
   }
 
   @override
@@ -90,6 +92,16 @@ class _DashboardScreenState extends State<DashboardScreen>
     _usageRefreshTimer?.cancel();
     if (!widget.isCurrentPage) return;
     _usageRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      _refreshUsage();
+    });
+  }
+
+  void _scheduleMidnightRefresh() {
+    _midnightRefreshTimer?.cancel();
+    final now = DateTime.now();
+    final nextMidnight = DateTime(now.year, now.month, now.day + 1);
+    _midnightRefreshTimer = Timer(nextMidnight.difference(now), () {
+      _scheduleMidnightRefresh();
       _refreshUsage();
     });
   }
@@ -111,12 +123,14 @@ class _DashboardScreenState extends State<DashboardScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _usageRefreshTimer?.cancel();
+    _midnightRefreshTimer?.cancel();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      _scheduleMidnightRefresh();
       _refreshUsage();
     }
   }

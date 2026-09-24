@@ -1,12 +1,12 @@
 import 'package:flutter/foundation.dart';
-import 'package:installed_apps/app_info.dart';
-import 'package:installed_apps/installed_apps.dart';
+import 'package:flutter/services.dart';
 
 import '../models/installed_app_entry.dart';
 import 'app_metadata_service.dart';
 import 'app_visibility_filter_service.dart';
 
 class AppCatalogService {
+  static const MethodChannel _channel = MethodChannel('detox/device_control');
   static List<InstalledAppEntry>? _cache;
   static Future<List<InstalledAppEntry>>? _loadFuture;
 
@@ -28,9 +28,12 @@ class AppCatalogService {
   Future<List<InstalledAppEntry>> _loadInstalledAppsInternal() async {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
       _cache = const [
-        InstalledAppEntry(name: 'Instagram', packageName: 'com.instagram.android'),
-        InstalledAppEntry(name: 'TikTok', packageName: 'com.zhiliaoapp.musically'),
-        InstalledAppEntry(name: 'YouTube', packageName: 'com.google.android.youtube'),
+        InstalledAppEntry(
+            name: 'Instagram', packageName: 'com.instagram.android'),
+        InstalledAppEntry(
+            name: 'TikTok', packageName: 'com.zhiliaoapp.musically'),
+        InstalledAppEntry(
+            name: 'YouTube', packageName: 'com.google.android.youtube'),
         InstalledAppEntry(name: 'WhatsApp', packageName: 'com.whatsapp'),
         InstalledAppEntry(name: 'Chrome', packageName: 'com.android.chrome'),
         InstalledAppEntry(name: 'Facebook', packageName: 'com.facebook.katana'),
@@ -39,56 +42,51 @@ class AppCatalogService {
       return _cache!;
     }
 
-    try {
-      final apps = await InstalledApps.getInstalledApps(
-        excludeSystemApps: true,
-        excludeNonLaunchableApps: true,
-        withIcon: false,
-      );
+    final apps =
+        await _channel.invokeListMethod<dynamic>('getLaunchableApps') ??
+            const [];
 
-      final visible = <InstalledAppEntry>[];
-      final addedPackages = <String>{};
+    final visible = <InstalledAppEntry>[];
+    final addedPackages = <String>{};
 
-      for (final AppInfo app in apps) {
-        final packageName = app.packageName.trim();
-        final appName = app.name.trim();
+    for (final rawApp in apps) {
+      if (rawApp is! Map) continue;
+      final packageName = (rawApp['packageName'] as String? ?? '').trim();
+      final appName = (rawApp['name'] as String? ?? '').trim();
 
-        if (packageName.isEmpty || appName.isEmpty) {
-          continue;
-        }
-
-        if (addedPackages.contains(packageName)) {
-          continue;
-        }
-
-        if (!AppVisibilityFilterService.instance.shouldShowPackageName(
-          packageName,
-        )) {
-          continue;
-        }
-
-        if (!AppVisibilityFilterService.instance.shouldShowResolvedLabel(
-          appName,
-        )) {
-          continue;
-        }
-
-        visible.add(
-          InstalledAppEntry(
-            name: appName,
-            packageName: packageName,
-          ),
-        );
-        addedPackages.add(packageName);
+      if (packageName.isEmpty || appName.isEmpty) {
+        continue;
       }
 
-      visible.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-      _cache = visible;
-      return visible;
-    } catch (_) {
-      _cache = const [];
-      return _cache!;
+      if (addedPackages.contains(packageName)) {
+        continue;
+      }
+
+      if (!AppVisibilityFilterService.instance.shouldShowPackageName(
+        packageName,
+      )) {
+        continue;
+      }
+
+      if (!AppVisibilityFilterService.instance.shouldShowResolvedLabel(
+        appName,
+      )) {
+        continue;
+      }
+
+      visible.add(
+        InstalledAppEntry(
+          name: appName,
+          packageName: packageName,
+        ),
+      );
+      addedPackages.add(packageName);
     }
+
+    visible
+        .sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    _cache = visible;
+    return visible;
   }
 
   Future<List<InstalledAppEntry>> hydrateVisibleIcons(

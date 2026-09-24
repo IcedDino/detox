@@ -65,7 +65,6 @@ class _SettingsScreenState extends State<SettingsScreen>
   Future<void>? _loadFuture;
   bool _refreshOnVisible = false;
   List<AppLimit> _appLimits = const [];
-  List<InstalledAppEntry> _installedApps = const [];
   List<ConcentrationZone> _zones = const [];
   bool _hasSponsor = false;
   bool _settingsUnlockActive = false;
@@ -75,13 +74,15 @@ class _SettingsScreenState extends State<SettingsScreen>
   ZoneState _zoneState = LocationZoneService.instance.currentState;
   StreamSubscription<ZoneState>? _zoneSubscription;
   bool _deletingAccount = false;
-  bool _loadingInstalledApps = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _load();
+    unawaited(_catalogService
+        .loadInstalledApps()
+        .then<void>((_) {}, onError: (_) {}));
     _zoneSubscription = LocationZoneService.instance.states.listen((state) {
       if (!mounted) return;
       if (_zoneState.zoneName == state.zoneName &&
@@ -169,35 +170,6 @@ class _SettingsScreenState extends State<SettingsScreen>
     }
   }
 
-  Future<bool> _ensureInstalledAppsLoaded() async {
-    if (_installedApps.isNotEmpty) return true;
-    if (_loadingInstalledApps) return false;
-
-    if (mounted) {
-      setState(() => _loadingInstalledApps = true);
-    }
-
-    try {
-      final apps = await _catalogService.loadInstalledApps();
-      if (!mounted) return false;
-      setState(() {
-        _installedApps = apps;
-      });
-      return true;
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not load installed apps.')),
-        );
-      }
-      return false;
-    } finally {
-      if (mounted) {
-        setState(() => _loadingInstalledApps = false);
-      }
-    }
-  }
-
   Future<bool> _ensureProtectedSettingsAccess() async {
     if (!_hasSponsor || _settingsUnlockActive) return true;
 
@@ -275,24 +247,26 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   Future<void> _addAppLimit() async {
-    final allowed = await ensureBlockingPermissions(context);
-    if (!allowed || !mounted) return;
-    await FocusNotificationService.instance.requestPermission();
-    final loaded = await _ensureInstalledAppsLoaded();
-    if (!loaded || !mounted) return;
-
-    final created = await showModalBottomSheet<AppLimit>(
+    final created = await showModalBottomSheet<List<AppLimit>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => _AppPickerSheet(
-        apps: _installedApps,
+        appsFuture: _catalogService.loadInstalledApps(),
         existing: _appLimits,
       ),
     );
 
-    if (created != null) {
-      final next = [..._appLimits, created]..sort(
+    if (created != null && created.isNotEmpty && mounted) {
+      final allowed = await ensureBlockingPermissions(context);
+      if (!allowed || !mounted) return;
+      await FocusNotificationService.instance.requestPermission();
+      if (!mounted) return;
+      final existingPackages = _appLimits.map((e) => e.packageName).toSet();
+      final next = [
+        ..._appLimits,
+        ...created.where((app) => !existingPackages.contains(app.packageName)),
+      ]..sort(
           (a, b) => a.appName.toLowerCase().compareTo(
                 b.appName.toLowerCase(),
               ),
@@ -1021,11 +995,11 @@ class _SettingsScreenState extends State<SettingsScreen>
 
 class _AppPickerSheet extends StatefulWidget {
   const _AppPickerSheet({
-    required this.apps,
+    required this.appsFuture,
     required this.existing,
   });
 
-  final List<InstalledAppEntry> apps;
+  final Future<List<InstalledAppEntry>> appsFuture;
   final List<AppLimit> existing;
 
   @override
@@ -1125,8 +1099,35 @@ class _AppPickerSheetState extends State<_AppPickerSheet> {
 
   final TextEditingController _searchController = TextEditingController();
 
-  InstalledAppEntry? _selected;
+  final Map<String, InstalledAppEntry> _selected = {};
+  List<InstalledAppEntry> _apps = const [];
+  bool _loadingApps = true;
+  bool _loadFailed = false;
   String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadApps(widget.appsFuture);
+  }
+
+  Future<void> _loadApps(Future<List<InstalledAppEntry>> future) async {
+    try {
+      final apps = await future;
+      if (!mounted) return;
+      setState(() {
+        _apps = apps;
+        _loadingApps = false;
+        _loadFailed = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadingApps = false;
+        _loadFailed = true;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -1172,7 +1173,7 @@ class _AppPickerSheetState extends State<_AppPickerSheet> {
     final existingPackages = widget.existing.map((e) => e.packageName).toSet();
     final query = _query.trim().toLowerCase();
 
-    final filtered = widget.apps
+    final filtered = _apps
         .where((app) => !existingPackages.contains(app.packageName))
         .where((app) {
       if (query.isEmpty) return true;
@@ -1186,7 +1187,7 @@ class _AppPickerSheetState extends State<_AppPickerSheet> {
         return a.name.toLowerCase().compareTo(b.name.toLowerCase());
       });
 
-    final visibleApps = filtered.take(80).toList();
+    final visibleApps = filtered;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -1217,101 +1218,139 @@ class _AppPickerSheetState extends State<_AppPickerSheet> {
                 ),
               ),
               const SizedBox(height: 14),
+              Text(
+                t.selectedAppsCount(_selected.length),
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: DetoxColors.muted),
+              ),
+              const SizedBox(height: 8),
               Expanded(
-                child: visibleApps.isEmpty
-                    ? Center(
-                        child: Text(
-                          t.noAppsFound,
-                          style: const TextStyle(color: DetoxColors.muted),
-                        ),
-                      )
-                    : ListView.separated(
-                        itemCount: visibleApps.length,
-                        separatorBuilder: (context, _) =>
-                            const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
-                          final app = visibleApps[index];
-                          final selected =
-                              _selected?.packageName == app.packageName;
+                child: _loadingApps
+                    ? const Center(child: CircularProgressIndicator())
+                    : _loadFailed
+                        ? Center(
+                            child: TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _loadingApps = true;
+                                  _loadFailed = false;
+                                });
+                                _loadApps(
+                                    AppCatalogService().loadInstalledApps());
+                              },
+                              child: Text(t.retryLoadingApps),
+                            ),
+                          )
+                        : visibleApps.isEmpty
+                            ? Center(
+                                child: Text(
+                                  t.noAppsFound,
+                                  style:
+                                      const TextStyle(color: DetoxColors.muted),
+                                ),
+                              )
+                            : ListView.separated(
+                                itemCount: visibleApps.length,
+                                separatorBuilder: (context, _) =>
+                                    const SizedBox(height: 8),
+                                itemBuilder: (context, index) {
+                                  final app = visibleApps[index];
+                                  final selected =
+                                      _selected.containsKey(app.packageName);
 
-                          return Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(detoxRadius),
-                              onTap: () => setState(() => _selected = app),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 160),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 12,
-                                ),
-                                decoration: BoxDecoration(
-                                  borderRadius:
-                                      BorderRadius.circular(detoxRadius),
-                                  color: selected
-                                      ? DetoxColors.accent.withOpacity(0.16)
-                                      : (isDark
-                                          ? DetoxColors.cardSubtle
-                                          : DetoxColors.lightCardSubtle),
-                                  border: Border.all(
-                                    color: selected
-                                        ? DetoxColors.accentSoft
-                                            .withOpacity(0.45)
-                                        : (isDark
-                                            ? DetoxColors.cardBorder
-                                            : DetoxColors.lightCardBorder),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    AppIconBadge(
-                                      packageName: app.packageName,
-                                      iconBytes: app.iconBytes,
-                                      size: 42,
-                                      borderRadius: 12,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Text(
-                                        app.name,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: theme.textTheme.titleMedium
-                                            ?.copyWith(
-                                          fontWeight: detoxWeightEmphasis,
+                                  return Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      borderRadius:
+                                          BorderRadius.circular(detoxRadius),
+                                      onTap: () => setState(() {
+                                        if (selected) {
+                                          _selected.remove(app.packageName);
+                                        } else {
+                                          _selected[app.packageName] = app;
+                                        }
+                                      }),
+                                      child: AnimatedContainer(
+                                        duration:
+                                            const Duration(milliseconds: 160),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                          vertical: 12,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(
+                                              detoxRadius),
+                                          color: selected
+                                              ? DetoxColors.accent
+                                                  .withOpacity(0.16)
+                                              : (isDark
+                                                  ? DetoxColors.cardSubtle
+                                                  : DetoxColors
+                                                      .lightCardSubtle),
+                                          border: Border.all(
+                                            color: selected
+                                                ? DetoxColors.accentSoft
+                                                    .withOpacity(0.45)
+                                                : (isDark
+                                                    ? DetoxColors.cardBorder
+                                                    : DetoxColors
+                                                        .lightCardBorder),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            AppIconBadge(
+                                              packageName: app.packageName,
+                                              iconBytes: app.iconBytes,
+                                              size: 42,
+                                              borderRadius: 12,
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Text(
+                                                app.name,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: theme
+                                                    .textTheme.titleMedium
+                                                    ?.copyWith(
+                                                  fontWeight:
+                                                      detoxWeightEmphasis,
+                                                ),
+                                              ),
+                                            ),
+                                            if (selected)
+                                              const Icon(
+                                                Icons.check_circle,
+                                                color: DetoxColors.accentSoft,
+                                              ),
+                                          ],
                                         ),
                                       ),
                                     ),
-                                    if (selected)
-                                      const Icon(
-                                        Icons.check_circle,
-                                        color: DetoxColors.accentSoft,
-                                      ),
-                                  ],
-                                ),
+                                  );
+                                },
                               ),
-                            ),
-                          );
-                        },
-                      ),
               ),
               const SizedBox(height: 10),
               FilledButton(
-                onPressed: _selected == null
+                onPressed: _selected.isEmpty
                     ? null
                     : () {
                         const minutes = 30;
 
                         Navigator.pop(
                           context,
-                          AppLimit(
-                            appName: _selected!.name,
-                            packageName: _selected!.packageName,
-                            minutes: minutes,
-                          ),
+                          _selected.values
+                              .map((app) => AppLimit(
+                                    appName: app.name,
+                                    packageName: app.packageName,
+                                    minutes: minutes,
+                                  ))
+                              .toList(),
                         );
                       },
-                child: Text(t.addSelectedApp),
+                child: Text(t.addSelectedApps(_selected.length)),
               ),
             ],
           ),

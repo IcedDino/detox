@@ -10,9 +10,14 @@ import 'app_metadata_service.dart';
 import 'app_visibility_filter_service.dart';
 
 class UsageService {
-  UsageService._();
+  UsageService._({DateTime Function()? clock}) : _clock = clock ?? DateTime.now;
   factory UsageService() => instance;
+  @visibleForTesting
+  factory UsageService.forTesting(DateTime Function() clock) =>
+      UsageService._(clock: clock);
   static final UsageService instance = UsageService._();
+
+  final DateTime Function() _clock;
 
   static const MethodChannel _channel = MethodChannel('detox/device_control');
   static const Duration _todayCacheTtl = Duration(seconds: 45);
@@ -23,41 +28,49 @@ class UsageService {
   DateTime? _todayEntriesCachedAt;
   String? _todayEntriesDayToken;
   Future<List<AppUsageEntry>>? _todayEntriesLoadFuture;
+  String? _todayEntriesLoadingDayToken;
   DailyUsageSummary? _todaySummaryCache;
   DateTime? _todaySummaryCachedAt;
   String? _todaySummaryDayToken;
   Future<DailyUsageSummary>? _todaySummaryLoadFuture;
+  String? _todaySummaryLoadingDayToken;
 
   List<WeeklyUsagePoint>? _weeklyUsageCache;
   DateTime? _weeklyUsageCachedAt;
   String? _weeklyUsageDayToken;
   Future<List<WeeklyUsagePoint>>? _weeklyUsageLoadFuture;
+  String? _weeklyUsageLoadingDayToken;
 
   Future<DailyUsageSummary> getTodaySummary() async {
     if (kIsWeb) return _emptySummary();
 
     if (defaultTargetPlatform == TargetPlatform.android) {
-      final now = DateTime.now();
+      final now = _clock();
       final dayToken = _dayToken(now);
       final cachedAt = _todaySummaryCachedAt;
       final cached = _todaySummaryCache;
       if (cached != null &&
           cachedAt != null &&
           _todaySummaryDayToken == dayToken &&
+          !now.isBefore(cachedAt) &&
           now.difference(cachedAt) <= _todaySummaryCacheTtl) {
         return cached;
       }
 
       final pending = _todaySummaryLoadFuture;
-      if (pending != null) return pending;
+      if (pending != null && _todaySummaryLoadingDayToken == dayToken) {
+        return pending;
+      }
 
       late final Future<DailyUsageSummary> future;
       future = _loadAndroidTodaySummary(now, dayToken).whenComplete(() {
         if (identical(_todaySummaryLoadFuture, future)) {
           _todaySummaryLoadFuture = null;
+          _todaySummaryLoadingDayToken = null;
         }
       });
       _todaySummaryLoadFuture = future;
+      _todaySummaryLoadingDayToken = dayToken;
       return future;
     }
 
@@ -68,27 +81,32 @@ class UsageService {
     if (kIsWeb) return _emptyWeeklyUsage();
 
     if (defaultTargetPlatform == TargetPlatform.android) {
-      final now = DateTime.now();
+      final now = _clock();
       final dayToken = _dayToken(now);
       final cachedAt = _weeklyUsageCachedAt;
       final cached = _weeklyUsageCache;
       if (cached != null &&
           cachedAt != null &&
           _weeklyUsageDayToken == dayToken &&
+          !now.isBefore(cachedAt) &&
           now.difference(cachedAt) <= _weeklyCacheTtl) {
         return cached;
       }
 
       final pending = _weeklyUsageLoadFuture;
-      if (pending != null) return pending;
+      if (pending != null && _weeklyUsageLoadingDayToken == dayToken) {
+        return pending;
+      }
 
       final future = _loadWeeklyUsage(now, dayToken);
       _weeklyUsageLoadFuture = future;
+      _weeklyUsageLoadingDayToken = dayToken;
       try {
         return await future;
       } finally {
         if (identical(_weeklyUsageLoadFuture, future)) {
           _weeklyUsageLoadFuture = null;
+          _weeklyUsageLoadingDayToken = null;
         }
       }
     }
@@ -100,9 +118,9 @@ class UsageService {
     DateTime now,
     String dayToken,
   ) async {
-    final days = List<DateTime>.generate(7, (index) {
-      final day = now.subtract(Duration(days: 6 - index));
-      return DateTime(day.year, day.month, day.day);
+    final monday = DateTime(now.year, now.month, now.day - (now.weekday - 1));
+    final days = List<DateTime>.generate(now.weekday, (index) {
+      return DateTime(monday.year, monday.month, monday.day + index);
     });
     final points = <WeeklyUsagePoint>[];
 
@@ -147,9 +165,13 @@ class UsageService {
         );
       }
     } catch (_) {
-      return _emptyWeeklyUsage();
+      return [
+        for (final day in days)
+          WeeklyUsagePoint(dateLabel: DateFormat.E().format(day), minutes: 0),
+      ];
     }
 
+    if (_dayToken(_clock()) != dayToken) return getWeeklyUsage();
     _weeklyUsageCache = points;
     _weeklyUsageCachedAt = now;
     _weeklyUsageDayToken = dayToken;
@@ -220,6 +242,7 @@ class UsageService {
   ) async {
     try {
       final entries = await _loadAndroidTodayEntries();
+      if (_dayToken(_clock()) != dayToken) return await getTodaySummary();
       if (entries.isEmpty) {
         const empty = DailyUsageSummary(
           totalMinutes: 0,
@@ -236,6 +259,7 @@ class UsageService {
       // ranked just below them on the Home screen.
       final labels = await AppMetadataService.instance
           .getLabels(entries.map((entry) => entry.packageName ?? ''));
+      if (_dayToken(_clock()) != dayToken) return await getTodaySummary();
       final visibleEntries = entries.where((entry) {
         return AppVisibilityFilterService.instance
             .shouldShowResolvedLabel(labels[entry.packageName]);
@@ -276,27 +300,32 @@ class UsageService {
   }
 
   Future<List<AppUsageEntry>> _loadAndroidTodayEntries() async {
-    final now = DateTime.now();
+    final now = _clock();
     final dayToken = _dayToken(now);
     final cachedAt = _todayEntriesCachedAt;
     final cached = _todayEntriesCache;
     if (cached != null &&
         cachedAt != null &&
         _todayEntriesDayToken == dayToken &&
+        !now.isBefore(cachedAt) &&
         now.difference(cachedAt) <= _todayCacheTtl) {
       return cached;
     }
 
     final pending = _todayEntriesLoadFuture;
-    if (pending != null) return pending;
+    if (pending != null && _todayEntriesLoadingDayToken == dayToken) {
+      return pending;
+    }
 
     late final Future<List<AppUsageEntry>> future;
     future = _loadAndroidTodayEntriesInternal(now, dayToken).whenComplete(() {
       if (identical(_todayEntriesLoadFuture, future)) {
         _todayEntriesLoadFuture = null;
+        _todayEntriesLoadingDayToken = null;
       }
     });
     _todayEntriesLoadFuture = future;
+    _todayEntriesLoadingDayToken = dayToken;
     return future;
   }
 
@@ -315,6 +344,7 @@ class UsageService {
         'end': end.millisecondsSinceEpoch,
       },
     );
+    if (_dayToken(_clock()) != dayToken) return _loadAndroidTodayEntries();
 
     final entries = <AppUsageEntry>[];
     for (final item in usage ?? const <Map<Object?, Object?>>[]) {

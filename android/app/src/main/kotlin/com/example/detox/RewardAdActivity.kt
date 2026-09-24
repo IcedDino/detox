@@ -7,9 +7,11 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.WindowManager
+import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -18,77 +20,92 @@ import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
-import com.google.android.gms.ads.rewarded.RewardedAd
-import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
+import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd
+import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback
 
 /**
- * Fullscreen activity that shows a rewarded ad to unlock the 15-minute shield
- * pause. The ad unit id comes from BuildConfig (REWARDED_AD_UNIT_ID), which is
+ * Fullscreen activity that shows a rewarded interstitial to unlock the 15-minute shield
+ * pause. The ad unit id comes from BuildConfig (REWARDED_INTERSTITIAL_AD_UNIT_ID), which is
  * the test id in debug builds and the production id in release builds.
  *
  * The outcome is reported to [FocusBlockerService.onAdResult]:
  *  - true only when the reward was actually earned (the full ad was watched)
- *  - false on load failure, show failure, or early dismissal
+ *  - false when the user closes the screen or dismisses the ad early
  *
- * Reporting is idempotent and includes an onDestroy fallback so the shield can
- * never stay stuck in "Opening ad..." if this activity dies unexpectedly.
+ * Load and display failures keep the screen open for a retry.
  */
 class RewardAdActivity : Activity() {
 
     private var reported = false
     private var rewardEarned = false
-    private var adShowStarted = false
+    private var loadAttempt = 0
 
     private val handler = Handler(Looper.getMainLooper())
-
-    private val loadTimeout = Runnable {
-        if (!reported && !adShowStarted) {
-            report(false)
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(buildLoadingLayout())
 
-        if (!BuildConfig.ADS_ENABLED || BuildConfig.REWARDED_AD_UNIT_ID.isBlank()) {
-            report(false)
+        if (!BuildConfig.ADS_ENABLED || BuildConfig.REWARDED_INTERSTITIAL_AD_UNIT_ID.isBlank()) {
+            showLoadError(
+                tr("Ads are not configured in this build.", "Los anuncios no están configurados en esta versión."),
+                canRetry = false,
+            )
             return
         }
 
-        handler.postDelayed(loadTimeout, LOAD_TIMEOUT_MILLIS)
+        MobileAds.initialize(applicationContext) {
+            runOnUiThread {
+                if (!reported && !isFinishing && !isDestroyed) loadAd()
+            }
+        }
+    }
 
-        MobileAds.initialize(this) {
-            if (reported) return@initialize
-            RewardedAd.load(
+    private fun loadAd() {
+        val attempt = ++loadAttempt
+        setContentView(buildLoadingLayout())
+        handler.postDelayed({
+            if (!reported && attempt == loadAttempt) {
+                Log.w(TAG, "Rewarded ad load timed out")
+                showLoadError(tr("The ad took too long to load. Try again.", "El anuncio tardó demasiado en cargar. Reintenta."))
+            }
+        }, LOAD_TIMEOUT_MILLIS)
+
+        try {
+            RewardedInterstitialAd.load(
                 this,
-                BuildConfig.REWARDED_AD_UNIT_ID,
+                BuildConfig.REWARDED_INTERSTITIAL_AD_UNIT_ID,
                 AdRequest.Builder().build(),
-                object : RewardedAdLoadCallback() {
-                    override fun onAdLoaded(ad: RewardedAd) {
-                        if (reported) return
-                        handler.removeCallbacks(loadTimeout)
+                object : RewardedInterstitialAdLoadCallback() {
+                    override fun onAdLoaded(ad: RewardedInterstitialAd) {
+                        if (reported || attempt != loadAttempt || isFinishing || isDestroyed) return
+                        handler.removeCallbacksAndMessages(null)
                         showAd(ad)
                     }
 
                     override fun onAdFailedToLoad(error: LoadAdError) {
-                        handler.removeCallbacks(loadTimeout)
-                        report(false)
+                        if (reported || attempt != loadAttempt) return
+                        Log.e(TAG, "Rewarded ad failed to load: $error")
+                        showLoadError(tr("The ad is unavailable right now. Check your connection and try again.", "El anuncio no está disponible ahora. Comprueba tu conexión y reintenta."))
                     }
                 },
             )
+        } catch (error: Exception) {
+            Log.e(TAG, "Rewarded ad request failed", error)
+            showLoadError(tr("Could not load the ad. Try again.", "No se pudo cargar el anuncio. Reintenta."))
         }
     }
 
-    private fun showAd(ad: RewardedAd) {
+    private fun showAd(ad: RewardedInterstitialAd) {
         ad.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdShowedFullScreenContent() {
-                adShowStarted = true
+                Log.d(TAG, "Rewarded ad opened")
             }
 
             override fun onAdFailedToShowFullScreenContent(adError: AdError) {
-                report(false)
+                Log.e(TAG, "Rewarded ad failed to open: $adError")
+                showLoadError(tr("Could not open the ad. Try again.", "No se pudo abrir el anuncio. Reintenta."))
             }
 
             override fun onAdDismissedFullScreenContent() {
@@ -104,20 +121,22 @@ class RewardAdActivity : Activity() {
     override fun onDestroy() {
         super.onDestroy()
         handler.removeCallbacksAndMessages(null)
-        if (!reported && !adShowStarted) {
-            // The activity died before the ad could be shown. Report a failure
-            // so the overlay button is re-enabled instead of staying in
-            // "Opening ad..." forever.
+        if (!reported && !isChangingConfigurations && isFinishing) {
             FocusBlockerService.onAdResult(false)
         }
-        // If the ad was shown, onAdDismissedFullScreenContent reports the final
-        // outcome (even after this activity is finished by noHistory), so there
-        // is nothing extra to do here.
+    }
+
+    private fun showLoadError(message: String, canRetry: Boolean = true) {
+        if (reported || isFinishing || isDestroyed) return
+        ++loadAttempt
+        handler.removeCallbacksAndMessages(null)
+        setContentView(buildErrorLayout(message, canRetry))
     }
 
     private fun report(success: Boolean) {
         if (reported) return
         reported = true
+        handler.removeCallbacksAndMessages(null)
         FocusBlockerService.onAdResult(success)
         finish()
     }
@@ -155,6 +174,32 @@ class RewardAdActivity : Activity() {
         return root
     }
 
+    private fun buildErrorLayout(message: String, canRetry: Boolean): LinearLayout {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(24), dp(24), dp(24), dp(24))
+            setBackgroundColor(Color.BLACK)
+        }
+        root.addView(TextView(this).apply {
+            text = message
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+        })
+        if (canRetry) {
+            root.addView(Button(this).apply {
+                text = tr("Try again", "Reintentar")
+                setOnClickListener { loadAd() }
+            })
+        }
+        root.addView(Button(this).apply {
+            text = tr("Close", "Cerrar")
+            setOnClickListener { report(false) }
+        })
+        return root
+    }
+
     private fun dp(value: Int): Int {
         return TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
@@ -178,6 +223,7 @@ class RewardAdActivity : Activity() {
     }
 
     companion object {
-        private const val LOAD_TIMEOUT_MILLIS = 20_000L
+        private const val TAG = "RewardAdActivity"
+        private const val LOAD_TIMEOUT_MILLIS = 45_000L
     }
 }

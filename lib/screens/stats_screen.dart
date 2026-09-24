@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
@@ -9,7 +11,9 @@ import '../theme/app_theme.dart';
 import '../widgets/ui_kit.dart';
 
 class StatsScreen extends StatefulWidget {
-  const StatsScreen({super.key});
+  const StatsScreen({super.key, this.isCurrentPage = true});
+
+  final bool isCurrentPage;
 
   @override
   State<StatsScreen> createState() => _StatsScreenState();
@@ -25,16 +29,56 @@ class _StatsData {
 }
 
 class _StatsScreenState extends State<StatsScreen>
-    with AutomaticKeepAliveClientMixin {
+    with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
   final UsageService _usageService = UsageService();
   final StorageService _storageService = StorageService();
 
   late Future<_StatsData> _future;
+  Timer? _midnightRefreshTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _future = _load();
+    _scheduleMidnightRefresh();
+  }
+
+  @override
+  void didUpdateWidget(covariant StatsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.isCurrentPage && widget.isCurrentPage) _refresh();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _scheduleMidnightRefresh();
+      _refresh();
+    }
+  }
+
+  void _scheduleMidnightRefresh() {
+    _midnightRefreshTimer?.cancel();
+    final now = DateTime.now();
+    final nextMidnight = DateTime(now.year, now.month, now.day + 1);
+    _midnightRefreshTimer = Timer(nextMidnight.difference(now), () {
+      _scheduleMidnightRefresh();
+      _refresh();
+    });
+  }
+
+  void _refresh() {
+    if (mounted && widget.isCurrentPage) {
+      setState(() => _future = _load());
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _midnightRefreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<_StatsData> _load() async {
@@ -161,18 +205,27 @@ class _WeeklySummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppStrings.of(context);
     final goalMet = _weeklyGoalMet(weekly, dailyLimitMinutes);
+    final hasTrend = weekly.length > 1;
     final trendDown = weekly.last <= weekly.first;
     final bestDay = weekly.reduce((a, b) => a < b ? a : b);
 
     return HeroInfoCard(
       title: t.statsWeeklyTitle,
-      subtitle: trendDown ? t.statsTrendDown : t.statsTrendUp,
+      subtitle: !hasTrend
+          ? (t.isEs ? 'La semana comienza hoy.' : 'The week starts today.')
+          : (trendDown ? t.statsTrendDown : t.statsTrendUp),
       badge: StatusPill(
-        label: trendDown
+        label: !hasTrend
+            ? (t.isEs ? 'Semana en curso' : 'Week in progress')
+            : trendDown
             ? (t.isEs ? 'A la baja' : 'Trending down')
             : (t.isEs ? 'A la alza' : 'Trending up'),
-        icon: trendDown ? Icons.south_east_rounded : Icons.north_east_rounded,
-        color: trendDown ? DetoxColors.success : DetoxColors.warning,
+        icon: !hasTrend
+            ? Icons.calendar_today_outlined
+            : (trendDown ? Icons.south_east_rounded : Icons.north_east_rounded),
+        color: !hasTrend
+            ? DetoxColors.accent
+            : (trendDown ? DetoxColors.success : DetoxColors.warning),
       ),
       child: Column(
         children: [

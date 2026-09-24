@@ -28,10 +28,11 @@ val configuredApplicationId =
         ?: "com.example.detox"
 
 val debugAdmobAppId = "ca-app-pub-3940256099942544~3347511713"
-val debugRewardedAdUnitId = "ca-app-pub-3940256099942544/5224354917"
+val debugRewardedInterstitialAdUnitId = "ca-app-pub-3940256099942544/5354046379"
 val releaseAdmobAppId =
     gradleOrEnv("detox.admob.appId.release")?.trim().takeUnless { it.isNullOrEmpty() }
-val releaseRewardedAdUnitId =
+        ?: "ca-app-pub-5614533913981580~9515972522"
+val releaseRewardedInterstitialAdUnitId =
     gradleOrEnv("detox.admob.rewardedId.release")?.trim().takeUnless { it.isNullOrEmpty() }
     ?: "ca-app-pub-5614533913981580/4419678966"
 
@@ -85,8 +86,8 @@ android {
             buildConfigField("boolean", "ADS_ENABLED", "true")
             buildConfigField(
                 "String",
-                "REWARDED_AD_UNIT_ID",
-                "\"${debugRewardedAdUnitId.escapeForBuildConfig()}\""
+                "REWARDED_INTERSTITIAL_AD_UNIT_ID",
+                "\"${debugRewardedInterstitialAdUnitId.escapeForBuildConfig()}\""
             )
         }
 
@@ -110,12 +111,12 @@ android {
             buildConfigField(
                 "boolean",
                 "ADS_ENABLED",
-                if (!releaseAdmobAppId.isNullOrBlank() && !releaseRewardedAdUnitId.isNullOrBlank()) "true" else "false"
+                if (!releaseAdmobAppId.isNullOrBlank() && !releaseRewardedInterstitialAdUnitId.isNullOrBlank()) "true" else "false"
             )
             buildConfigField(
                 "String",
-                "REWARDED_AD_UNIT_ID",
-                "\"${(releaseRewardedAdUnitId ?: "").escapeForBuildConfig()}\""
+                "REWARDED_INTERSTITIAL_AD_UNIT_ID",
+                "\"${(releaseRewardedInterstitialAdUnitId ?: "").escapeForBuildConfig()}\""
             )
         }
     }

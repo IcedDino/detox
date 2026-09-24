@@ -348,6 +348,13 @@ class FocusBlockerService : Service() {
             return
         }
 
+        // Keep the shield behind the rewarded ad until its result arrives.
+        // The ad may temporarily foreground an activity outside our package.
+        if (waitingAdResult) {
+            hideOverlay(force = true)
+            return
+        }
+
         if (!isScreenInteractive()) {
             // With the screen off, the 5-minute usage-events fallback can still
             // report the blocked app as foreground. Showing the overlay then
@@ -620,7 +627,8 @@ class FocusBlockerService : Service() {
             }
             minHeight = dp(54)
             setPadding(dp(18), dp(14), dp(18), dp(14))
-            isEnabled = !strictMode && !requestInFlight && !waitingAdResult
+            isEnabled = !strictMode && !requestInFlight && !waitingAdResult &&
+                (canUseFreePause(prefs) || canUseAdPause(prefs) || hasSponsor)
             text = if (strictMode) tr("Strict mode active", "Modo estricto activo") else primaryActionLabel(hasSponsor)
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -803,16 +811,15 @@ class FocusBlockerService : Service() {
 
     private fun canUseAdPause(prefs: android.content.SharedPreferences): Boolean {
         ensureDailyPauseReset(prefs)
-        return !prefs.getBoolean(KEY_PAUSE_AD_USED, false)
+        return BuildConfig.ADS_ENABLED &&
+            BuildConfig.REWARDED_INTERSTITIAL_AD_UNIT_ID.isNotBlank() &&
+            !prefs.getBoolean(KEY_PAUSE_AD_USED, false)
     }
 
     private fun requestAd() {
         try {
             suppressPackageName = packageName
             suppressPackageUntil = System.currentTimeMillis() + 20_000L
-
-            hideOverlay(force = true)
-            keepOverlayPinned = false
 
             val intent = Intent(this, RewardAdActivity::class.java).apply {
                 addFlags(
@@ -821,7 +828,11 @@ class FocusBlockerService : Service() {
                             Intent.FLAG_ACTIVITY_CLEAR_TOP
                 )
             }
+            // Android 15 requires the overlay to remain visible while a
+            // background service launches an Activity from the user's tap.
             startActivity(intent)
+            hideOverlay(force = true)
+            keepOverlayPinned = false
         } catch (_: Exception) {
             waitingAdResult = false
             keepOverlayPinned = true
@@ -1053,6 +1064,7 @@ class FocusBlockerService : Service() {
             canUseFreePause(prefs) -> tr("Use free 15-minute pause", "Usar pausa gratis de 15 minutos")
             canUseAdPause(prefs) -> tr("Watch ad for 15 minutes", "Ver anuncio para 15 minutos")
             hasSponsor -> tr("Request sponsor approval", "Pedir aprobación al sponsor")
+            !BuildConfig.ADS_ENABLED -> tr("Ads unavailable in this build", "Anuncios no disponibles en esta versión")
             else -> tr("No pauses left today", "No quedan pausas hoy")
         }
     }
@@ -1111,7 +1123,7 @@ class FocusBlockerService : Service() {
         val label = getReadableAppLabel(lastShownPackage)
         ensureDailyPauseReset(prefs)
         val freePauseLeft = !prefs.getBoolean(KEY_PAUSE_FREE_USED, false)
-        val adPauseLeft = !prefs.getBoolean(KEY_PAUSE_AD_USED, false)
+        val adPauseLeft = canUseAdPause(prefs)
         val hasSponsor = hasSponsorCache
         val strictMode = strictModeCache
 
@@ -1133,6 +1145,10 @@ class FocusBlockerService : Service() {
             hasSponsor -> tr(
                 " Your free and ad pauses are used. You can ask your sponsor for another 15 minutes.",
                 " Ya usaste tu pausa gratis y la pausa con anuncio. Puedes pedirle a tu sponsor otros 15 minutos."
+            )
+            !BuildConfig.ADS_ENABLED -> tr(
+                " Ad pauses are unavailable in this build.",
+                " Las pausas con anuncio no están disponibles en esta versión."
             )
             else -> tr(
                 " All pauses for today are already used.",
