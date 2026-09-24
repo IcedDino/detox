@@ -19,7 +19,8 @@ class AutomationSnapshot {
   final List<String> overLimitPackages;
   final bool strictMode;
 
-  bool get hasAnythingActive => activeRules.isNotEmpty || overLimitPackages.isNotEmpty;
+  bool get hasAnythingActive =>
+      activeRules.isNotEmpty || overLimitPackages.isNotEmpty;
 }
 
 class AutomationService {
@@ -46,9 +47,14 @@ class AutomationService {
   }
 
   Future<AutomationSnapshot> buildSnapshot() async {
-    final rules = await _storage.loadAutomationRules();
-    final appLimits = await _storage.loadAppLimits();
-    final strictMode = await _storage.loadStrictModeEnabled();
+    final results = await Future.wait<dynamic>([
+      _storage.loadAutomationRules(),
+      _storage.loadAppLimits(),
+      _storage.loadStrictModeEnabled(),
+    ]);
+    final rules = results[0] as List<AutomationRule>;
+    final appLimits = results[1] as List<AppLimit>;
+    final strictMode = results[2] as bool;
     final insideZone = LocationZoneService.instance.currentState.insideZone;
     final now = DateTime.now();
 
@@ -114,13 +120,13 @@ class AutomationService {
 
     final hasSponsor = await SponsorService.instance.hasSponsor();
 
-    await AppBlockingService.instance.startShield(
+    final started = await AppBlockingService.instance.startShield(
       blockedPackages: sortedPackages,
       reason: 'automation_rule',
       hasSponsor: hasSponsor,
       source: 'automation',
       strictModeOverride: snapshot.strictMode,
     );
-    _activeKey = key;
+    if (started) _activeKey = key;
   }
 }

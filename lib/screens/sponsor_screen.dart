@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../l10n_app_strings.dart';
@@ -31,28 +29,17 @@ class _SponsorScreenState extends State<SponsorScreen>
 
   String _myCode = '';
   SponsorProfile? _sponsor;
-  bool _settingsUnlockActive = false;
-  bool _zoneOverrideActive = false;
-  DateTime? _settingsUntil;
-  DateTime? _zoneUntil;
-  ZoneState _zoneState = LocationZoneService.instance.currentState;
-  StreamSubscription<ZoneState>? _zoneSubscription;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _refresh();
-    _zoneSubscription = LocationZoneService.instance.states.listen((state) {
-      if (!mounted) return;
-      setState(() => _zoneState = state);
-    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _zoneSubscription?.cancel();
     _codeController.dispose();
     super.dispose();
   }
@@ -68,16 +55,9 @@ class _SponsorScreenState extends State<SponsorScreen>
     setState(() => _loading = true);
     try {
       await _sponsorService.ensureCurrentUserInitialized();
-      final results = await Future.wait<dynamic>([
-        _sponsorService.getMySponsorCode(),
-        _sponsorService.getCurrentSponsorProfile(),
-        _sponsorService.hasActiveSettingsUnlock(),
-        _sponsorService.hasActiveZoneOverride(),
-        _sponsorService.getSettingsUnlockUntil(),
-        _sponsorService.getZoneOverrideUntil(),
-      ]);
-
-      final sponsor = results[1] as SponsorProfile?;
+      final sponsorContext =
+          await _sponsorService.loadCurrentUserContext();
+      final sponsor = sponsorContext.sponsorProfile;
 
       await AppBlockingService.instance.syncSponsorState(sponsor != null);
       await LocationZoneService.instance.refresh();
@@ -85,12 +65,8 @@ class _SponsorScreenState extends State<SponsorScreen>
       if (!mounted) return;
 
       setState(() {
-        _myCode = results[0] as String;
+        _myCode = sponsorContext.sponsorCode;
         _sponsor = sponsor;
-        _settingsUnlockActive = results[2] as bool;
-        _zoneOverrideActive = results[3] as bool;
-        _settingsUntil = results[4] as DateTime?;
-        _zoneUntil = results[5] as DateTime?;
         _loading = false;
       });
     } catch (e) {

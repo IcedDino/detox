@@ -52,7 +52,7 @@ class LocationZoneService {
 
   final StorageService _storageService = StorageService();
   final StreamController<ZoneState> _stateController =
-  StreamController<ZoneState>.broadcast();
+      StreamController<ZoneState>.broadcast();
 
   StreamSubscription<Position>? _positionSub;
   ZoneState _currentState = const ZoneState(enabled: false, insideZone: false);
@@ -65,7 +65,6 @@ class LocationZoneService {
   DateTime? _lastOverrideCheckedAt;
   DateTime? _overrideUntilCache;
   String? _activeShieldKey;
-  String? _lastMatchedZoneId;
   LocationAccuracy? _currentAccuracy;
   int? _currentDistanceFilter;
 
@@ -73,6 +72,15 @@ class LocationZoneService {
   ZoneState get currentState => _currentState;
 
   Future<LocationPermission> ensurePermissions() async {
+    if (kIsWeb) return LocationPermission.denied;
+    var permission = await _checkPermissions();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    return permission;
+  }
+
+  Future<LocationPermission> _checkPermissions() async {
     if (kIsWeb) return LocationPermission.denied;
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -84,11 +92,7 @@ class LocationZoneService {
       return LocationPermission.denied;
     }
 
-    var permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-    return permission;
+    return Geolocator.checkPermission();
   }
 
   Future<void> startMonitoring() async {
@@ -104,7 +108,9 @@ class LocationZoneService {
       return;
     }
 
-    final permission = await ensurePermissions();
+    // Automatic monitoring must never trigger a system prompt. The zone
+    // editor requests location when the user chooses to configure a zone.
+    final permission = await _checkPermissions();
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
       _emit(const ZoneState(
@@ -140,7 +146,6 @@ class LocationZoneService {
       _activeShieldKey = null;
       await AppBlockingService.instance.stopShield(source: 'zone');
     }
-    _lastMatchedZoneId = null;
     _currentAccuracy = null;
     _currentDistanceFilter = null;
     _overrideUntilCache = null;
@@ -243,22 +248,22 @@ class LocationZoneService {
   }
 
   Future<void> _handlePosition(
-      Position position, {
-        _ZoneConfigCache? cachedConfig,
-      }) async {
+    Position position, {
+    _ZoneConfigCache? cachedConfig,
+  }) async {
     try {
       final config = cachedConfig ?? await _loadConfig();
       final enabledZones = config.zones.where((e) => e.enabled).toList();
       if (enabledZones.isEmpty) {
         _activeShieldKey = null;
-        _lastMatchedZoneId = null;
         _emit(const ZoneState(enabled: false, insideZone: false));
         await AppBlockingService.instance.stopShield(source: 'zone');
         return;
       }
 
       final evaluation = _evaluateZones(position, enabledZones);
-      await _applyAdaptiveLocationSettings(evaluation.nearestEdgeDistanceMeters);
+      await _applyAdaptiveLocationSettings(
+          evaluation.nearestEdgeDistanceMeters);
 
       final matched = evaluation.matchedZone;
       if (matched != null) {
@@ -269,7 +274,6 @@ class LocationZoneService {
             await AppBlockingService.instance.stopShield(source: 'zone');
             _activeShieldKey = null;
           }
-          _lastMatchedZoneId = matched.id;
           _emit(ZoneState(
             enabled: true,
             insideZone: false,
@@ -289,19 +293,18 @@ class LocationZoneService {
         final hasSponsor = await SponsorService.instance.hasSponsor();
 
         if (packages.isNotEmpty && shieldKey != _activeShieldKey) {
-          await AppBlockingService.instance.startShield(
+          final started = await AppBlockingService.instance.startShield(
             blockedPackages: packages,
             reason: 'Study zone: ${matched.name}',
             hasSponsor: hasSponsor,
             source: 'zone',
           );
-          _activeShieldKey = shieldKey;
+          if (started) _activeShieldKey = shieldKey;
         } else if (packages.isEmpty && _activeShieldKey != null) {
           await AppBlockingService.instance.stopShield(source: 'zone');
           _activeShieldKey = null;
         }
 
-        _lastMatchedZoneId = matched.id;
         _emit(ZoneState(
           enabled: true,
           insideZone: true,
@@ -315,7 +318,6 @@ class LocationZoneService {
           await AppBlockingService.instance.stopShield(source: 'zone');
           _activeShieldKey = null;
         }
-        _lastMatchedZoneId = null;
         _emit(ZoneState(
           enabled: true,
           insideZone: false,
@@ -333,7 +335,8 @@ class LocationZoneService {
     }
   }
 
-  Future<void> _applyAdaptiveLocationSettings(double nearestEdgeDistanceMeters) async {
+  Future<void> _applyAdaptiveLocationSettings(
+      double nearestEdgeDistanceMeters) async {
     if (!_monitoring) return;
 
     if (nearestEdgeDistanceMeters <= _nearZonePaddingMeters) {
@@ -378,9 +381,9 @@ class LocationZoneService {
   }
 
   List<String> _resolvePackagesForZone(
-      ConcentrationZone zone,
-      List<AppLimit> appLimits,
-      ) {
+    ConcentrationZone zone,
+    List<AppLimit> appLimits,
+  ) {
     if (zone.blockedPackages.isNotEmpty) {
       return zone.blockedPackages.toSet().toList()..sort();
     }
@@ -414,9 +417,9 @@ class LocationZoneService {
   }
 
   _ZoneEvaluation _evaluateZones(
-      Position position,
-      List<ConcentrationZone> zones,
-      ) {
+    Position position,
+    List<ConcentrationZone> zones,
+  ) {
     ConcentrationZone? matchedZone;
     var nearestEdgeDistanceMeters = double.infinity;
 
@@ -454,11 +457,11 @@ class LocationZoneService {
   }
 
   double _distanceMeters(
-      double lat1,
-      double lon1,
-      double lat2,
-      double lon2,
-      ) {
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
     const earthRadius = 6371000.0;
     final dLat = _toRadians(lat2 - lat1);
     final dLon = _toRadians(lon2 - lon1);

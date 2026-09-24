@@ -1,22 +1,29 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../l10n_app_strings.dart';
 import '../models/dashboard_data.dart';
+import '../models/usage_models.dart';
 import '../services/smart_usage_recommendation_service.dart';
 import '../services/storage_service.dart';
 import '../services/usage_service.dart';
 import '../theme/app_theme.dart';
-import '../widgets/app_icon_badge.dart';
 import '../widgets/top_app_tile.dart';
 import '../widgets/ui_kit.dart';
 
 /// "Today" screen. Answers one question: how am I doing?
 /// One hero number, one primary action, three supporting apps.
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key, this.onStartFocus});
+  const DashboardScreen({
+    super.key,
+    this.onStartFocus,
+    this.isCurrentPage = true,
+  });
 
   /// Called when the user taps the single primary action.
   final VoidCallback? onStartFocus;
+  final bool isCurrentPage;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -28,39 +35,76 @@ class _DashboardScreenState extends State<DashboardScreen>
   final StorageService _storageService = StorageService();
 
   late Future<DashboardData> _future;
+  Timer? _usageRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _future = _load();
+    _updateUsageRefreshTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant DashboardScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isCurrentPage != widget.isCurrentPage) {
+      _updateUsageRefreshTimer();
+      if (widget.isCurrentPage) _refreshUsage();
+    }
+  }
+
+  void _updateUsageRefreshTimer() {
+    _usageRefreshTimer?.cancel();
+    if (!widget.isCurrentPage) return;
+    _usageRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      _refreshUsage();
+    });
+  }
+
+  void _refreshUsage() {
+    if (!mounted || !widget.isCurrentPage) return;
+    _startRefresh();
+  }
+
+  Future<DashboardData> _startRefresh() {
+    final nextFuture = _load();
+    setState(() {
+      _future = nextFuture;
+    });
+    return nextFuture;
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _usageRefreshTimer?.cancel();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      setState(() => _future = _load());
+      _refreshUsage();
     }
   }
 
   Future<DashboardData> _load() async {
-    final summary = await _usageService.getTodaySummary();
-    final limit = await _storageService.loadDailyLimitMinutes();
-    final strings = AppStrings(
-      Localizations.maybeLocaleOf(context) ??
-          WidgetsBinding.instance.platformDispatcher.locale,
-    );
+    // This load starts in initState. Notification copy uses the app locale
+    // without subscribing to inherited widgets before initialization finishes.
+    final strings = AppStrings.current;
+    final results = await Future.wait<dynamic>([
+      _usageService.getTodaySummary(),
+      _storageService.loadDailyLimitMinutes(),
+    ]);
+    final summary = results[0] as DailyUsageSummary;
+    final limit = results[1] as int;
 
     if (summary.topApps.isNotEmpty) {
-      await SmartUsageRecommendationService.instance.evaluateTopApp(
-        entry: summary.topApps.first,
-        strings: strings,
+      unawaited(
+        SmartUsageRecommendationService.instance
+            .evaluateTopApp(entry: summary.topApps.first, strings: strings)
+            .catchError((_) {}),
       );
     }
 
@@ -106,8 +150,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     return RefreshIndicator(
       onRefresh: () async {
-        setState(() => _future = _load());
-        await _future;
+        await _startRefresh();
       },
       child: FutureBuilder<DashboardData>(
         future: _future,
@@ -117,55 +160,131 @@ class _DashboardScreenState extends State<DashboardScreen>
           final limit = data?.dailyLimit ?? 180;
           final topApps = (summary?.topApps ?? const []).take(3).toList();
           final totalMinutes = summary?.totalMinutes ?? 0;
-          final remaining = (limit - totalMinutes).clamp(0, limit);
-          final percent = limit == 0 ? 0.0 : (totalMinutes / limit).clamp(0.0, 1.0);
+          final percent =
+              limit == 0 ? 0.0 : (totalMinutes / limit).clamp(0.0, 1.0);
 
           return ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
             children: [
               // ── Hero: the single number that matters ──
-              Text(
-                t.isEs ? 'HOY' : 'TODAY',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: muted,
-                      letterSpacing: 1.4,
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(detoxRadius + 4),
+                  border: Border.all(
+                    color: isDark
+                        ? const Color(0x338BC7AE)
+                        : const Color(0x5581A995),
+                  ),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: isDark
+                        ? const [Color(0xFF1B2A23), Color(0xFF131B17)]
+                        : const [Color(0xFFE4F0E8), Color(0xFFFBFDFB)],
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            t.isEs ? 'HOY' : 'TODAY',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(
+                                  color: isDark
+                                      ? DetoxColors.accentSoft
+                                      : DetoxColors.accentDeep,
+                                  letterSpacing: 1.4,
+                                ),
+                          ),
+                        ),
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: DetoxColors.accent.withOpacity(0.14),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.spa_outlined,
+                            color: DetoxColors.accent,
+                            size: 19,
+                          ),
+                        ),
+                      ],
                     ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                summary == null ? '--' : _formatMinutes(totalMinutes),
-                style: Theme.of(context).textTheme.displayLarge,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                t.isEs
-                    ? 'de ${_formatMinutes(limit)} de tu meta diaria'
-                    : 'of your ${_formatMinutes(limit)} daily goal',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: muted),
-              ),
-              const SizedBox(height: 16),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(detoxRadiusPill),
-                child: LinearProgressIndicator(
-                  value: percent,
-                  minHeight: 6,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                _friendlyUsageLabel(t, totalMinutes, limit),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
-              ),
-              if (summary != null && !summary.fromRealUsage) ...[
-                const SizedBox(height: 10),
-                Text(
-                  t.usageUnavailableNotice,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: DetoxColors.warning,
+                    const SizedBox(height: 12),
+                    Text(
+                      summary == null ? '--' : _formatMinutes(totalMinutes),
+                      style: Theme.of(context).textTheme.displayLarge,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      t.isEs
+                          ? 'de ${_formatMinutes(limit)} de tu meta diaria'
+                          : 'of your ${_formatMinutes(limit)} daily goal',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: muted),
+                    ),
+                    const SizedBox(height: 18),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(detoxRadiusPill),
+                      child: LinearProgressIndicator(
+                        value: percent,
+                        minHeight: 8,
+                        backgroundColor: isDark
+                            ? Colors.white.withOpacity(0.08)
+                            : DetoxColors.accentDeep.withOpacity(0.10),
+                        color: percent >= 1
+                            ? DetoxColors.warning
+                            : DetoxColors.accent,
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          percent >= 1
+                              ? Icons.flag_outlined
+                              : Icons.check_circle_outline_rounded,
+                          size: 17,
+                          color: percent >= 1
+                              ? DetoxColors.warning
+                              : DetoxColors.success,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _friendlyUsageLabel(t, totalMinutes, limit),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: muted),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (summary != null && !summary.fromRealUsage) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        t.usageUnavailableNotice,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: DetoxColors.warning,
+                            ),
+                      ),
+                    ],
+                  ],
                 ),
-              ],
+              ),
 
               if (summary != null) ...[
                 const SizedBox(height: 24),
@@ -219,12 +338,25 @@ class _DashboardScreenState extends State<DashboardScreen>
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(detoxRadius),
                     border: Border.all(
-                      color: isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder,
+                      color: isDark
+                          ? DetoxColors.cardBorder
+                          : DetoxColors.lightCardBorder,
                     ),
                   ),
                   child: Text(
-                    t.noAppUsageYet,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
+                    snapshot.hasError
+                        ? (t.isEs
+                            ? 'No pudimos cargar el uso de tus apps. Intenta de nuevo.'
+                            : 'Could not load app usage. Please try again.')
+                        : summary == null
+                            ? (t.isEs
+                                ? 'Cargando el uso de tus apps…'
+                                : 'Loading your app usage…')
+                            : t.noAppUsageYet,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: muted),
                   ),
                 )
               else
@@ -237,6 +369,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                         ),
                       ),
                     ),
+              if (snapshot.hasError)
+                TextButton.icon(
+                  onPressed: _refreshUsage,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: Text(t.isEs ? 'Reintentar' : 'Retry'),
+                ),
             ],
           );
         },

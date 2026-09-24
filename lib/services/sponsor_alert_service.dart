@@ -23,6 +23,7 @@ class SponsorAlertService {
   final Map<String, String> _seenStates = {};
 
   bool _started = false;
+  String? _startedUid;
   bool _hasSponsor = false;
   bool _watchIncoming = false;
   bool _watchOutgoing = false;
@@ -36,15 +37,19 @@ class SponsorAlertService {
   }
 
   void start() {
-    stop();
+    final uid = _uid;
+    if (uid == null) return;
+    if (_started && _startedUid == uid) return;
+    if (_started) stop();
     _started = true;
+    _startedUid = uid;
     _listenToUserProfile();
-    unawaited(AppBlockingService.instance.syncSponsorState(false));
     unawaited(_refreshStreams());
   }
 
   void stop() {
     _started = false;
+    _startedUid = null;
     _userDocSub?.cancel();
     _incomingSub?.cancel();
     _outgoingSub?.cancel();
@@ -55,7 +60,6 @@ class SponsorAlertService {
     _watchIncoming = false;
     _watchOutgoing = false;
     _seenStates.clear();
-    unawaited(AppBlockingService.instance.syncSponsorState(false));
   }
 
   void _listenToUserProfile() {
@@ -128,7 +132,8 @@ class SponsorAlertService {
   }
 
   void _clearSeenByPrefix(String prefix) {
-    final keys = _seenStates.keys.where((key) => key.startsWith(prefix)).toList();
+    final keys =
+        _seenStates.keys.where((key) => key.startsWith(prefix)).toList();
     for (final key in keys) {
       _seenStates.remove(key);
     }
@@ -173,7 +178,8 @@ class SponsorAlertService {
           request.isApproved &&
           !request.isExpired) {
         unawaited(
-          AppBlockingService.instance.suspendForMinutes(request.durationMinutes),
+          AppBlockingService.instance
+              .suspendForMinutes(request.durationMinutes),
         );
         unawaited(
           FocusNotificationService.instance.showSponsorAlert(

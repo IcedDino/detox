@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
@@ -46,5 +44,28 @@ class AppMetadataService {
       debugPrint('getLabel error for $packageName: $e');
       return null;
     }
+  }
+
+  Future<Map<String, String>> getLabels(Iterable<String> packageNames) async {
+    if (!_isAndroid) return const {};
+    final uniqueNames = packageNames.toSet();
+    final missing = uniqueNames.where((name) => !_labelCache.containsKey(name));
+
+    if (missing.isNotEmpty) {
+      try {
+        final labels = await _channel.invokeMapMethod<String, String>(
+          'getAppLabels',
+          {'packageNames': missing.toList()},
+        );
+        if (labels != null) _labelCache.addAll(labels);
+      } catch (_) {
+        // Keep package names as readable fallbacks if metadata cannot load.
+      }
+    }
+
+    return {
+      for (final name in uniqueNames)
+        if (_labelCache[name] != null) name: _labelCache[name]!,
+    };
   }
 }

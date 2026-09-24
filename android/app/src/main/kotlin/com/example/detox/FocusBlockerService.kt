@@ -1,6 +1,7 @@
 package com.example.detox
 
 import android.app.Notification
+import android.app.AppOpsManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -66,6 +67,8 @@ class FocusBlockerService : Service() {
     private lateinit var audioManager: AudioManager
     private var overlayView: View? = null
     private var lastShownPackage: String? = null
+    private var lastForegroundPackage: String? = null
+    private var searchedForegroundHistory = false
     private var userListener: ListenerRegistration? = null
     private var requestListener: ListenerRegistration? = null
     private var requestInFlight = false
@@ -250,6 +253,7 @@ class FocusBlockerService : Service() {
     }
 
     private fun refreshCachedPrefsState() {
+        ShieldStateStore.activeSources(prefs)
         blockedPackagesCache = prefs.getStringSet("blocked_packages", emptySet())?.toSet() ?: emptySet()
         currentReason = prefs.getString(
             "block_reason",
@@ -329,11 +333,13 @@ class FocusBlockerService : Service() {
     }
 
     private fun inspectForegroundApp() {
+        refreshCachedPrefsState()
         val blockedPackages = blockedPackagesCache
         val shieldSuspended = suspendUntilMillisCache > System.currentTimeMillis()
 
         if (blockedPackages.isEmpty()) {
             hideOverlay(force = true)
+            stopSelfSafely()
             return
         }
 
@@ -366,7 +372,22 @@ class FocusBlockerService : Service() {
             suppressPackageUntil = 0L
         }
 
-        val isOwnApp = currentPackage == null || currentPackage == packageName
+        if (currentPackage == null && overlayView != null) {
+            return
+        }
+
+        if (!hasUsageAccess()) {
+            hideOverlay(force = true)
+            lastForegroundPackage = null
+            return
+        }
+
+        if (!Settings.canDrawOverlays(this)) {
+            hideOverlay(force = true)
+            return
+        }
+
+        val isOwnApp = currentPackage == packageName
         val isSystemInterruption = currentPackage == "com.android.systemui"
         val isBlockedApp = currentPackage != null && blockedPackages.contains(currentPackage)
 
@@ -407,33 +428,55 @@ class FocusBlockerService : Service() {
             val usageStatsManager =
                 getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             val endTime = System.currentTimeMillis()
-
-            val beginShort = endTime - 10_000
-            val events = usageStatsManager.queryEvents(beginShort, endTime)
+            val events = usageStatsManager.queryEvents(endTime - 10_000L, endTime)
             val event = UsageEvents.Event()
             var currentPkg: String? = null
             while (events.hasNextEvent()) {
                 events.getNextEvent(event)
-                if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED) {
                     currentPkg = event.packageName
                 }
             }
 
-            if (currentPkg == null) {
-                val beginLong = endTime - 5 * 60_000L
-                val longEvents = usageStatsManager.queryEvents(beginLong, endTime)
+            if (currentPkg == null && lastForegroundPackage == null && !searchedForegroundHistory) {
+                searchedForegroundHistory = true
+                val longEvents = usageStatsManager.queryEvents(endTime - 24 * 60 * 60_000L, endTime)
                 val longEvent = UsageEvents.Event()
                 while (longEvents.hasNextEvent()) {
                     longEvents.getNextEvent(longEvent)
-                    if (longEvent.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                    if (longEvent.eventType == UsageEvents.Event.ACTIVITY_RESUMED) {
                         currentPkg = longEvent.packageName
                     }
                 }
             }
 
-            currentPkg
+            if (currentPkg != null) lastForegroundPackage = currentPkg
+            currentPkg ?: lastForegroundPackage
         } catch (e: Exception) {
             null
+        }
+    }
+
+    private fun hasUsageAccess(): Boolean {
+        return try {
+            val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+            val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                appOps.unsafeCheckOpNoThrow(
+                    AppOpsManager.OPSTR_GET_USAGE_STATS,
+                    android.os.Process.myUid(),
+                    packageName
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                appOps.checkOpNoThrow(
+                    AppOpsManager.OPSTR_GET_USAGE_STATS,
+                    android.os.Process.myUid(),
+                    packageName
+                )
+            }
+            mode == AppOpsManager.MODE_ALLOWED
+        } catch (_: Exception) {
+            false
         }
     }
 
@@ -664,9 +707,6 @@ class FocusBlockerService : Service() {
                 currentRequestId = null
                 requestListener?.remove()
                 requestListener = null
-
-                suppressPackageName = lastShownPackage
-                suppressPackageUntil = System.currentTimeMillis() + 2500L
 
                 val homeIntent = Intent(Intent.ACTION_MAIN).apply {
                     addCategory(Intent.CATEGORY_HOME)

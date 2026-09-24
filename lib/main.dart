@@ -4,7 +4,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
@@ -13,7 +12,7 @@ import 'models/auth_user.dart';
 import 'screens/auth_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/focus_screen.dart';
-import 'screens/habits_screen.dart';
+import 'screens/usage_access_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/sponsor_screen.dart';
 import 'screens/stats_screen.dart';
@@ -76,7 +75,9 @@ class _DetoxBootstrapAppState extends State<DetoxBootstrapApp> {
         const ['en', 'es'].contains(deviceLanguage) ? deviceLanguage : 'es';
     AppLocale.set(
       Locale(
-        localeCode != null && localeCode.isNotEmpty ? localeCode : resolvedLanguage,
+        localeCode != null && localeCode.isNotEmpty
+            ? localeCode
+            : resolvedLanguage,
       ),
     );
 
@@ -96,7 +97,8 @@ class _DetoxBootstrapAppState extends State<DetoxBootstrapApp> {
     return FutureBuilder<_BootstrapState>(
       future: _bootstrapFuture,
       builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done || !snapshot.hasData) {
+        if (snapshot.connectionState != ConnectionState.done ||
+            !snapshot.hasData) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             theme: DetoxTheme.light,
@@ -145,27 +147,29 @@ class DetoxApp extends StatefulWidget {
 class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
-  int _index = 0;
+  final ValueNotifier<int> _index = ValueNotifier<int>(0);
   late final PageController _pageController;
   late bool _darkMode;
   late bool _onboardingDone;
   AuthUser? _currentUser;
   StreamSubscription<AuthUser?>? _authSubscription;
+  String? _syncingUserUid;
+  Future<void>? _syncingUserFuture;
   Locale? _locale;
   bool _protectedServicesRunning = false;
   bool _sponsorCenterQueued = false;
   bool _openingSponsorCenter = false;
-  bool _promptedRuntimePermissions = false;
+  bool _usageAccessReady = false;
 
   /// Jump to the Focus tab (index 1) from anywhere in the app.
   void goToFocus() {
-    setState(() => _index = 1);
+    _index.value = 1;
+    _selectPage(1);
+  }
+
+  void _selectPage(int index) {
     if (_pageController.hasClients) {
-      _pageController.animateToPage(
-        1,
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeOutCubic,
-      );
+      _pageController.jumpToPage(index);
     }
   }
 
@@ -173,7 +177,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _pageController = PageController(initialPage: _index);
+    _pageController = PageController(initialPage: _index.value);
     _darkMode = widget.initialDarkMode;
     _onboardingDone = widget.onboardingDone;
     _currentUser = widget.initialUser;
@@ -184,7 +188,6 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _configureProtectedServices();
       await _runDeferredStartup();
-      _maybePromptRuntimePermissions();
     });
 
     _authSubscription = AuthService.instance.authChanges().listen((user) async {
@@ -197,7 +200,8 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
         if (!mounted) return;
         setState(() {
           _currentUser = null;
-          _index = 0;
+          _usageAccessReady = false;
+          _index.value = 0;
           _sponsorCenterQueued = false;
         });
         if (_pageController.hasClients) {
@@ -214,6 +218,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _authSubscription?.cancel();
+    _index.dispose();
     _pageController.dispose();
     super.dispose();
   }
@@ -221,8 +226,17 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      unawaited(_verifyUsageAccess());
       unawaited(_drainPendingLaunchActions());
     }
+  }
+
+  Future<void> _verifyUsageAccess() async {
+    if (_currentUser == null || !_usageAccessReady) return;
+    if (await AppBlockingService.instance.hasUsageAccess()) return;
+    if (!mounted) return;
+    setState(() => _usageAccessReady = false);
+    await _configureProtectedServices();
   }
 
   Future<void> _startProtectedServices() async {
@@ -240,7 +254,8 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   }
 
   Future<void> _configureProtectedServices() async {
-    final shouldRun = _currentUser != null && _onboardingDone;
+    final shouldRun =
+        _currentUser != null && _onboardingDone && _usageAccessReady;
     if (shouldRun) {
       await _startProtectedServices();
     } else {
@@ -251,7 +266,6 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   Future<void> _refreshProtectedState() async {
     try {
       await LocationZoneService.instance.refresh();
-      await AutomationService.instance.refresh();
     } catch (_) {}
   }
 
@@ -266,13 +280,29 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     }
 
     await _drainPendingLaunchActions();
-
-    if (_currentUser != null && _onboardingDone) {
-      await _refreshProtectedState();
-    }
   }
 
   Future<void> _syncSignedInUser(AuthUser user) async {
+    final activeSync = _syncingUserFuture;
+    if (_syncingUserUid == user.uid && activeSync != null) {
+      await activeSync;
+      return;
+    }
+
+    final future = _syncSignedInUserInternal(user);
+    _syncingUserUid = user.uid;
+    _syncingUserFuture = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_syncingUserFuture, future)) {
+        _syncingUserFuture = null;
+        _syncingUserUid = null;
+      }
+    }
+  }
+
+  Future<void> _syncSignedInUserInternal(AuthUser user) async {
     await StorageService().bootstrapForSignedInUser();
 
     await SponsorService.instance.ensureCurrentUserInitialized(user);
@@ -280,8 +310,6 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     await _consumePendingNotificationAction();
     await _consumePendingBlockAction();
 
-    // There is no blocking permissions screen anymore; onboarding completes
-    // as soon as the user signs in and the app takes them straight home.
     var onboardingDone = await StorageService().loadOnboardingDone();
     if (!onboardingDone) {
       onboardingDone = true;
@@ -290,19 +318,23 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
 
     if (!mounted) return;
     setState(() {
+      if (_currentUser?.uid != user.uid) {
+        _usageAccessReady = false;
+      }
       _currentUser = user;
       _onboardingDone = onboardingDone;
     });
 
     await _configureProtectedServices();
-    _maybePromptRuntimePermissions();
+  }
 
-    if (_currentUser != null && _onboardingDone) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        await _refreshProtectedState();
-        _tryOpenQueuedSponsorCenter();
-      });
-    }
+  Future<void> _onUsageAccessGranted() async {
+    if (!mounted || _usageAccessReady) return;
+    setState(() => _usageAccessReady = true);
+    await FocusSessionService.instance.restoreActiveShield();
+    await _refreshProtectedState();
+    await _configureProtectedServices();
+    _tryOpenQueuedSponsorCenter();
   }
 
   Future<void> _drainPendingLaunchActions() async {
@@ -311,7 +343,8 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   }
 
   Future<void> _consumePendingNotificationAction() async {
-    final action = await FocusNotificationService.instance.consumePendingAction();
+    final action =
+        await FocusNotificationService.instance.consumePendingAction();
     if (action == null) return;
 
     if (action == 'start_focus_hour') {
@@ -358,7 +391,8 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   }
 
   Future<void> _consumePendingBlockAction() async {
-    final action = await AppBlockingService.instance.consumePendingNativeAction();
+    final action =
+        await AppBlockingService.instance.consumePendingNativeAction();
     if (action == null) return;
 
     if (action == NativeBlockAction.requestShieldPause) {
@@ -391,28 +425,6 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     setState(() => _locale = Locale(code));
   }
 
-  /// First-launch convenience: fire the native Android pop-ups for the
-  /// standard permissions (notifications, then location) with a small delay
-  /// between them so the system dialogs do not stack.
-  void _maybePromptRuntimePermissions() {
-    if (_promptedRuntimePermissions) return;
-    if (_currentUser == null) return;
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
-
-    _promptedRuntimePermissions = true;
-    unawaited(FocusNotificationService.instance.requestPermission());
-
-    unawaited(Future<void>.delayed(const Duration(milliseconds: 600), () async {
-      try {
-        final permission = await Geolocator.checkPermission();
-        if (permission == LocationPermission.denied ||
-            permission == LocationPermission.unableToDetermine) {
-          await Geolocator.requestPermission();
-        }
-      } catch (_) {}
-    }));
-  }
-
   Future<void> _handleAuthenticated(AuthUser user) async {
     await _syncSignedInUser(user);
   }
@@ -425,30 +437,8 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     if (!mounted) return;
     setState(() {
       _currentUser = null;
-      _index = 0;
-      _sponsorCenterQueued = false;
-    });
-    if (_pageController.hasClients) {
-      _pageController.jumpToPage(0);
-    }
-  }
-
-  Future<void> _deleteAccount() async {
-    SponsorAlertService.instance.stop();
-    await _stopProtectedServices();
-
-    try {
-      await AuthService.instance.deleteAccount();
-    } catch (_) {
-      await _configureProtectedServices();
-      rethrow;
-    }
-
-    if (!mounted) return;
-    setState(() {
-      _currentUser = null;
-      _onboardingDone = false;
-      _index = 0;
+      _usageAccessReady = false;
+      _index.value = 0;
       _sponsorCenterQueued = false;
     });
     if (_pageController.hasClients) {
@@ -465,6 +455,10 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     Widget home;
     if (_currentUser == null) {
       home = AuthScreen(onAuthenticated: _handleAuthenticated);
+    } else if (!_usageAccessReady &&
+        !kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.android) {
+      home = UsageAccessScreen(onGranted: _onUsageAccessGranted);
     } else {
       home = Scaffold(
         body: DetoxBackground(
@@ -472,41 +466,48 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
             child: PageView.builder(
               controller: _pageController,
               allowImplicitScrolling: false,
-              itemCount: 5,
+              itemCount: 4,
               onPageChanged: (value) {
-                if (!mounted) return;
-                setState(() => _index = value);
+                _index.value = value;
               },
               itemBuilder: (context, index) {
                 if (index == 0) {
-                  return DashboardScreen(
-                    key: const PageStorageKey('dashboard'),
-                    onStartFocus: goToFocus,
+                  return ValueListenableBuilder<int>(
+                    valueListenable: _index,
+                    builder: (context, selectedIndex, child) => DashboardScreen(
+                      key: const PageStorageKey('dashboard'),
+                      onStartFocus: goToFocus,
+                      isCurrentPage: selectedIndex == 0,
+                    ),
                   );
                 }
                 if (index == 1) {
-                  return FocusScreen(
-                    key: const PageStorageKey('focus'),
-                    isCurrentPage: _index == 1,
+                  return ValueListenableBuilder<int>(
+                    valueListenable: _index,
+                    builder: (context, selectedIndex, child) => FocusScreen(
+                      key: const PageStorageKey('focus'),
+                      isCurrentPage: selectedIndex == 1,
+                    ),
                   );
                 }
                 if (index == 2) {
-                  return const HabitsScreen(key: PageStorageKey('progress'));
-                }
-                if (index == 3) {
                   return const StatsScreen(key: PageStorageKey('stats'));
                 }
 
-                return SettingsScreen(
-                  key: const PageStorageKey('settings'),
-                  darkMode: _darkMode,
-                  onDarkModeChanged: _setDarkMode,
-                  currentUser: _currentUser,
-                  onSignOut: _signOut,
-                  localeCode:
-                      (_locale ?? WidgetsBinding.instance.platformDispatcher.locale)
-                          .languageCode,
-                  onLocaleChanged: _setLocale,
+                return ValueListenableBuilder<int>(
+                  valueListenable: _index,
+                  builder: (context, selectedIndex, child) => SettingsScreen(
+                    key: const PageStorageKey('settings'),
+                    isCurrentPage: selectedIndex == 3,
+                    darkMode: _darkMode,
+                    onDarkModeChanged: _setDarkMode,
+                    currentUser: _currentUser,
+                    onSignOut: _signOut,
+                    localeCode: (_locale ??
+                            WidgetsBinding.instance.platformDispatcher.locale)
+                        .languageCode,
+                    onLocaleChanged: _setLocale,
+                  ),
                 );
               },
             ),
@@ -516,46 +517,38 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
           borderRadius: const BorderRadius.vertical(
             top: Radius.circular(detoxRadius),
           ),
-          child: NavigationBar(
-            height: 74,
-            selectedIndex: _index,
-            onDestinationSelected: (value) {
-              setState(() => _index = value);
-              if (_pageController.hasClients) {
-                _pageController.animateToPage(
-                  value,
-                  duration: const Duration(milliseconds: 260),
-                  curve: Curves.easeOutCubic,
-                );
-              }
-            },
-            destinations: [
-              NavigationDestination(
-                icon: const Icon(Icons.home_outlined),
-                selectedIcon: const Icon(Icons.home),
-                label: t.home,
-              ),
-              NavigationDestination(
-                icon: const Icon(Icons.timer_outlined),
-                selectedIcon: const Icon(Icons.timer),
-                label: t.focus,
-              ),
-              NavigationDestination(
-                icon: const Icon(Icons.local_fire_department_outlined),
-                selectedIcon: const Icon(Icons.local_fire_department),
-                label: t.habits,
-              ),
-              NavigationDestination(
-                icon: const Icon(Icons.bar_chart_outlined),
-                selectedIcon: const Icon(Icons.bar_chart),
-                label: t.stats,
-              ),
-              NavigationDestination(
-                icon: const Icon(Icons.settings_outlined),
-                selectedIcon: const Icon(Icons.settings),
-                label: t.settings,
-              ),
-            ],
+          child: ValueListenableBuilder<int>(
+            valueListenable: _index,
+            builder: (context, selectedIndex, child) => NavigationBar(
+              height: 74,
+              selectedIndex: selectedIndex,
+              onDestinationSelected: (value) {
+                _index.value = value;
+                _selectPage(value);
+              },
+              destinations: [
+                NavigationDestination(
+                  icon: const Icon(Icons.home_outlined),
+                  selectedIcon: const Icon(Icons.home),
+                  label: t.home,
+                ),
+                NavigationDestination(
+                  icon: const Icon(Icons.timer_outlined),
+                  selectedIcon: const Icon(Icons.timer),
+                  label: t.focus,
+                ),
+                NavigationDestination(
+                  icon: const Icon(Icons.bar_chart_outlined),
+                  selectedIcon: const Icon(Icons.bar_chart),
+                  label: t.stats,
+                ),
+                NavigationDestination(
+                  icon: const Icon(Icons.settings_outlined),
+                  selectedIcon: const Icon(Icons.settings),
+                  label: t.settings,
+                ),
+              ],
+            ),
           ),
         ),
       );

@@ -14,14 +14,13 @@ class AppStrings {
 
   String get home => isEs ? 'Inicio' : 'Home';
   String get focus => isEs ? 'Enfoque' : 'Focus';
-  String get habits => isEs ? 'Progreso' : 'Progress';
   String get stats => isEs ? 'Estadísticas' : 'Stats';
   String get settings => isEs ? 'Configuración' : 'Settings';
 
   String get ownYourAttention => isEs ? 'Toma control de tu atención' : 'Own your attention';
   String get authSubtitle => isEs
-      ? 'Crea tu cuenta primero y sincroniza tus hábitos de enfoque, apps bloqueadas y zonas de concentración entre dispositivos.'
-      : 'Create your account first, then sync your focus habits, blocked apps, and study zones across devices.';
+      ? 'Crea tu cuenta y sincroniza tus ajustes de enfoque, apps bloqueadas y zonas de concentración entre dispositivos.'
+      : 'Create your account and sync your focus settings, blocked apps, and study zones across devices.';
   String get continueWithGoogle => isEs ? 'Continuar con Google' : 'Continue with Google';
   String get continueWithPhone => isEs ? 'Continuar con teléfono' : 'Continue with phone';
   String get signIn => isEs ? 'Iniciar sesión' : 'Sign in';
@@ -146,13 +145,6 @@ class AppStrings {
   String get focusSessionActiveReason => isEs ? 'Temporizador de enfoque activo' : 'Focus timer active';
   String get focusSessionLabel => isEs ? 'Temporizador de enfoque' : 'Focus timer';
   String get focusCompleteSnack => isEs ? 'Sesión de enfoque completada. Buen trabajo.' : 'Focus session complete. Great job.';
-
-  String get habitsTitle => isEs ? 'Hábitos' : 'Habits';
-  String completedTodayText(int done, int total) => isEs ? 'Completados hoy: $done / $total' : 'Completed today: $done / $total';
-  String get addHabit => isEs ? 'Agregar hábito' : 'Add habit';
-  String get habitName => isEs ? 'Nombre del hábito' : 'Habit name';
-  String get target => isEs ? 'Meta' : 'Target';
-  String streakText(int streak) => isEs ? 'Racha $streak' : 'Streak $streak';
 
   String get statsTitle => isEs ? 'Estadísticas' : 'Stats';
 
@@ -310,38 +302,12 @@ class AppStrings {
 
 
 
-  String get progressTitle => isEs ? 'Progreso' : 'Progress';
-  String get progressSubtitle => isEs ? 'Tus rachas, retos y medallas viven aquí.' : 'Your streaks, challenges, and medals live here.';
-  String get startStreak => isEs ? 'Iniciar racha' : 'Start streak';
-  String get continueToday => isEs ? 'Continuar hoy' : 'Continue today';
-  String get currentStreak => isEs ? 'Racha actual' : 'Current streak';
-  String get longestStreak => isEs ? 'Mejor racha' : 'Longest streak';
-  String get achievements => isEs ? 'Logros' : 'Achievements';
-  String get dailyChallenges => isEs ? 'Retos de hoy' : "Today's challenges";
-  String get sponsorShowcase => isEs ? 'Visible para sponsor' : 'Visible to sponsor';
-  String get sponsorShowcaseBody => isEs ? 'Cuando tengas sponsor, aquí verá tu racha y tus medallas desbloqueadas.' : 'When you have a sponsor, they will see your streak and unlocked medals here.';
   String get startConcentrationHour => isEs ? 'Empezar hora de concentración' : 'Start concentration hour';
   String get deny => isEs ? 'Denegar' : 'Deny';
   String get smartSuggestionTitle => isEs ? 'Detox te recomienda una pausa' : 'Detox recommends a pause';
   String smartSuggestionNotification(String appName, String time) => isEs ? 'Hoy has usado $time horas $appName, ¿no crees que es momento de una pausa?' : "You have used $appName for $time today. Isn't it time for a pause?";
   String get progressStartedSnack => isEs ? 'Tu racha quedó activa hoy.' : 'Your streak is active today.';
   String get autoFocusStartedSnack => isEs ? 'Se inició una hora de concentración.' : 'A one-hour focus session started.';
-
-  // HabitDetailScreen
-  String get habitOverview => isEs ? 'RESUMEN' : 'OVERVIEW';
-  String get thisWeek => isEs ? 'Esta semana' : 'This week';
-  String streakDaysLabel(int n) => isEs ? '$n días' : '$n days';
-  String get completedToday => isEs ? 'Completado hoy' : 'Completed today';
-  String get notCompletedToday => isEs ? 'Pendiente hoy' : 'Not done today';
-  String get completionThisMonth => isEs ? 'Completado este mes' : 'Completion this month';
-  String monthName(int month) {
-    const es = ['', 'Enero','Febrero','Marzo','Abril','Mayo','Junio',
-      'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-    const en = ['', 'January','February','March','April','May','June',
-      'July','August','September','October','November','December'];
-    return isEs ? es[month] : en[month];
-  }
-
 
   // Automation, Pomodoro, limits, anti-bypass
   String get automationSubtitle => isEs ? 'Horarios normales o estrictos, límites y reglas combinadas.' : 'Clean normal or strict schedules, limits, and combined rules.';
@@ -375,18 +341,8 @@ class AppStrings {
   String get startHourFocus => isEs ? 'Empezar hora de concentración' : 'Start concentration hour';
   String get denyText => isEs ? 'Denegar' : 'Deny';
   String get automationSaved => isEs ? 'Automatización actualizada.' : 'Automation updated.';
-  String get progressMedalsSubtitle => isEs ? 'Convierte tus decisiones diarias en rachas, logros y medallas visibles.' : 'Turn your daily decisions into streaks, achievements, and visible medals.';
-  String get startTodayProgress => isEs ? 'Activar progreso hoy' : 'Activate progress today';
-  String get sessionsCompleted => isEs ? 'Sesiones completadas' : 'Completed sessions';
-  String get suggestionsAccepted => isEs ? 'Sugerencias aceptadas' : 'Accepted suggestions';
-  String get suggestionsShown => isEs ? 'Sugerencias mostradas' : 'Suggestions shown';
-  String get pomodoroCycles => isEs ? 'Ciclos Pomodoro' : 'Pomodoro cycles';
   String get extraPauseAd => isEs ? 'Pausa extra con anuncio' : 'Extra pause with ad';
   String get extraPauseAdSubtitle => isEs ? 'Mantienes 1 pausa gratis diaria y 1 pausa adicional al completar un anuncio.' : 'Keep 1 free daily pause and 1 extra pause after completing an ad.';
-  String get progressStats => isEs ? 'Resumen de progreso' : 'Progress summary';
-  String get progressStatsBody => isEs
-      ? 'Aquí ves tu resumen personal. El sponsor sigue recibiendo tu progreso sin mostrar esta sección como un panel especial.'
-      : 'This is your personal summary. Your sponsor still receives your progress without showing this section as a special panel.';
   String get topApps => isEs ? 'Apps más usadas' : 'Top apps';
 
   // ── Sponsor request types ──
@@ -558,32 +514,6 @@ class AppStrings {
   String get authFailed =>
       isEs ? 'Falló la autenticación.' : 'Authentication failed.';
 
-  // ── Progress achievements & challenges ──
-  String get achievementStreak3Body => isEs ? 'Racha de 3 días' : '3-day streak';
-  String get achievementFocus5Body => isEs ? '5 sesiones' : '5 sessions';
-  String get achievementSmart5Body =>
-      isEs ? '5 consejos aceptados' : '5 accepted tips';
-  String get achievementPomodoro8Body => isEs ? '8 ciclos' : '8 cycles';
-  String get challengeStartToday => isEs ? 'Empezar hoy' : 'Start today';
-  String get challengeAcceptOneTip => isEs ? 'Acepta 1 consejo' : 'Accept 1 tip';
-  String get challengeCompleteOneSession =>
-      isEs ? 'Completa 1 sesión' : 'Complete 1 session';
-
-  // ── Default seeded habits ──
-  String get habitNoSocialBeforeBreakfast =>
-      isEs ? 'Sin redes antes del desayuno' : 'No social media before breakfast';
-  String get habitNoSocialBeforeBreakfastTarget => isEs
-      ? 'Empieza el día sin scroll impulsivo'
-      : 'Start the day without mindless scrolling';
-  String get habitOneFocusSession =>
-      isEs ? 'Una sesión de enfoque de 25 minutos' : 'One 25-minute focus session';
-  String get habitOneFocusSessionTarget => isEs
-      ? 'Termina una sesión sin distracciones'
-      : 'Finish one distraction-free session';
-  String get habitScreenTimeUnderThreeHours =>
-      isEs ? 'Mantén el tiempo de pantalla bajo 3 horas' : 'Keep screen time under 3 hours';
-  String get habitScreenTimeUnderThreeHoursTarget =>
-      isEs ? 'Respeta tu límite diario' : 'Respect your daily limit';
 }
 
 /// Process-wide language holder.

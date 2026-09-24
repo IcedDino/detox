@@ -7,12 +7,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/app_limit.dart';
 import '../models/auth_user.dart';
 import '../models/concentration_zone.dart';
-import '../models/habit.dart';
 
 class CloudSyncService {
   CloudSyncService._() {
     _observedAuthUid = _auth.currentUser?.uid;
-    _authSubscription = _auth.idTokenChanges().listen(_handleAuthStateChanged);
+    _auth.idTokenChanges().listen(_handleAuthStateChanged);
   }
   static final CloudSyncService instance = CloudSyncService._();
 
@@ -36,7 +35,6 @@ class CloudSyncService {
   String? _snapshotUid;
   Map<String, dynamic>? _snapshotCache;
   DateTime? _snapshotCachedAt;
-  StreamSubscription<User?>? _authSubscription;
   String? _observedAuthUid;
 
   String? get _uid => _auth.currentUser?.uid;
@@ -116,25 +114,6 @@ class CloudSyncService {
     }
   }
 
-  Future<bool> hasRemoteData() async {
-    final data = await loadSnapshot();
-    if (data == null) return false;
-    return data.containsKey('habits') ||
-        data.containsKey('appLimits') ||
-        data.containsKey('concentrationZones') ||
-        data.containsKey('dailyLimitMinutes') ||
-        data.containsKey('onboardingDone');
-  }
-
-  List<Habit>? habitsFromSnapshot(Map<String, dynamic>? data) {
-    final raw = data?['habits'];
-    if (raw is! List) return null;
-    return raw
-        .whereType<Map>()
-        .map((e) => Habit.fromMap(Map<String, dynamic>.from(e)))
-        .toList();
-  }
-
   List<AppLimit>? appLimitsFromSnapshot(Map<String, dynamic>? data) {
     final raw = data?['appLimits'];
     if (raw is! List) return null;
@@ -165,15 +144,6 @@ class CloudSyncService {
   bool? onboardingDoneFromSnapshot(Map<String, dynamic>? data) {
     final value = data?['onboardingDone'];
     return value is bool ? value : null;
-  }
-
-  Future<void> saveHabits(List<Habit> habits) async {
-    _queueFieldWrite('habits', habits.map((e) => e.toMap()).toList());
-  }
-
-  Future<List<Habit>?> loadHabits() async {
-    final data = await loadSnapshot();
-    return habitsFromSnapshot(data);
   }
 
   Future<void> saveAppLimits(List<AppLimit> limits) async {

@@ -16,12 +16,9 @@ class AntiBypassService {
   static final AntiBypassService instance = AntiBypassService._();
 
   static const Duration _pollInterval = Duration(seconds: 75);
-  static const Duration _automationRefreshInterval = Duration(minutes: 5);
-
   final UsageService _usage = UsageService();
   Timer? _timer;
   bool? _lastHealthy;
-  DateTime? _lastAutomationRefreshAt;
 
   Future<AntiBypassStatus> getStatus() async {
     final usage = await _usage.getPermissionStatus();
@@ -31,7 +28,7 @@ class AntiBypassService {
 
   Future<void> start() async {
     _timer?.cancel();
-    await _poll();
+    _lastHealthy = (await getStatus()).healthy;
     _timer = Timer.periodic(_pollInterval, (_) {
       unawaited(_poll());
     });
@@ -39,19 +36,12 @@ class AntiBypassService {
 
   Future<void> _poll() async {
     final status = await getStatus();
-    final now = DateTime.now();
-    final shouldRefreshAutomation =
-        status.healthy &&
-        (_lastHealthy != true ||
-            _lastAutomationRefreshAt == null ||
-            now.difference(_lastAutomationRefreshAt!) >=
-                _automationRefreshInterval);
+    final recovered = status.healthy && _lastHealthy == false;
 
     _lastHealthy = status.healthy;
 
-    if (shouldRefreshAutomation) {
+    if (recovered) {
       await AutomationService.instance.refresh();
-      _lastAutomationRefreshAt = now;
     }
   }
 
@@ -59,6 +49,5 @@ class AntiBypassService {
     _timer?.cancel();
     _timer = null;
     _lastHealthy = null;
-    _lastAutomationRefreshAt = null;
   }
 }

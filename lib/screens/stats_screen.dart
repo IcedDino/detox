@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../l10n_app_strings.dart';
+import '../models/usage_models.dart';
 import '../services/storage_service.dart';
 import '../services/usage_service.dart';
 import '../theme/app_theme.dart';
@@ -37,8 +38,12 @@ class _StatsScreenState extends State<StatsScreen>
   }
 
   Future<_StatsData> _load() async {
-    final weekly = await _usageService.getWeeklyUsage();
-    final dailyLimit = await _storageService.loadDailyLimitMinutes();
+    final results = await Future.wait<dynamic>([
+      _usageService.getWeeklyUsage(),
+      _storageService.loadDailyLimitMinutes(),
+    ]);
+    final weekly = results[0] as List<WeeklyUsagePoint>;
+    final dailyLimit = results[1] as int;
     return _StatsData(
       weekly: weekly.map((e) => e.minutes).toList(),
       dailyLimitMinutes: dailyLimit,
@@ -57,8 +62,11 @@ class _StatsScreenState extends State<StatsScreen>
 
     return RefreshIndicator(
       onRefresh: () async {
-        setState(() => _future = _load());
-        await _future;
+        final nextFuture = _load();
+        setState(() {
+          _future = nextFuture;
+        });
+        await nextFuture;
       },
       child: FutureBuilder<_StatsData>(
         future: _future,
@@ -207,9 +215,7 @@ class _WeeklySummaryCard extends StatelessWidget {
                   icon: goalMet
                       ? Icons.check_circle_rounded
                       : Icons.flag_outlined,
-                  color: goalMet
-                      ? DetoxColors.success
-                      : DetoxColors.warning,
+                  color: goalMet ? DetoxColors.success : DetoxColors.warning,
                 ),
               ),
             ],
@@ -323,7 +329,8 @@ class _EmptyWeeklyState extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             t.usageUnavailableNotice,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
+            style:
+                Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
           ),
         ],
       ),

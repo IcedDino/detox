@@ -17,24 +17,24 @@ import 'package:flutter/material.dart';
 ///   `AppPageHeader` from `widgets/ui_kit.dart`.
 class DetoxColors {
   // Dark palette (default). Calm teal-sage accent on warm charcoal neutrals.
-  static const Color bg = Color(0xFF0D1210);
-  static const Color bgAlt = Color(0xFF101714);
-  static const Color card = Color(0xFF151C19);
-  static const Color surface = Color(0xFF151C19);
+  static const Color bg = Color(0xFF0B110F);
+  static const Color bgAlt = Color(0xFF101916);
+  static const Color card = Color(0xFF151E1A);
+  static const Color surface = Color(0xFF151E1A);
   static const Color cardBorder = Color(0x14FFFFFF);
   static const Color cardSubtle = Color(0x0AFFFFFF);
-  static const Color accent = Color(0xFF7FB8A4);
-  static const Color accentSoft = Color(0xFFA8CFC0);
-  static const Color accentDeep = Color(0xFF3E5D52);
-  static const Color success = Color(0xFF7FB8A4);
+  static const Color accent = Color(0xFF8BC7AE);
+  static const Color accentSoft = Color(0xFFB7DDCA);
+  static const Color accentDeep = Color(0xFF426A59);
+  static const Color success = Color(0xFF8BC7AE);
   static const Color warning = Color(0xFFD9B36C);
   static const Color danger = Color(0xFFD98C8C);
   static const Color text = Color(0xFFE8EDEA);
   static const Color muted = Color(0xFF8C988F);
 
   // Light palette. Warm paper with soft sage ink.
-  static const Color lightBg = Color(0xFFF6F7F4);
-  static const Color lightBgAlt = Color(0xFFEFF1EC);
+  static const Color lightBg = Color(0xFFF4F7F3);
+  static const Color lightBgAlt = Color(0xFFEAF0EA);
   static const Color lightCard = Colors.white;
   static const Color lightSurface = Colors.white;
   static const Color lightCardBorder = Color(0x14202B26);
@@ -45,14 +45,30 @@ class DetoxColors {
 
 /// Type scale: display (hero numbers) / title / body / caption.
 const TextTheme _detoxTextTheme = TextTheme(
-  displayLarge: TextStyle(fontSize: 42, fontWeight: FontWeight.w600, letterSpacing: -1.0, height: 1.0),
-  displayMedium: TextStyle(fontSize: 34, fontWeight: FontWeight.w600, letterSpacing: -0.5, height: 1.05),
-  headlineMedium: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, height: 1.2),
-  titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, height: 1.25),
-  titleMedium: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, height: 1.3),
-  bodyMedium: TextStyle(fontSize: 15, fontWeight: FontWeight.w400, height: 1.45),
+  displayLarge: TextStyle(
+      fontSize: 42,
+      fontWeight: FontWeight.w600,
+      letterSpacing: -1.0,
+      height: 1.0),
+  displayMedium: TextStyle(
+      fontSize: 34,
+      fontWeight: FontWeight.w600,
+      letterSpacing: -0.5,
+      height: 1.05),
+  headlineMedium:
+      TextStyle(fontSize: 22, fontWeight: FontWeight.w600, height: 1.2),
+  titleLarge:
+      TextStyle(fontSize: 18, fontWeight: FontWeight.w600, height: 1.25),
+  titleMedium:
+      TextStyle(fontSize: 15, fontWeight: FontWeight.w600, height: 1.3),
+  bodyMedium:
+      TextStyle(fontSize: 15, fontWeight: FontWeight.w400, height: 1.45),
   bodySmall: TextStyle(fontSize: 13, fontWeight: FontWeight.w400, height: 1.4),
-  labelSmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, height: 1.3, letterSpacing: 0.2),
+  labelSmall: TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w500,
+      height: 1.3,
+      letterSpacing: 0.2),
 );
 
 const double detoxRadius = 16;
@@ -91,8 +107,10 @@ class DetoxTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: DetoxColors.card,
-        contentTextStyle: _detoxTextTheme.bodyMedium?.copyWith(color: DetoxColors.text),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(detoxRadius)),
+        contentTextStyle:
+            _detoxTextTheme.bodyMedium?.copyWith(color: DetoxColors.text),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(detoxRadius)),
         behavior: SnackBarBehavior.floating,
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -101,7 +119,8 @@ class DetoxTheme {
           foregroundColor: DetoxColors.accentSoft,
           minimumSize: const Size.fromHeight(56),
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(detoxRadius)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(detoxRadius)),
           textStyle: _detoxTextTheme.titleMedium,
         ).copyWith(
           overlayColor: WidgetStateProperty.resolveWith(
@@ -116,7 +135,8 @@ class DetoxTheme {
           minimumSize: const Size.fromHeight(56),
           foregroundColor: DetoxColors.text,
           side: const BorderSide(color: DetoxColors.cardBorder),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(detoxRadius)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(detoxRadius)),
           textStyle: _detoxTextTheme.titleMedium,
         ),
       ),
@@ -128,16 +148,19 @@ class DetoxTheme {
         backgroundColor: DetoxColors.card,
         side: const BorderSide(color: DetoxColors.cardBorder),
         selectedColor: DetoxColors.accent.withOpacity(0.16),
-        labelStyle: const TextStyle(color: DetoxColors.text, fontWeight: FontWeight.w500),
+        labelStyle: const TextStyle(
+            color: DetoxColors.text, fontWeight: FontWeight.w500),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(detoxRadius)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(detoxRadius)),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: DetoxColors.bgAlt,
         labelStyle: const TextStyle(color: DetoxColors.muted),
         hintStyle: const TextStyle(color: DetoxColors.muted),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(detoxRadius),
           borderSide: BorderSide.none,
@@ -164,13 +187,19 @@ class DetoxTheme {
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => TextStyle(
             fontSize: 12,
-            color: states.contains(WidgetState.selected) ? DetoxColors.text : DetoxColors.muted,
-            fontWeight: states.contains(WidgetState.selected) ? FontWeight.w600 : FontWeight.w400,
+            color: states.contains(WidgetState.selected)
+                ? DetoxColors.text
+                : DetoxColors.muted,
+            fontWeight: states.contains(WidgetState.selected)
+                ? FontWeight.w600
+                : FontWeight.w400,
           ),
         ),
         iconTheme: WidgetStateProperty.resolveWith(
           (states) => IconThemeData(
-            color: states.contains(WidgetState.selected) ? DetoxColors.accent : DetoxColors.muted,
+            color: states.contains(WidgetState.selected)
+                ? DetoxColors.accent
+                : DetoxColors.muted,
           ),
         ),
       ),
@@ -194,16 +223,20 @@ class DetoxTheme {
       ),
       checkboxTheme: CheckboxThemeData(
         fillColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? DetoxColors.accentDeep : Colors.transparent,
+          (states) => states.contains(WidgetState.selected)
+              ? DetoxColors.accentDeep
+              : Colors.transparent,
         ),
         side: const BorderSide(color: DetoxColors.muted),
       ),
       segmentedButtonTheme: SegmentedButtonThemeData(
         style: ButtonStyle(
           textStyle: WidgetStatePropertyAll(_detoxTextTheme.titleMedium),
-          side: const WidgetStatePropertyAll(BorderSide(color: DetoxColors.cardBorder)),
+          side: const WidgetStatePropertyAll(
+              BorderSide(color: DetoxColors.cardBorder)),
           shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(detoxRadius)),
+            RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(detoxRadius)),
           ),
         ),
       ),
@@ -236,8 +269,10 @@ class DetoxTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: DetoxColors.lightCard,
-        contentTextStyle: _detoxTextTheme.bodyMedium?.copyWith(color: DetoxColors.lightText),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(detoxRadius)),
+        contentTextStyle:
+            _detoxTextTheme.bodyMedium?.copyWith(color: DetoxColors.lightText),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(detoxRadius)),
         behavior: SnackBarBehavior.floating,
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -246,7 +281,8 @@ class DetoxTheme {
           foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(56),
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(detoxRadius)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(detoxRadius)),
           textStyle: _detoxTextTheme.titleMedium,
         ).copyWith(
           overlayColor: WidgetStateProperty.resolveWith(
@@ -261,7 +297,8 @@ class DetoxTheme {
           minimumSize: const Size.fromHeight(56),
           foregroundColor: DetoxColors.lightText,
           side: const BorderSide(color: DetoxColors.lightCardBorder),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(detoxRadius)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(detoxRadius)),
           textStyle: _detoxTextTheme.titleMedium,
         ),
       ),
@@ -273,23 +310,27 @@ class DetoxTheme {
         backgroundColor: const Color(0xFFF1F3F4),
         side: const BorderSide(color: DetoxColors.lightCardBorder),
         selectedColor: DetoxColors.accent.withOpacity(0.18),
-        labelStyle: const TextStyle(color: DetoxColors.lightText, fontWeight: FontWeight.w500),
+        labelStyle: const TextStyle(
+            color: DetoxColors.lightText, fontWeight: FontWeight.w500),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(detoxRadius)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(detoxRadius)),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: const Color(0xFFF1F3EF),
         labelStyle: const TextStyle(color: DetoxColors.lightMuted),
         hintStyle: const TextStyle(color: DetoxColors.lightMuted),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(detoxRadius),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(detoxRadius),
-          borderSide: const BorderSide(color: DetoxColors.accentDeep, width: 1.4),
+          borderSide:
+              const BorderSide(color: DetoxColors.accentDeep, width: 1.4),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(detoxRadius),
@@ -308,13 +349,19 @@ class DetoxTheme {
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => TextStyle(
             fontSize: 12,
-            color: states.contains(WidgetState.selected) ? DetoxColors.lightText : DetoxColors.lightMuted,
-            fontWeight: states.contains(WidgetState.selected) ? FontWeight.w600 : FontWeight.w400,
+            color: states.contains(WidgetState.selected)
+                ? DetoxColors.lightText
+                : DetoxColors.lightMuted,
+            fontWeight: states.contains(WidgetState.selected)
+                ? FontWeight.w600
+                : FontWeight.w400,
           ),
         ),
         iconTheme: WidgetStateProperty.resolveWith(
           (states) => IconThemeData(
-            color: states.contains(WidgetState.selected) ? DetoxColors.accent : DetoxColors.lightMuted,
+            color: states.contains(WidgetState.selected)
+                ? DetoxColors.accent
+                : DetoxColors.lightMuted,
           ),
         ),
       ),
@@ -338,16 +385,20 @@ class DetoxTheme {
       ),
       checkboxTheme: CheckboxThemeData(
         fillColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? DetoxColors.accentDeep : Colors.transparent,
+          (states) => states.contains(WidgetState.selected)
+              ? DetoxColors.accentDeep
+              : Colors.transparent,
         ),
         side: const BorderSide(color: DetoxColors.lightMuted),
       ),
       segmentedButtonTheme: SegmentedButtonThemeData(
         style: ButtonStyle(
           textStyle: WidgetStatePropertyAll(_detoxTextTheme.titleMedium),
-          side: const WidgetStatePropertyAll(BorderSide(color: DetoxColors.lightCardBorder)),
+          side: const WidgetStatePropertyAll(
+              BorderSide(color: DetoxColors.lightCardBorder)),
           shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(detoxRadius)),
+            RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(detoxRadius)),
           ),
         ),
       ),
@@ -355,8 +406,8 @@ class DetoxTheme {
   }
 }
 
-/// Flat background: solid color only. The design disappears so the data can
-/// speak (calm technology / reduced extraneous cognitive load).
+/// Low contrast background tint adds depth while keeping cards and content
+/// easy to read.
 class DetoxBackground extends StatelessWidget {
   const DetoxBackground({super.key, required this.child});
 
@@ -364,16 +415,45 @@ class DetoxBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: Theme.of(context).scaffoldBackgroundColor,
-      child: child,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? const [DetoxColors.bg, Color(0xFF111A16), Color(0xFF0C120F)]
+              : const [DetoxColors.lightBg, Color(0xFFEEF3EE), Colors.white],
+        ),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: const Alignment(-0.9, -1.05),
+                radius: 1.2,
+                colors: [
+                  DetoxColors.accent.withOpacity(isDark ? 0.12 : 0.08),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+          child,
+        ],
+      ),
     );
   }
 }
 
 /// Minimal surface card: radius 16, one border, no elevation.
 class GlassCard extends StatelessWidget {
-  const GlassCard({super.key, required this.child, this.padding = const EdgeInsets.all(16)});
+  const GlassCard(
+      {super.key,
+      required this.child,
+      this.padding = const EdgeInsets.all(16)});
 
   final Widget child;
   final EdgeInsets padding;
@@ -387,9 +467,15 @@ class GlassCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(detoxRadius),
         border: Border.all(
-          color: isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder,
+          color: isDark ? const Color(0x20FFFFFF) : DetoxColors.lightCardBorder,
         ),
-        color: isDark ? DetoxColors.card : DetoxColors.lightCard,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? const [Color(0xFF18221D), DetoxColors.card]
+              : const [Colors.white, Color(0xFFF9FBF8)],
+        ),
       ),
       child: child,
     );

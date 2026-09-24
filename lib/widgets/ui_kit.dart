@@ -47,7 +47,8 @@ class AppPageHeader extends StatelessWidget {
 
 /// Section title with an optional subtitle and optional trailing widget.
 class SectionTitle extends StatelessWidget {
-  const SectionTitle({super.key, required this.title, this.subtitle, this.trailing});
+  const SectionTitle(
+      {super.key, required this.title, this.subtitle, this.trailing});
 
   final String title;
   final String? subtitle;
@@ -71,7 +72,10 @@ class SectionTitle extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   subtitle!,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: muted),
                 ),
               ],
             ],
@@ -103,14 +107,14 @@ class StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final effectiveColor = color ??
-        (isDark ? DetoxColors.accent : DetoxColors.accent);
+    final effectiveColor =
+        color ?? (isDark ? DetoxColors.accent : DetoxColors.accent);
     final muted = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(detoxRadius),
+        borderRadius: BorderRadius.circular(detoxRadiusPill),
         color: effectiveColor.withOpacity(0.12),
         border: Border.all(color: effectiveColor.withOpacity(0.30)),
       ),
@@ -173,6 +177,18 @@ class HeroInfoCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (icon != null) ...[
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: DetoxColors.accent.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: DetoxColors.accent, size: 20),
+                ),
+                const SizedBox(width: 10),
+              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -181,7 +197,10 @@ class HeroInfoCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: muted),
                     ),
                   ],
                 ),
@@ -231,6 +250,9 @@ class FriendlyStatTile extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(detoxRadius),
+        color: Theme.of(context).brightness == Brightness.dark
+            ? DetoxColors.cardSubtle
+            : const Color(0xFFF5F8F5),
         border: Border.all(
           color: Theme.of(context).brightness == Brightness.dark
               ? DetoxColors.cardBorder
@@ -251,7 +273,10 @@ class FriendlyStatTile extends StatelessWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(color: muted),
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelSmall
+                      ?.copyWith(color: muted),
                 ),
               ),
             ],
@@ -268,7 +293,8 @@ class FriendlyStatTile extends StatelessWidget {
             helper,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(color: muted),
+            style:
+                Theme.of(context).textTheme.labelSmall?.copyWith(color: muted),
           ),
         ],
       ),
@@ -299,7 +325,8 @@ class SoftActionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
-    final effectiveColor = color ?? (isDark ? DetoxColors.accent : DetoxColors.accent);
+    final effectiveColor =
+        color ?? (isDark ? DetoxColors.accent : DetoxColors.accent);
 
     return Material(
       color: Colors.transparent,
@@ -310,8 +337,10 @@ class SoftActionTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(detoxRadius),
+            color: isDark ? DetoxColors.cardSubtle : const Color(0xFFF9FBF8),
             border: Border.all(
-              color: isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder,
+              color:
+                  isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder,
             ),
           ),
           child: Row(
@@ -326,7 +355,10 @@ class SoftActionTile extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: muted),
                     ),
                   ],
                 ),

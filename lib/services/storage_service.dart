@@ -2,18 +2,15 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../l10n_app_strings.dart';
 import '../models/app_limit.dart';
 import '../models/automation_rule.dart';
 import '../models/concentration_zone.dart';
-import '../models/habit.dart';
 import 'cloud_sync_service.dart';
 
 class StorageService {
   static Future<void>? _bootstrapFuture;
   static String? _bootstrapUid;
 
-  static const _habitsKey = 'habits_v2';
   static const _dailyLimitKey = 'daily_limit_minutes';
   static const _limitsKey = 'app_limits_v2';
   static const _onboardingDoneKey = 'onboarding_done_local_v2';
@@ -45,33 +42,6 @@ class StorageService {
   factory StorageService() => instance;
   StorageService._internal();
 
-  List<Habit> _defaultHabits() {
-    final t = AppStrings.current;
-    return [
-      Habit(
-        id: '1',
-        title: t.habitNoSocialBeforeBreakfast,
-        targetDescription: t.habitNoSocialBeforeBreakfastTarget,
-      ),
-      Habit(
-        id: '2',
-        title: t.habitOneFocusSession,
-        targetDescription: t.habitOneFocusSessionTarget,
-      ),
-      Habit(
-        id: '3',
-        title: t.habitScreenTimeUnderThreeHours,
-        targetDescription: t.habitScreenTimeUnderThreeHoursTarget,
-      ),
-    ];
-  }
-
-  List<AppLimit> _defaultAppLimits() => [
-    AppLimit(appName: 'Instagram', packageName: 'com.instagram.android', minutes: 30),
-    AppLimit(appName: 'TikTok', packageName: 'com.zhiliaoapp.musically', minutes: 25),
-    AppLimit(appName: 'YouTube', packageName: 'com.google.android.youtube', minutes: 45),
-  ];
-
   Future<void> bootstrapForSignedInUser() async {
     final uid = CloudSyncService.instance.currentUid;
     if (uid == null) return;
@@ -102,26 +72,17 @@ class StorageService {
     final remote = await CloudSyncService.instance.loadSnapshot();
     if (CloudSyncService.instance.currentUid != uid) return;
 
-    final remoteHabits = CloudSyncService.instance.habitsFromSnapshot(remote);
     final remoteDaily = CloudSyncService.instance.dailyLimitMinutesFromSnapshot(remote);
     final remoteLimits = CloudSyncService.instance.appLimitsFromSnapshot(remote);
     final remoteZones = CloudSyncService.instance.concentrationZonesFromSnapshot(remote);
     final remoteOnboarding = CloudSyncService.instance.onboardingDoneFromSnapshot(remote);
     final hasAnyRemoteData =
-        remoteHabits != null ||
         remoteDaily != null ||
         remoteLimits != null ||
         remoteZones != null ||
         remoteOnboarding != null;
 
     if (hasAnyRemoteData) {
-      if (remoteHabits != null) {
-        await prefs.setStringList(
-          _habitsKey,
-          remoteHabits.map((e) => e.toJson()).toList(),
-        );
-      }
-
       if (remoteDaily != null) {
         await prefs.setInt(_dailyLimitKey, remoteDaily);
       }
@@ -147,14 +108,12 @@ class StorageService {
       return;
     }
 
-    final localHabitsRaw = prefs.getStringList(_habitsKey);
     final localLimitsRaw = prefs.getStringList(_limitsKey);
     final localZonesRaw = prefs.getStringList(_zonesKey);
     final hasLocalDaily = prefs.containsKey(_dailyLimitKey);
     final hasLocalOnboarding = prefs.containsKey(_onboardingDoneKey);
 
     final hasMeaningfulLocalData =
-        (localHabitsRaw != null && localHabitsRaw.isNotEmpty) ||
         (localLimitsRaw != null && localLimitsRaw.isNotEmpty) ||
         (localZonesRaw != null && localZonesRaw.isNotEmpty) ||
         hasLocalDaily ||
@@ -164,7 +123,6 @@ class StorageService {
       return;
     }
 
-    final localHabits = await loadHabits();
     final localDaily = await loadDailyLimitMinutes();
     final localLimits = await loadAppLimits();
     final localZones = await loadConcentrationZones();
@@ -173,7 +131,6 @@ class StorageService {
     if (CloudSyncService.instance.currentUid != uid) return;
 
     await Future.wait<void>([
-      CloudSyncService.instance.saveHabits(localHabits),
       CloudSyncService.instance.saveDailyLimitMinutes(localDaily),
       CloudSyncService.instance.saveAppLimits(localLimits),
       CloudSyncService.instance.saveConcentrationZones(localZones),
@@ -186,18 +143,10 @@ class StorageService {
 
     final prefs = await SharedPreferences.getInstance();
     final remote = await CloudSyncService.instance.loadSnapshot();
-    final remoteHabits = CloudSyncService.instance.habitsFromSnapshot(remote);
     final remoteDaily = CloudSyncService.instance.dailyLimitMinutesFromSnapshot(remote);
     final remoteLimits = CloudSyncService.instance.appLimitsFromSnapshot(remote);
     final remoteZones = CloudSyncService.instance.concentrationZonesFromSnapshot(remote);
     final remoteOnboarding = CloudSyncService.instance.onboardingDoneFromSnapshot(remote);
-
-    if (remoteHabits != null) {
-      await prefs.setStringList(
-        _habitsKey,
-        remoteHabits.map((e) => e.toJson()).toList(),
-      );
-    }
 
     if (remoteDaily != null) {
       await prefs.setInt(_dailyLimitKey, remoteDaily);
@@ -222,21 +171,6 @@ class StorageService {
     }
   }
 
-  Future<List<Habit>> loadHabits() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList(_habitsKey);
-    if (raw == null || raw.isEmpty) return _defaultHabits();
-    return raw.map(Habit.fromJson).toList();
-  }
-
-  Future<void> saveHabits(List<Habit> habits) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_habitsKey, habits.map((e) => e.toJson()).toList());
-    try {
-      await CloudSyncService.instance.saveHabits(habits);
-    } catch (_) {}
-  }
-
   Future<int> loadDailyLimitMinutes() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getInt(_dailyLimitKey) ?? 180;
@@ -253,7 +187,7 @@ class StorageService {
   Future<List<AppLimit>> loadAppLimits() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getStringList(_limitsKey);
-    if (raw == null || raw.isEmpty) return _defaultAppLimits();
+    if (raw == null || raw.isEmpty) return const [];
     return raw.map(AppLimit.fromJson).toList();
   }
 
@@ -372,11 +306,6 @@ class StorageService {
     return '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
   }
 
-  Future<bool> isProgressStartedToday() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_progressStartedTodayKey) == _dayToken();
-  }
-
   Future<int> markProgressStartedToday() async {
     final prefs = await SharedPreferences.getInstance();
     final today = _dayToken();
@@ -417,16 +346,6 @@ class StorageService {
     return current;
   }
 
-  Future<int> loadCurrentProgressStreak() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_progressCurrentStreakKey) ?? 0;
-  }
-
-  Future<int> loadBestProgressStreak() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_progressBestStreakKey) ?? 0;
-  }
-
   Future<void> incrementSuggestionsShown() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_suggestionsShownKey, (prefs.getInt(_suggestionsShownKey) ?? 0) + 1);
@@ -465,23 +384,6 @@ class StorageService {
   Future<void> incrementPomodoroCyclesCompleted() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_pomodoroCyclesCompletedKey, (prefs.getInt(_pomodoroCyclesCompletedKey) ?? 0) + 1);
-  }
-
-  Future<Map<String, int>> loadProgressCounters() async {
-    final prefs = await SharedPreferences.getInstance();
-    return {
-      'currentStreak': prefs.getInt(_progressCurrentStreakKey) ?? 0,
-      'bestStreak': prefs.getInt(_progressBestStreakKey) ?? 0,
-      'suggestionsShown': prefs.getInt(_suggestionsShownKey) ?? 0,
-      'suggestionsAccepted': prefs.getInt(_suggestionsAcceptedKey) ?? 0,
-      'suggestionsDenied': prefs.getInt(_suggestionsDeniedKey) ?? 0,
-      'focusStarted': prefs.getInt(_focusSessionsStartedKey) ?? 0,
-      'focusCompleted': prefs.getInt(_focusSessionsCompletedKey) ?? 0,
-      'pauseRequests': prefs.getInt(_pauseRequestsKey) ?? 0,
-      'pauseApproved': prefs.getInt(_pauseApprovedKey) ?? 0,
-      'pauseRejected': prefs.getInt(_pauseRejectedKey) ?? 0,
-      'pomodoroCyclesCompleted': prefs.getInt(_pomodoroCyclesCompletedKey) ?? 0,
-    };
   }
 
 

@@ -24,14 +24,9 @@ class BootReceiver : BroadcastReceiver() {
         }
 
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        ShieldStateStore.activeSources(prefs)
         val blockedPackages = prefs.getStringSet(KEY_BLOCKED_PACKAGES, emptySet()) ?: emptySet()
         if (blockedPackages.isEmpty()) {
-            return
-        }
-
-        val suspendUntilMillis = prefs.getLong(KEY_SUSPEND_UNTIL_MILLIS, 0L)
-        val now = System.currentTimeMillis()
-        if (suspendUntilMillis > now) {
             return
         }
 
@@ -47,7 +42,12 @@ class BootReceiver : BroadcastReceiver() {
             putExtra(FocusBlockerService.EXTRA_STRICT_MODE, strictMode)
         }
 
-        ContextCompat.startForegroundService(context, blockerIntent)
+        try {
+            ContextCompat.startForegroundService(context, blockerIntent)
+        } catch (_: RuntimeException) {
+            // Android may defer startup for apps in its restricted state.
+            // The saved shield is restored when the user next opens Detox.
+        }
     }
 
     companion object {
@@ -57,7 +57,6 @@ class BootReceiver : BroadcastReceiver() {
         private const val KEY_BLOCK_REASON = "block_reason"
         private const val KEY_HAS_SPONSOR = "has_sponsor"
         private const val KEY_STRICT_MODE = "strict_mode"
-        private const val KEY_SUSPEND_UNTIL_MILLIS = "suspend_until_millis"
 
         private const val DEFAULT_BLOCK_REASON = "focus_session"
 

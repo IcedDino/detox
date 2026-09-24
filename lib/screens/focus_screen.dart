@@ -6,6 +6,7 @@ import '../l10n_app_strings.dart';
 import '../models/app_limit.dart';
 import '../services/app_blocking_service.dart';
 import '../services/focus_session_service.dart';
+import '../services/focus_notification_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/blocking_permission_gate.dart';
@@ -36,6 +37,7 @@ class _FocusScreenState extends State<FocusScreen>
     currentCycle: 1,
     totalCycles: 1,
     breakMinutes: 5,
+    source: 'focus',
   );
   Duration _selectedDuration = const Duration(minutes: 25);
   List<AppLimit> _shieldedApps = const [];
@@ -72,9 +74,14 @@ class _FocusScreenState extends State<FocusScreen>
   }
 
   Future<void> _load() async {
-    final snap = await _sessions.loadSnapshot();
-    final limits = await _storage.loadAppLimits();
-    final strict = await _storage.loadStrictModeEnabled();
+    final results = await Future.wait<dynamic>([
+      _sessions.loadSnapshot(),
+      _storage.loadAppLimits(),
+      _storage.loadStrictModeEnabled(),
+    ]);
+    final snap = results[0] as FocusSessionSnapshot;
+    final limits = results[1] as List<AppLimit>;
+    final strict = results[2] as bool;
     if (!mounted) return;
     setState(() {
       _snapshot = snap;
@@ -103,7 +110,7 @@ class _FocusScreenState extends State<FocusScreen>
         _load();
         return;
       }
-      setState(() {});
+      if (widget.isCurrentPage) setState(() {});
     });
   }
 
@@ -121,7 +128,9 @@ class _FocusScreenState extends State<FocusScreen>
     final h = d.inHours;
     final m = d.inMinutes % 60;
     if (h > 0) {
-      return t.isEs ? '$h h ${m.toString().padLeft(2, '0')} min' : '$h h ${m.toString().padLeft(2, '0')} min';
+      return t.isEs
+          ? '$h h ${m.toString().padLeft(2, '0')} min'
+          : '$h h ${m.toString().padLeft(2, '0')} min';
     }
     return '$m min';
   }
@@ -165,16 +174,19 @@ class _FocusScreenState extends State<FocusScreen>
                       children: [
                         for (final minutes in const [15, 25, 45, 60, 90, 120])
                           ChoiceChip(
-                            label: Text(_durationLabel(AppStrings.of(context), Duration(minutes: minutes))),
+                            label: Text(_durationLabel(AppStrings.of(context),
+                                Duration(minutes: minutes))),
                             selected: local == Duration(minutes: minutes),
-                            onSelected: (v) => setSheetState(() => local = Duration(minutes: minutes)),
+                            onSelected: (v) => setSheetState(
+                                () => local = Duration(minutes: minutes)),
                           ),
                       ],
                     ),
                     const SizedBox(height: 20),
                     FilledButton(
                       onPressed: () => Navigator.pop(context, local),
-                      child: Text(AppStrings.of(context).isEs ? 'Listo' : 'Done'),
+                      child:
+                          Text(AppStrings.of(context).isEs ? 'Listo' : 'Done'),
                     ),
                   ],
                 ),
@@ -192,6 +204,7 @@ class _FocusScreenState extends State<FocusScreen>
   Future<void> _startFocus() async {
     final allowed = await ensureBlockingPermissions(context);
     if (!allowed || !mounted) return;
+    await FocusNotificationService.instance.requestPermission();
     await _sessions.startFocus(
       minutes: _selectedDuration.inMinutes,
       label: 'Focus',
@@ -202,6 +215,7 @@ class _FocusScreenState extends State<FocusScreen>
   Future<void> _startPomodoro() async {
     final allowed = await ensureBlockingPermissions(context);
     if (!allowed || !mounted) return;
+    await FocusNotificationService.instance.requestPermission();
     await _sessions.startPomodoro();
     await _load();
   }
@@ -241,19 +255,23 @@ class _FocusScreenState extends State<FocusScreen>
                           ? 'El modo estricto reduce salidas y pausas mientras el bloqueo esté activo.'
                           : 'Strict mode reduces exits and pauses while blocking is active.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).brightness == Brightness.dark
-                                ? DetoxColors.muted
-                                : DetoxColors.lightMuted,
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
+                                    ? DetoxColors.muted
+                                    : DetoxColors.lightMuted,
                           ),
                     ),
                     const SizedBox(height: 16),
                     RadioListTile<bool>(
                       value: false,
                       groupValue: localStrict,
-                      onChanged: (v) => setSheetState(() => localStrict = false),
+                      onChanged: (v) =>
+                          setSheetState(() => localStrict = false),
                       title: Text(t.isEs ? 'Normal' : 'Normal'),
                       subtitle: Text(
-                        t.isEs ? 'Pausas y salida disponibles.' : 'Pauses and exit available.',
+                        t.isEs
+                            ? 'Pausas y salida disponibles.'
+                            : 'Pauses and exit available.',
                       ),
                     ),
                     RadioListTile<bool>(
@@ -298,8 +316,10 @@ class _FocusScreenState extends State<FocusScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
     final selectedSeconds = _selectedDuration.inSeconds;
-    final totalSeconds = _snapshot.isActive ? (_snapshot.minutes * 60) : selectedSeconds;
-    final remaining = _snapshot.isActive ? _snapshot.remainingSeconds : selectedSeconds;
+    final totalSeconds =
+        _snapshot.isActive ? (_snapshot.minutes * 60) : selectedSeconds;
+    final remaining =
+        _snapshot.isActive ? _snapshot.remainingSeconds : selectedSeconds;
     final safeTotal = totalSeconds <= 0 ? 1 : totalSeconds;
     final progress = 1 - (remaining / safeTotal);
     final blockedAppsLabel = t.isEs
@@ -328,23 +348,65 @@ class _FocusScreenState extends State<FocusScreen>
               children: [
                 CircularProgressIndicator(
                   value: progress.clamp(0.0, 1.0),
-                  strokeWidth: 6,
+                  strokeWidth: 8,
                   strokeCap: StrokeCap.round,
+                  backgroundColor: isDark
+                      ? Colors.white.withOpacity(0.08)
+                      : DetoxColors.accentDeep.withOpacity(0.10),
                 ),
                 Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _formatTimer(remaining),
-                        style: Theme.of(context).textTheme.displayLarge,
+                  child: Container(
+                    width: 208,
+                    height: 208,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: isDark
+                            ? const [Color(0xFF19251F), Color(0xFF111815)]
+                            : const [Color(0xFFE8F1EA), Colors.white],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        active ? blockedAppsLabel : _durationLabel(t, _selectedDuration),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
+                      border: Border.all(
+                        color: isDark
+                            ? const Color(0x1FFFFFFF)
+                            : DetoxColors.lightCardBorder,
                       ),
-                    ],
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          active
+                              ? Icons.self_improvement_rounded
+                              : Icons.timer_outlined,
+                          size: 22,
+                          color: active ? DetoxColors.accent : muted,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _formatTimer(remaining),
+                          style: Theme.of(context)
+                              .textTheme
+                              .displayLarge
+                              ?.copyWith(
+                            color: active ? DetoxColors.accentSoft : null,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          active
+                              ? blockedAppsLabel
+                              : _durationLabel(t, _selectedDuration),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: muted),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -363,13 +425,19 @@ class _FocusScreenState extends State<FocusScreen>
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(detoxRadius),
+                color: isDark
+                    ? DetoxColors.cardSubtle
+                    : DetoxColors.lightCardSubtle,
                 border: Border.all(
-                  color: isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder,
+                  color: isDark
+                      ? DetoxColors.cardBorder
+                      : DetoxColors.lightCardBorder,
                 ),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.schedule_rounded, size: 20, color: DetoxColors.accent),
+                  const Icon(Icons.schedule_rounded,
+                      size: 20, color: DetoxColors.accent),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -393,8 +461,12 @@ class _FocusScreenState extends State<FocusScreen>
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(detoxRadius),
+              color:
+                  isDark ? DetoxColors.cardSubtle : DetoxColors.lightCardSubtle,
               border: Border.all(
-                color: isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder,
+                color: isDark
+                    ? DetoxColors.cardBorder
+                    : DetoxColors.lightCardBorder,
               ),
             ),
             child: Row(
@@ -449,19 +521,13 @@ class _FocusScreenState extends State<FocusScreen>
         ),
         const SizedBox(height: 12),
         if (_shieldedApps.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(detoxRadius),
-              border: Border.all(
-                color: isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder,
-              ),
-            ),
+          GlassCard(
             child: Text(
               t.isEs
                   ? 'Aún no hay apps agregadas para enfoque. Puedes elegirlas en Configuración.'
                   : 'No focus apps added yet. You can choose them in Settings.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
+              style:
+                  Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
             ),
           )
         else
@@ -488,7 +554,9 @@ class _FocusScreenState extends State<FocusScreen>
                   if (i != _shieldedApps.length - 1)
                     Divider(
                       height: 1,
-                      color: isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder,
+                      color: isDark
+                          ? DetoxColors.cardBorder
+                          : DetoxColors.lightCardBorder,
                     ),
                 ],
               ],
