@@ -22,6 +22,7 @@ import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_icon_badge.dart';
 import '../widgets/blocking_permission_gate.dart';
+import '../widgets/message_prompt_dialog.dart';
 import '../widgets/ui_kit.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -177,26 +178,30 @@ class _SettingsScreenState extends State<SettingsScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Sponsor approval required',
+              AppStrings.of(context).sponsorApprovalNeededTitle,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: detoxWeightEmphasis,
                   ),
             ),
             const SizedBox(height: 10),
-            const Text(
-              'Protected changes need sponsor approval.',
-              style: TextStyle(color: DetoxColors.muted),
+            Text(
+              AppStrings.of(context).sponsorApprovalNeededBody,
+              style: TextStyle(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? DetoxColors.muted
+                    : DetoxColors.lightMuted,
+              ),
             ),
             const SizedBox(height: 14),
             FilledButton.icon(
               onPressed: () => Navigator.pop(context, 'request'),
               icon: const Icon(Icons.send_outlined),
-              label: const Text('Request approval'),
+              label: Text(AppStrings.of(context).requestApproval),
             ),
             const SizedBox(height: 10),
             TextButton(
               onPressed: () => Navigator.pop(context, 'open'),
-              child: const Text('Sponsor center'),
+              child: Text(AppStrings.of(context).sponsorCenter),
             ),
           ],
         ),
@@ -204,16 +209,25 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
 
     if (action == 'request') {
+      if (!mounted) return false;
+      final t = AppStrings.of(context);
+      final message = await showMessagePrompt(
+        context,
+        title: t.requestMessageTitle,
+        hint: t.requestMessageHint,
+        confirmLabel: t.sendRequestLabel,
+      );
+      if (message == null) return false;
+
       try {
         await SponsorService.instance.createUnlockRequest(
           requestType: 'settings_unlock',
           durationMinutes: 10,
+          message: message,
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Approval request sent.'),
-            ),
+            SnackBar(content: Text(t.requestSentWaiting)),
           );
         }
       } catch (e) {
@@ -486,7 +500,9 @@ class _SettingsScreenState extends State<SettingsScreen>
             title: t.settings,
             subtitle: t.settingsPageSubtitle,
           ),
-      (context) => const SizedBox(height: 18),
+      (context) => const SizedBox(height: DetoxSpace.section),
+      (context) => SectionTitle(title: t.accountSectionTitle),
+      (context) => const SizedBox(height: 12),
       if (widget.currentUser != null) ...[
         (context) => InkWell(
               onTap: _deletingAccount ? null : _openAccountActions,
@@ -558,7 +574,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                 ),
               ),
             ),
-        (context) => const SizedBox(height: 16),
+        (context) => const SizedBox(height: 12),
       ],
       (context) => SoftActionTile(
             icon: Icons.shield_outlined,
@@ -576,7 +592,7 @@ class _SettingsScreenState extends State<SettingsScreen>
               await _load();
             },
           ),
-      (context) => const SizedBox(height: 16),
+      (context) => const SizedBox(height: DetoxSpace.section),
       (context) => SectionTitle(
             title: t.isEs ? 'Preferencias generales' : 'General preferences',
           ),
@@ -690,7 +706,7 @@ class _SettingsScreenState extends State<SettingsScreen>
               ),
             ],
           ),
-      (context) => const SizedBox(height: 16),
+      (context) => const SizedBox(height: DetoxSpace.section),
       (context) => SectionTitle(
             title: t.perAppLimits,
             subtitle: t.pickAppsBody,
@@ -722,13 +738,24 @@ class _SettingsScreenState extends State<SettingsScreen>
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      item.appName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontWeight: detoxWeightEmphasis,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.appName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          t.minutesLabel(item.minutes),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: muted),
+                        ),
+                      ],
                     ),
                   ),
                   Semantics(
@@ -751,7 +778,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                 ],
               )),
             )),
-      (context) => const SizedBox(height: 16),
+      (context) => const SizedBox(height: DetoxSpace.section),
       (context) => SectionTitle(
             title: t.isEs ? 'Horarios de Detox' : 'Detox schedules',
           ),
@@ -772,7 +799,7 @@ class _SettingsScreenState extends State<SettingsScreen>
               await _load();
             },
           ),
-      (context) => const SizedBox(height: 16),
+      (context) => const SizedBox(height: DetoxSpace.section),
       (context) => SectionTitle(
             title: t.concentrationZones,
             subtitle: t.isEs
@@ -832,7 +859,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                                   : Icons.location_on_outlined,
                               color: inside
                                   ? DetoxColors.success
-                                  : DetoxColors.accentSoft,
+                                  : (isDark
+                                      ? DetoxColors.accentSoft
+                                      : DetoxColors.accentDeep),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -842,9 +871,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                               children: [
                                 Text(
                                   zone.name,
-                                  style: const TextStyle(
-                                    fontWeight: detoxWeightEmphasis,
-                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.titleMedium,
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
@@ -864,6 +893,39 @@ class _SettingsScreenState extends State<SettingsScreen>
                               ],
                             ),
                           ),
+                          Semantics(
+                            label: t.isEs
+                                ? 'Activar zona ${zone.name}'
+                                : 'Enable zone ${zone.name}',
+                            child: Switch(
+                              value: zone.enabled,
+                              onChanged: (value) => _toggleZone(zone, value),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (inside) ...[
+                        const SizedBox(height: 12),
+                        StatusPill(
+                          label: t.isEs ? 'Estás dentro' : 'You are inside',
+                          icon: Icons.my_location_rounded,
+                          color: DetoxColors.success,
+                        ),
+                      ],
+                      if (zone.blockedAppNames.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: zone.blockedAppNames
+                              .map((name) => Chip(label: Text(name)))
+                              .toList(),
+                        ),
+                      ],
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
                           IconButton(
                             tooltip: t.isEs
                                 ? 'Editar ${zone.name}'
@@ -881,65 +943,6 @@ class _SettingsScreenState extends State<SettingsScreen>
                             color: muted,
                           ),
                         ],
-                      ),
-                      if (zone.blockedAppNames.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: zone.blockedAppNames
-                              .map((name) => Chip(label: Text(name)))
-                              .toList(),
-                        ),
-                      ],
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(detoxRadius),
-                          color: isDark
-                              ? DetoxColors.cardSubtle
-                              : DetoxColors.lightCardSubtle,
-                          border: Border.all(
-                            color: isDark
-                                ? DetoxColors.cardBorder
-                                : DetoxColors.lightCardBorder,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              zone.enabled
-                                  ? Icons.location_searching_rounded
-                                  : Icons.location_disabled_outlined,
-                              color:
-                                  zone.enabled ? DetoxColors.accentSoft : muted,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                t.isEs
-                                    ? 'Activar / desactivar'
-                                    : 'Enable / disable',
-                                style: const TextStyle(
-                                  fontWeight: detoxWeightEmphasis,
-                                ),
-                              ),
-                            ),
-                            Semantics(
-                              label: t.isEs
-                                  ? 'Activar zona ${zone.name}'
-                                  : 'Enable zone ${zone.name}',
-                              child: Switch(
-                                value: zone.enabled,
-                                onChanged: (value) => _toggleZone(zone, value),
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
                     ],
                   ),
@@ -1168,7 +1171,7 @@ class _AppPickerSheetState extends State<_AppPickerSheet> {
               Text(
                 t.addAppLimit,
                 style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
+                  fontWeight: detoxWeightEmphasis,
                 ),
               ),
               const SizedBox(height: 12),
@@ -1455,7 +1458,7 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
                         ? 'Editar zona de concentración'
                         : 'Edit concentration zone'),
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
+                      fontWeight: detoxWeightEmphasis,
                     ),
               ),
               const SizedBox(height: 12),
@@ -1576,7 +1579,7 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
               Text(
                 t.appsBlockedInThisZone,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+                      fontWeight: detoxWeightEmphasis,
                     ),
               ),
               const SizedBox(height: 8),

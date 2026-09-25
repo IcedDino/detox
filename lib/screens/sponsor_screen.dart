@@ -1,13 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+
 import '../l10n_app_strings.dart';
 import '../models/link_requests.dart';
 import '../models/sponsor_profile.dart';
 import '../models/sponsor_request.dart';
 import '../services/app_blocking_service.dart';
 import '../services/location_zone_service.dart';
+import '../services/sponsor_alert_service.dart';
 import '../services/sponsor_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/message_prompt_dialog.dart';
 import '../widgets/ui_kit.dart';
 
 class SponsorScreen extends StatefulWidget {
@@ -15,6 +20,15 @@ class SponsorScreen extends StatefulWidget {
 
   @override
   State<SponsorScreen> createState() => _SponsorScreenState();
+}
+
+/// Live state of a request, rendered with a [StatusPill].
+class _RequestState {
+  const _RequestState(this.label, this.icon, this.color);
+
+  final String label;
+  final IconData icon;
+  final Color color;
 }
 
 class _SponsorScreenState extends State<SponsorScreen>
@@ -35,6 +49,9 @@ class _SponsorScreenState extends State<SponsorScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _refresh();
+    // The user came here on purpose, so this is the right moment to ask for the
+    // notification permission that makes request alerts appear.
+    unawaited(SponsorAlertService.instance.requestNotificationPermission());
   }
 
   @override
@@ -79,10 +96,21 @@ class _SponsorScreenState extends State<SponsorScreen>
     if (type == 'zone_override' && !await _ensureLocationForZonePause()) {
       return;
     }
+    if (!mounted) return;
+
+    final message = await showMessagePrompt(
+      context,
+      title: t.requestMessageTitle,
+      hint: t.requestMessageHint,
+      confirmLabel: t.sendRequestLabel,
+    );
+    if (message == null) return;
+
     try {
       await _sponsorService.createUnlockRequest(
         requestType: type,
         durationMinutes: type == 'settings_unlock' ? 10 : 15,
+        message: message,
       );
       _snack(
         type == 'settings_unlock'
@@ -129,80 +157,94 @@ class _SponsorScreenState extends State<SponsorScreen>
     return false;
   }
 
-  Future<void> _requestEmailUnlinkCode() async {
-    try {
-      await _sponsorService.requestEmailUnlinkCode();
-      _snack(AppStrings.of(context).unlinkCodeSentEmail);
-    } catch (e) {
-      _snack(e.toString());
-    }
-  }
+  /// Sends the unlink request to the sponsor, who answers it with accept or
+  /// deny from their own sponsor center.
+  Future<void> _requestSponsorUnlink() async {
+    final message = await showMessagePrompt(
+      context,
+      title: t.requestMessageTitle,
+      hint: t.requestMessageHint,
+      confirmLabel: t.sendRequestLabel,
+    );
+    if (message == null) return;
 
-  Future<void> _requestSponsorUnlinkCode() async {
     try {
-      await _sponsorService.requestUnlinkSponsorCode();
-      _snack(AppStrings.of(context).unlinkRequestSentSponsor);
+      await _sponsorService.requestUnlinkSponsor(message: message);
+      _snack(t.unlinkRequestSentSponsor);
       await _refresh();
     } catch (e) {
       _snack(e.toString());
     }
   }
 
-  Future<void> _enterUnlinkCode({required bool emailCode}) async {
-    final controller = TextEditingController();
-    final value = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          emailCode ? t.enterEmailUnlinkCode : t.enterSponsorUnlinkCode,
-        ),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          maxLength: 6,
-          decoration: const InputDecoration(labelText: '6-digit code'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(t.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: Text(t.useCode),
-          ),
-        ],
-      ),
+  /// Leaves the request in Firestore so the Detox team can answer it.
+  Future<void> _requestSupportUnlink() async {
+    final message = await showMessagePrompt(
+      context,
+      title: t.requestMessageTitle,
+      hint: t.requestMessageHint,
+      confirmLabel: t.sendRequestLabel,
     );
-
-    if (value == null || value.trim().isEmpty) return;
+    if (message == null) return;
 
     try {
-      if (emailCode) {
-        await _sponsorService.consumeEmailUnlinkCode(value);
-      } else {
-        await _sponsorService.consumeCode(
-          code: value,
-          requestType: 'unlink_sponsor',
-        );
-      }
+      await _sponsorService.requestSupportUnlink(message: message);
+      _snack(t.unlinkRequestSentSupport);
+    } catch (e) {
+      _snack(e.toString());
+    }
+  }
 
+  /// Sponsors accept an unlink request; the link disappears for both users.
+  Future<void> _acceptUnlink(SponsorRequest request) async {
+    if (_requestActionBusy) return;
+
+    final reply = await showMessagePrompt(
+      context,
+      title: t.replyMessageTitle,
+      hint: t.replyMessageHint,
+      confirmLabel: t.approveWithMessage,
+    );
+    if (reply == null) return;
+
+    setState(() => _requestActionBusy = true);
+    try {
+      await _sponsorService.approveUnlinkRequest(
+        request.id,
+        replyMessage: reply,
+      );
       await AppBlockingService.instance.syncSponsorState(false);
       await LocationZoneService.instance.refresh();
 
-      _snack(AppStrings.of(context).sponsorLinkRemoved);
+      if (!mounted) return;
+      _snack(t.sponsorLinkRemoved);
       await _refresh();
     } catch (e) {
       _snack(e.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _requestActionBusy = false);
+      }
     }
   }
 
   Future<void> _approveDirect(SponsorRequest request) async {
     if (_requestActionBusy) return;
 
+    final reply = await showMessagePrompt(
+      context,
+      title: t.replyMessageTitle,
+      hint: t.replyMessageHint,
+      confirmLabel: t.approveWithMessage,
+    );
+    if (reply == null) return;
+
     setState(() => _requestActionBusy = true);
     try {
-      await _sponsorService.approveDirectRequest(request.id);
+      await _sponsorService.approveDirectRequest(
+        request.id,
+        replyMessage: reply,
+      );
       if (!mounted) return;
       _snack(
         request.requestType == 'settings_unlock'
@@ -224,11 +266,20 @@ class _SponsorScreenState extends State<SponsorScreen>
   Future<void> _rejectRequest(SponsorRequest request) async {
     if (_requestActionBusy) return;
 
+    final reply = await showMessagePrompt(
+      context,
+      title: t.replyMessageTitle,
+      hint: t.replyMessageHint,
+      confirmLabel: t.denyWithMessage,
+      isDestructive: true,
+    );
+    if (reply == null) return;
+
     setState(() => _requestActionBusy = true);
     try {
-      await _sponsorService.rejectRequest(request.id);
+      await _sponsorService.rejectRequest(request.id, replyMessage: reply);
       if (!mounted) return;
-      _snack(AppStrings.of(context).requestRejected);
+      _snack(t.requestRejected);
       await _refresh();
     } catch (e) {
       _snack(e.toString());
@@ -242,9 +293,20 @@ class _SponsorScreenState extends State<SponsorScreen>
   Future<void> _approveWithCode(SponsorRequest request) async {
     if (_requestActionBusy) return;
 
+    final reply = await showMessagePrompt(
+      context,
+      title: t.replyMessageTitle,
+      hint: t.replyMessageHint,
+      confirmLabel: t.approveWithMessage,
+    );
+    if (reply == null) return;
+
     setState(() => _requestActionBusy = true);
     try {
-      final code = await _sponsorService.approveRequest(request.id);
+      final code = await _sponsorService.approveRequest(
+        request.id,
+        replyMessage: reply,
+      );
       if (!mounted) return;
 
       await showDialog<void>(
@@ -259,13 +321,17 @@ class _SponsorScreenState extends State<SponsorScreen>
               SelectableText(
                 code,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+                      fontWeight: detoxWeightEmphasis,
                     ),
               ),
               const SizedBox(height: 8),
               Text(
                 t.codeExpiresOnce,
-                style: const TextStyle(color: DetoxColors.muted),
+                style: TextStyle(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? DetoxColors.muted
+                      : DetoxColors.lightMuted,
+                ),
               ),
             ],
           ),
@@ -300,37 +366,37 @@ class _SponsorScreenState extends State<SponsorScreen>
             Text(
               t.endSponsorLinkTitle,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: detoxWeightEmphasis,
                   ),
             ),
             const SizedBox(height: 10),
             Text(
               t.endSponsorLinkBody,
-              style: const TextStyle(color: DetoxColors.muted),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? DetoxColors.muted
+                        : DetoxColors.lightMuted,
+                  ),
             ),
             const SizedBox(height: 14),
             FilledButton.icon(
               onPressed: () => Navigator.pop(context, 'requestSponsor'),
               icon: const Icon(Icons.send_outlined),
-              label: Text(t.requestSponsorUnlinkCode),
+              label: Text(t.requestSponsorUnlink),
             ),
             const SizedBox(height: 10),
             OutlinedButton.icon(
-              onPressed: () => Navigator.pop(context, 'enterSponsor'),
-              icon: const Icon(Icons.password_rounded),
-              label: Text(t.enterSponsorUnlinkCode),
+              onPressed: () => Navigator.pop(context, 'requestSupport'),
+              icon: const Icon(Icons.support_agent_rounded),
+              label: Text(t.requestSupportUnlink),
             ),
-            const SizedBox(height: 10),
-            FilledButton.tonalIcon(
-              onPressed: () => Navigator.pop(context, 'requestEmail'),
-              icon: const Icon(Icons.email_outlined),
-              label: Text(t.emailMeUnlinkCode),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.pop(context, 'enterEmail'),
-              icon: const Icon(Icons.mark_email_read_outlined),
-              label: Text(t.enterEmailUnlinkCodeBtn),
+            const SizedBox(height: 12),
+            Text(
+              t.requestSupportUnlinkHelp,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: _muted),
             ),
           ],
         ),
@@ -339,16 +405,10 @@ class _SponsorScreenState extends State<SponsorScreen>
 
     switch (action) {
       case 'requestSponsor':
-        await _requestSponsorUnlinkCode();
+        await _requestSponsorUnlink();
         break;
-      case 'enterSponsor':
-        await _enterUnlinkCode(emailCode: false);
-        break;
-      case 'requestEmail':
-        await _requestEmailUnlinkCode();
-        break;
-      case 'enterEmail':
-        await _enterUnlinkCode(emailCode: true);
+      case 'requestSupport':
+        await _requestSupportUnlink();
         break;
     }
   }
@@ -421,280 +481,536 @@ class _SponsorScreenState extends State<SponsorScreen>
     );
   }
 
+  Color get _muted => Theme.of(context).brightness == Brightness.dark
+      ? DetoxColors.muted
+      : DetoxColors.lightMuted;
+
+  /// Severity color for a request state, in the palette of the app.
+  Color _stateColor(bool isDark, {required bool warning}) {
+    if (!warning) return isDark ? DetoxColors.success : DetoxColors.accentDeep;
+    return isDark ? DetoxColors.warning : const Color(0xFF805B19);
+  }
+
+  _RequestState _outgoingState(SponsorRequest request, bool isDark) {
+    if (request.isConsumed) {
+      return _RequestState(
+        t.statusCompleted,
+        Icons.verified_rounded,
+        _stateColor(isDark, warning: false),
+      );
+    }
+    if (request.isApproved && !request.isExpired) {
+      return _RequestState(
+        t.statusApproved,
+        Icons.lock_open_rounded,
+        _stateColor(isDark, warning: false),
+      );
+    }
+    if (request.isRejected) {
+      return _RequestState(
+        t.statusRejected,
+        Icons.cancel_outlined,
+        DetoxColors.danger,
+      );
+    }
+    if (request.isEmailed) {
+      return _RequestState(
+        t.statusEmailed,
+        Icons.mark_email_read_outlined,
+        _stateColor(isDark, warning: true),
+      );
+    }
+    if (request.isExpired) {
+      return _RequestState(
+        t.expired,
+        Icons.timer_off_outlined,
+        DetoxColors.danger,
+      );
+    }
+    return _RequestState(
+      t.statusPending,
+      Icons.schedule_rounded,
+      _stateColor(isDark, warning: true),
+    );
+  }
+
+  String _dateLabel(DateTime? value) {
+    if (value == null) return '';
+    final local = value.toLocal();
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$day/$month $hour:$minute';
+  }
+
+  Widget _errorCard(String message) {
+    return GlassCard(
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: DetoxColors.danger, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: _muted),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Incoming link requests and approval requests, which are the only items
+  /// that need an answer right now.
+  Widget _buildPendingSection() {
+    return StreamBuilder<List<LinkRequest>>(
+      stream: _sponsorService.incomingLinkRequests(),
+      builder: (context, linkSnapshot) {
+        return StreamBuilder<List<SponsorRequest>>(
+          stream: _sponsorService.incomingRequests(),
+          builder: (context, requestSnapshot) {
+            final linkRequests = linkSnapshot.data ?? const <LinkRequest>[];
+            final requests = (requestSnapshot.data ?? const <SponsorRequest>[])
+                .where((request) =>
+                    request.isPending ||
+                    (request.isApproved && !request.isExpired))
+                .toList();
+
+            if (linkSnapshot.hasError || requestSnapshot.hasError) {
+              return _errorCard(t.isEs
+                  ? 'No pudimos cargar tus solicitudes.'
+                  : 'We could not load your requests.');
+            }
+
+            if (linkRequests.isEmpty && requests.isEmpty) {
+              return GlassCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      t.incomingRequestsTitle,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      t.noPendingRequests,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: _muted),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SectionTitle(
+                  title: t.incomingRequestsTitle,
+                  subtitle: t.incomingRequestsSubtitle,
+                ),
+                const SizedBox(height: 12),
+                ...linkRequests.map(_buildLinkRequestCard),
+                ...requests.map(_buildUnlockRequestCard),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildLinkRequestCard(LinkRequest request) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GlassCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    t.linkPartnerWantsToLink(request.requesterName),
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                StatusPill(
+                  label: t.pendingState,
+                  icon: Icons.schedule_rounded,
+                  color: _stateColor(isDark, warning: true),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              t.acceptLinkBody,
+              style:
+                  Theme.of(context).textTheme.bodySmall?.copyWith(color: _muted),
+            ),
+            if (request.hasMessage) ...[
+              const SizedBox(height: 10),
+              _noteBox(label: t.requestMessageLabel, text: request.message!),
+            ],
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed:
+                        _linkActionBusy ? null : () => _rejectLink(request),
+                    icon: const Icon(Icons.close_rounded),
+                    label: Text(t.reject),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed:
+                        _linkActionBusy ? null : () => _acceptLink(request),
+                    icon: const Icon(Icons.check_rounded),
+                    label: Text(t.accept),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUnlockRequestCard(SponsorRequest request) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDirect = request.requestType == 'settings_unlock' ||
+        request.requestType == 'zone_override' ||
+        request.requestType == 'shield_pause';
+    final isUnlink = request.requestType == 'unlink_sponsor';
+    final approved = request.isApproved && !request.isExpired;
+
+    final title = request.requestType == 'zone_override'
+        ? t.zonePauseApprovalTitle
+        : request.requestType == 'settings_unlock'
+            ? t.settingsApprovalTitle
+            : request.requestType == 'shield_pause'
+                ? t.shieldPauseTitle
+                : t.unlinkApprovalTitle;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GlassCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                StatusPill(
+                  label: approved ? t.approvedState : t.pendingState,
+                  icon: approved
+                      ? Icons.check_circle_outline_rounded
+                      : Icons.schedule_rounded,
+                  color: _stateColor(isDark, warning: !approved),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${request.requesterName} · ${request.prettyType}',
+              style:
+                  Theme.of(context).textTheme.bodySmall?.copyWith(color: _muted),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              t.durationMinLabel(request.durationMinutes),
+              style:
+                  Theme.of(context).textTheme.bodySmall?.copyWith(color: _muted),
+            ),
+            if (request.hasMessage) ...[
+              const SizedBox(height: 10),
+              _noteBox(label: t.requestMessageLabel, text: request.message!),
+            ],
+            if (request.hasReply) ...[
+              const SizedBox(height: 10),
+              _noteBox(label: t.yourReplyLabel, text: request.replyMessage!),
+            ],
+            if (approved && request.code != null) ...[
+              const SizedBox(height: 12),
+              SelectableText(
+                request.code!,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: detoxWeightEmphasis,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${t.expiresSoon} · ${_timeLabel(request.expiresAt)}',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: _muted),
+              ),
+            ],
+            if (request.isPending) ...[
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _requestActionBusy
+                          ? null
+                          : () => _rejectRequest(request),
+                      icon: const Icon(Icons.close_rounded),
+                      label: Text(isUnlink ? t.denyUnlink : t.reject),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: isUnlink
+                        ? FilledButton.icon(
+                            onPressed: _requestActionBusy
+                                ? null
+                                : () => _acceptUnlink(request),
+                            icon: const Icon(Icons.link_off_rounded),
+                            label: Text(t.acceptUnlink),
+                          )
+                        : isDirect
+                            ? FilledButton.icon(
+                                onPressed: _requestActionBusy
+                                    ? null
+                                    : () => _approveDirect(request),
+                                icon: const Icon(Icons.check_rounded),
+                                label: Text(t.approve),
+                              )
+                            : FilledButton(
+                                onPressed: _requestActionBusy
+                                    ? null
+                                    : () => _approveWithCode(request),
+                                child: Text(t.generateCode),
+                              ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   String _timeLabel(DateTime? value) {
     if (value == null) return '—';
     final diff = value.difference(DateTime.now());
-    if (diff.inSeconds <= 0) return AppStrings.of(context).expired;
-    return '${diff.inMinutes} min left';
+    if (diff.inSeconds <= 0) return t.expired;
+    return '${diff.inMinutes} min';
   }
 
-  Widget _buildIncomingSponsorLinks() {
-    return StreamBuilder<List<LinkRequest>>(
-      stream: _sponsorService.incomingLinkRequests(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return GlassCard(
-            child: Text(
-              '${AppStrings.of(context).incomingSponsorLinkRequests} error: ${snapshot.error}',
-              style: const TextStyle(color: Colors.orangeAccent),
-            ),
-          );
-        }
-
-        final requests = snapshot.data ?? const <LinkRequest>[];
-
-        if (requests.isEmpty) return const SizedBox.shrink();
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              t.incomingSponsorLinkRequests,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            ...requests.map((req) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: GlassCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${req.requesterName} wants to be your sponsor partner',
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        t.acceptLinkBody,
-                        style: const TextStyle(color: DetoxColors.muted),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: _linkActionBusy
-                                  ? null
-                                  : () => _rejectLink(req),
-                              icon: const Icon(Icons.close_rounded),
-                              label: Text(t.reject),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: FilledButton.icon(
-                              onPressed: _linkActionBusy
-                                  ? null
-                                  : () => _acceptLink(req),
-                              icon: const Icon(Icons.check_rounded),
-                              label: Text(t.accept),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-            const SizedBox(height: 14),
-          ],
-        );
-      },
+  /// Note bubble used for the requester note and the sponsor answer.
+  Widget _noteBox({required String label, required String text}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(detoxRadius),
+        color: isDark ? DetoxColors.cardSubtle : DetoxColors.lightCardSubtle,
+        border: Border.all(
+          color: isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context)
+                .textTheme
+                .labelSmall
+                ?.copyWith(color: _muted),
+          ),
+          const SizedBox(height: 4),
+          Text(text, style: Theme.of(context).textTheme.bodyMedium),
+        ],
+      ),
     );
   }
 
-  Widget _buildOutgoingSponsorLinks() {
-    return StreamBuilder<List<LinkRequest>>(
-      stream: _sponsorService.outgoingLinkRequests(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return GlassCard(
-            child: Text(
-              'Outgoing sponsor link error: ${snapshot.error}',
-              style: const TextStyle(color: Colors.orangeAccent),
+  Widget _buildCodeCard() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return HeroInfoCard(
+      title: t.yourSponsorCode,
+      subtitle: t.sponsorCodeShare,
+      badge: StatusPill(
+        label: _sponsor == null ? t.noActiveLink : t.linkedState,
+        icon: _sponsor == null
+            ? Icons.link_off_rounded
+            : Icons.check_circle_rounded,
+        color: _sponsor == null
+            ? _stateColor(isDark, warning: true)
+            : _stateColor(isDark, warning: false),
+      ),
+      child: SelectableText(
+        _myCode,
+        style: Theme.of(context).textTheme.displaySmall?.copyWith(
+              fontWeight: detoxWeightEmphasis,
+              letterSpacing: 1.0,
             ),
-          );
-        }
-
-        final requests = snapshot.data ?? const <LinkRequest>[];
-
-        if (requests.isEmpty) return const SizedBox.shrink();
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              t.pendingSponsorLinkRequests,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            ...requests.map((req) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: GlassCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        t.waitingForName(req.targetName),
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        t.requestStillPending,
-                        style: const TextStyle(color: DetoxColors.muted),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-            const SizedBox(height: 14),
-          ],
-        );
-      },
+      ),
     );
   }
 
-  Widget _buildIncomingUnlockRequests() {
+  Widget _buildLinkCard() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sponsor = _sponsor;
+
+    if (sponsor == null) {
+      return HeroInfoCard(
+        title: t.addSponsor,
+        subtitle: t.onlyOneSponsor,
+        child: Column(
+          children: [
+            TextField(
+              controller: _codeController,
+              textCapitalization: TextCapitalization.characters,
+              decoration: InputDecoration(
+                labelText: t.enterSponsorCodeHint,
+                prefixIcon: const Icon(Icons.link_rounded),
+              ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: _linkSponsor,
+              icon: const Icon(Icons.handshake_outlined),
+              label: Text(t.linkSponsor),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return HeroInfoCard(
+      title: sponsor.displayName,
+      subtitle: sponsor.email,
+      badge: StatusPill(
+        label: t.protectionActive,
+        icon: Icons.verified_user_outlined,
+        color: _stateColor(isDark, warning: false),
+      ),
+      child: Column(
+        children: [
+          FilledButton.icon(
+            onPressed: () => _request('zone_override'),
+            icon: const Icon(Icons.pause_circle_outline),
+            label: Text(t.requestZonePause),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () => _request('settings_unlock'),
+            icon: const Icon(Icons.lock_open_rounded),
+            label: Text(t.requestSettingsApproval),
+          ),
+          const SizedBox(height: 6),
+          TextButton.icon(
+            onPressed: _unlink,
+            icon: const Icon(Icons.link_off_rounded),
+            label: Text(t.endSponsorLink),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// One single list of the requests the user sent, with their live state.
+  Widget _buildRequestsList() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return StreamBuilder<List<SponsorRequest>>(
-      stream: _sponsorService.incomingRequests(),
+      stream: _sponsorService.outgoingHistory(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return GlassCard(
-            child: Text(
-              'Incoming requests error: ${snapshot.error}',
-              style: const TextStyle(color: Colors.orangeAccent),
-            ),
-          );
+          return _errorCard(t.isEs
+              ? 'No pudimos cargar tus solicitudes.'
+              : 'We could not load your requests.');
         }
 
-        final requests = (snapshot.data ?? const <SponsorRequest>[])
-            .where((request) =>
-                request.isPending || (request.isApproved && !request.isExpired))
-            .toList();
+        final requests =
+            (snapshot.data ?? const <SponsorRequest>[]).take(8).toList();
 
         if (requests.isEmpty) {
           return GlassCard(
             child: Text(
-              t.noIncomingRequests,
-              style: const TextStyle(color: DetoxColors.muted),
+              t.noOutgoingRequests,
+              style:
+                  Theme.of(context).textTheme.bodySmall?.copyWith(color: _muted),
             ),
           );
         }
 
         return Column(
           children: requests.map((request) {
-            final isDirect = request.requestType == 'settings_unlock' ||
-                request.requestType == 'zone_override' ||
-                request.requestType == 'shield_pause';
-
-            final title = request.requestType == 'zone_override'
-                ? t.zonePauseApprovalTitle
-                : request.requestType == 'settings_unlock'
-                    ? t.settingsApprovalTitle
-                    : request.requestType == 'shield_pause'
-                        ? t.shieldPauseTitle
-                        : t.unlinkApprovalTitle;
+            final state = _outgoingState(request, isDark);
+            final date = _dateLabel(request.createdAt);
 
             return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.only(bottom: 12),
               child: GlassCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            request.prettyType,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleMedium,
                           ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${request.requesterName} · ${request.prettyType}',
-                      style: const TextStyle(color: DetoxColors.muted),
+                        ),
+                        const SizedBox(width: 8),
+                        StatusPill(
+                          label: state.label,
+                          icon: state.icon,
+                          color: state.color,
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      t.durationMinLabel(request.durationMinutes),
-                      style: const TextStyle(color: DetoxColors.muted),
+                      [
+                        t.durationMinLabel(request.durationMinutes),
+                        if (date.isNotEmpty) date,
+                      ].join(' · '),
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: _muted),
                     ),
-                    if (request.isApproved && request.code != null) ...[
-                      const SizedBox(height: 12),
-                      SelectableText(
-                        request.code!,
-                        style:
-                            Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '${t.expiresSoon} · ${_timeLabel(request.expiresAt)}',
-                        style: const TextStyle(color: DetoxColors.muted),
+                    if (request.hasMessage) ...[
+                      const SizedBox(height: 10),
+                      _noteBox(
+                        label: t.yourMessageLabel,
+                        text: request.message!,
                       ),
                     ],
-                    if (request.isPending && isDirect) ...[
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: _requestActionBusy
-                                  ? null
-                                  : () => _rejectRequest(request),
-                              icon: const Icon(Icons.close_rounded),
-                              label: Text(t.reject),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: FilledButton.icon(
-                              onPressed: _requestActionBusy
-                                  ? null
-                                  : () => _approveDirect(request),
-                              icon: const Icon(Icons.check_rounded),
-                              label: Text(t.approve),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                    if (request.isPending && !isDirect) ...[
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: _requestActionBusy
-                                  ? null
-                                  : () => _rejectRequest(request),
-                              icon: const Icon(Icons.close_rounded),
-                              label: Text(t.reject),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: FilledButton(
-                              onPressed: _requestActionBusy
-                                  ? null
-                                  : () => _approveWithCode(request),
-                              child: Text(t.generateCode),
-                            ),
-                          ),
-                        ],
+                    if (request.hasReply) ...[
+                      const SizedBox(height: 10),
+                      _noteBox(
+                        label: t.sponsorReplyLabel,
+                        text: request.replyMessage!,
                       ),
                     ],
                   ],
@@ -710,7 +1026,7 @@ class _SponsorScreenState extends State<SponsorScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(AppStrings.of(context).sponsorCenter)),
+      appBar: AppBar(title: Text(t.sponsorCenter)),
       body: DetoxBackground(
         child: SafeArea(
           child: _loading
@@ -718,281 +1034,25 @@ class _SponsorScreenState extends State<SponsorScreen>
               : RefreshIndicator(
                   onRefresh: _refresh,
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
                     children: [
-                      _buildIncomingUnlockRequests(),
-                      const SizedBox(height: 14),
-                      if (_sponsor == null) ...[
-                        _buildIncomingSponsorLinks(),
-                        _buildOutgoingSponsorLinks(),
-                      ],
-                      HeroInfoCard(
-                        icon: Icons.qr_code_rounded,
-                        title: t.yourSponsorCode,
-                        subtitle: t.sponsorCodeShare,
-                        badge: StatusPill(
-                          label: _sponsor == null
-                              ? (t.isEs
-                                  ? 'Sin vínculo activo'
-                                  : 'No active link')
-                              : (t.isEs ? 'Vinculado' : 'Linked'),
-                          icon: _sponsor == null
-                              ? Icons.link_off_rounded
-                              : Icons.check_circle_rounded,
-                          color: _sponsor == null
-                              ? DetoxColors.warning
-                              : DetoxColors.success,
-                        ),
-                        child: SelectableText(
-                          _myCode,
-                          style: Theme.of(context)
-                              .textTheme
-                              .displaySmall
-                              ?.copyWith(
-                                fontWeight: detoxWeightEmphasis,
-                                letterSpacing: 1.0,
-                              ),
-                        ),
+                      _buildPendingSection(),
+                      const SizedBox(height: 16),
+                      _buildCodeCard(),
+                      const SizedBox(height: 24),
+                      SectionTitle(
+                        title: t.yourLinkTitle,
+                        subtitle: t.yourLinkSubtitle,
                       ),
-                      const SizedBox(height: 16),
-                      if (_sponsor == null)
-                        HeroInfoCard(
-                          icon: Icons.person_add_alt_1_rounded,
-                          title: t.addSponsor,
-                          subtitle: t.onlyOneSponsor,
-                          child: Column(
-                            children: [
-                              TextField(
-                                controller: _codeController,
-                                textCapitalization:
-                                    TextCapitalization.characters,
-                                decoration: InputDecoration(
-                                  labelText: t.enterSponsorCodeHint,
-                                  prefixIcon: const Icon(Icons.link_rounded),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              FilledButton.icon(
-                                onPressed: _linkSponsor,
-                                icon: const Icon(Icons.handshake_outlined),
-                                label: Text(t.linkSponsor),
-                              ),
-                            ],
-                          ),
-                        )
-                      else ...[
-                        HeroInfoCard(
-                          icon: Icons.person_outline_rounded,
-                          title: _sponsor!.displayName,
-                          subtitle: _sponsor!.email,
-                          badge: StatusPill(
-                            label: t.isEs
-                                ? 'Protección activa'
-                                : 'Protection active',
-                            icon: Icons.verified_user_outlined,
-                            color: DetoxColors.success,
-                          ),
-                          child: Column(
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: FilledButton.icon(
-                                      onPressed: () =>
-                                          _request('zone_override'),
-                                      icon: const Icon(
-                                          Icons.pause_circle_outline),
-                                      label: Text(t.requestZonePause),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: OutlinedButton.icon(
-                                      onPressed: () =>
-                                          _request('settings_unlock'),
-                                      icon: const Icon(Icons.lock_open_rounded),
-                                      label: Text(t.requestSettingsApproval),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              TextButton.icon(
-                                onPressed: _unlink,
-                                icon: const Icon(Icons.link_off_rounded),
-                                label: Text(t.endSponsorLink),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
+                      _buildLinkCard(),
+                      const SizedBox(height: 24),
                       SectionTitle(
                         title: t.yourOutgoingRequests,
-                        subtitle: t.isEs
-                            ? 'Solicitudes que enviaste y su estado actual.'
-                            : 'Requests you sent and their current status.',
+                        subtitle: t.yourRequestsSubtitle,
                       ),
-                      const SizedBox(height: 8),
-                      StreamBuilder<List<SponsorRequest>>(
-                        stream: _sponsorService.outgoingRequests(),
-                        builder: (context, snapshot) {
-                          if (snapshot.hasError) {
-                            return GlassCard(
-                              child: Text(
-                                'Outgoing requests error: ${snapshot.error}',
-                                style: const TextStyle(
-                                  color: Colors.orangeAccent,
-                                ),
-                              ),
-                            );
-                          }
-
-                          final requests =
-                              (snapshot.data ?? const <SponsorRequest>[])
-                                  .take(6)
-                                  .toList();
-
-                          if (requests.isEmpty) {
-                            return GlassCard(
-                              child: Text(
-                                t.noOutgoingRequests,
-                                style: const TextStyle(
-                                  color: DetoxColors.muted,
-                                ),
-                              ),
-                            );
-                          }
-
-                          return Column(
-                            children: requests.map((request) {
-                              final status = request.isConsumed
-                                  ? t.statusUsed
-                                  : request.isApproved
-                                      ? t.statusApproved
-                                      : request.isRejected
-                                          ? t.statusRejected
-                                          : t.statusPending;
-
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: GlassCard(
-                                  child: ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: Icon(
-                                      request.isConsumed
-                                          ? Icons.verified_rounded
-                                          : request.isApproved
-                                              ? Icons.lock_open_rounded
-                                              : request.isRejected
-                                                  ? Icons.cancel_outlined
-                                                  : Icons.schedule_rounded,
-                                      color: request.isConsumed
-                                          ? Colors.greenAccent
-                                          : request.isApproved
-                                              ? DetoxColors.accentSoft
-                                              : request.isRejected
-                                                  ? Colors.redAccent
-                                                  : Colors.orangeAccent,
-                                    ),
-                                    title: Text(request.prettyType),
-                                    subtitle: Text(
-                                      '$status · ${request.durationMinutes} min',
-                                      style: const TextStyle(
-                                        color: DetoxColors.muted,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      SectionTitle(
-                        title: t.historyLabel,
-                        subtitle: t.isEs
-                            ? 'Movimientos recientes para que todo quede claro.'
-                            : 'Recent activity so everything stays clear.',
-                      ),
-                      const SizedBox(height: 8),
-                      StreamBuilder<List<SponsorRequest>>(
-                        stream: _sponsorService.outgoingHistory(),
-                        builder: (context, snapshot) {
-                          if (snapshot.hasError) {
-                            return GlassCard(
-                              child: Text(
-                                'History error: ${snapshot.error}',
-                                style: const TextStyle(
-                                  color: Colors.orangeAccent,
-                                ),
-                              ),
-                            );
-                          }
-
-                          final requests =
-                              (snapshot.data ?? const <SponsorRequest>[])
-                                  .take(12)
-                                  .toList();
-
-                          if (requests.isEmpty) {
-                            return GlassCard(
-                              child: Text(
-                                t.noSponsorHistory,
-                                style: const TextStyle(
-                                  color: DetoxColors.muted,
-                                ),
-                              ),
-                            );
-                          }
-
-                          return Column(
-                            children: requests.map((request) {
-                              final status = request.isConsumed
-                                  ? t.statusCompleted
-                                  : request.isApproved
-                                      ? t.statusApproved
-                                      : request.isRejected
-                                          ? t.statusRejected
-                                          : request.isEmailed
-                                              ? t.statusEmailed
-                                              : request.isExpired
-                                                  ? t.expired
-                                                  : t.statusPending;
-
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: GlassCard(
-                                  child: ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: Icon(
-                                      request.requestType == 'unlink_sponsor' ||
-                                              request.requestType ==
-                                                  'unlink_email'
-                                          ? Icons.link_off_rounded
-                                          : request.isConsumed
-                                              ? Icons.history_toggle_off_rounded
-                                              : Icons.receipt_long_outlined,
-                                    ),
-                                    title: Text(request.prettyType),
-                                    subtitle: Text(
-                                      '$status${request.createdAt != null ? ' · ${request.createdAt!.toLocal().toString().substring(0, 16)}' : ''}',
-                                      style: const TextStyle(
-                                        color: DetoxColors.muted,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          );
-                        },
-                      ),
+                      const SizedBox(height: 12),
+                      _buildRequestsList(),
                     ],
                   ),
                 ),

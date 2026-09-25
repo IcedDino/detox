@@ -250,21 +250,79 @@ class AppStrings {
   String get pendingSponsorLinkRequests => isEs ? 'Solicitudes de vínculo pendientes' : 'Pending sponsor link requests';
   String get noIncomingRequests => isEs ? 'Sin solicitudes entrantes por ahora.' : 'No incoming requests right now.';
   String get incomingRequestsTitle => isEs ? 'Solicitudes entrantes' : 'Incoming requests';
+  String get incomingRequestsSubtitle => isEs
+      ? 'Personas que necesitan tu aprobación o quieren vincularse.'
+      : 'People who need your approval or want to link with you.';
+  String get yourLinkTitle => isEs ? 'Tu vínculo' : 'Your link';
+  String get yourLinkSubtitle => isEs
+      ? 'Quién puede aprobar tus cambios en Detox.'
+      : 'Who can approve your Detox overrides.';
+  String get noActiveLink => isEs ? 'Sin vínculo activo' : 'No active link';
+  String get linkedState => isEs ? 'Vinculado' : 'Linked';
+  String get protectionActive => isEs ? 'Protección activa' : 'Protection active';
+  String get yourRequestsSubtitle => isEs
+      ? 'Tus solicitudes enviadas y su estado actual.'
+      : 'Requests you sent and their current status.';
+  String linkPartnerWantsToLink(String name) => isEs
+      ? '$name quiere vincularse contigo'
+      : '$name wants to link with you';
+  String get noPendingRequests => isEs
+      ? 'No tienes solicitudes pendientes.'
+      : 'You have no pending requests.';
+
+  // ── Messages attached to sponsor requests ──
+  String get messageOptional => isEs ? 'Mensaje (opcional)' : 'Message (optional)';
+  String get requestMessageTitle =>
+      isEs ? 'Pedir acceso a tu padrino' : 'Ask your sponsor for access';
+  String get requestMessageHint => isEs
+      ? 'Ej. Necesito revisar algo en Instagram'
+      : 'E.g. I need to check something on Instagram';
+  String get sendRequestLabel => isEs ? 'Enviar solicitud' : 'Send request';
+  String get replyMessageTitle =>
+      isEs ? 'Responder al solicitante' : 'Reply to the request';
+  String get replyMessageHint => isEs
+      ? 'Ej. No es necesario'
+      : 'E.g. Nothing urgent needed';
+  String get approveWithMessage => isEs ? 'Aceptar' : 'Accept';
+  String get denyWithMessage => isEs ? 'Denegar' : 'Deny';
+  String get requestMessageLabel => isEs ? 'Motivo del solicitante' : 'Requester note';
+  String get yourMessageLabel => isEs ? 'Tu mensaje' : 'Your message';
+  String get sponsorReplyLabel =>
+      isEs ? 'Respuesta de tu padrino' : 'Your sponsor replied';
+  String get yourReplyLabel => isEs ? 'Tu respuesta' : 'Your reply';
+  String get notifyRequestDeniedTitle =>
+      isEs ? 'Solicitud denegada' : 'Request denied';
+  String notifyRequestDeniedBody(String type) =>
+      isEs ? 'Tu padrino denegó $type.' : 'Your sponsor denied $type.';
+  String get notifyUnlinkDeniedTitle =>
+      isEs ? 'Desvinculación denegada' : 'Unlink denied';
+  String get notifyUnlinkDeniedBody => isEs
+      ? 'Tu padrino denegó la desvinculación.'
+      : 'Your sponsor denied the unlink request.';
   String get reject => isEs ? 'Rechazar' : 'Reject';
   String get accept => isEs ? 'Aceptar' : 'Accept';
   String get approve => isEs ? 'Aprobar' : 'Approve';
   String get generateCode => isEs ? 'Generar código' : 'Generate code';
   String get done => isEs ? 'Listo' : 'Done';
   String get useCode => isEs ? 'Usar código' : 'Use code';
-  String get enterEmailUnlinkCode => isEs ? 'Ingresar código de desvinculación por email' : 'Enter email unlink code';
-  String get enterSponsorUnlinkCode => isEs ? 'Ingresar código de desvinculación del padrino' : 'Enter sponsor unlink code';
   String get endSponsorLinkTitle => isEs ? 'Terminar vínculo con padrino' : 'End sponsor link';
-  String get endSponsorLinkBody => isEs ? 'Puedes desvincular con un código del padrino o solicitar uno por correo.' : 'You can unlink with a sponsor-generated code or request a code by email.';
-  String get requestSponsorUnlinkCode => isEs ? 'Solicitar código de desvinculación al padrino' : 'Request sponsor unlink code';
-  String get emailMeUnlinkCode => isEs ? 'Enviarme un código de desvinculación por email' : 'Email me an unlink code';
-  String get enterEmailUnlinkCodeBtn => isEs ? 'Ingresar código de email' : 'Enter email unlink code';
+  String get endSponsorLinkBody => isEs
+      ? 'Tu padrino recibe la solicitud y la acepta o la deniega. Si acepta, el vínculo se elimina al instante.'
+      : 'Your sponsor gets the request and accepts or denies it. If accepted, the link is removed right away.';
+  String get requestSponsorUnlink => isEs ? 'Solicitar desvinculación al padrino' : 'Request sponsor unlink';
+  String get requestSupportUnlink => isEs ? 'Solicitar desvinculación a soporte' : 'Request support unlink';
+  String get requestSupportUnlinkHelp => isEs
+      ? 'Soporte revisa la solicitud y la acepta o la deniega desde el panel del equipo.'
+      : 'Support reviews the request and accepts or denies it from the team panel.';
+  String get unlinkRequestSentSupport => isEs
+      ? 'Solicitud de desvinculación enviada a soporte.'
+      : 'Unlink request sent to support.';
   String get unlinkCodeSentEmail => isEs ? 'Enviamos una solicitud de código de desvinculación a tu correo.' : 'We sent an unlink code request to your email.';
-  String get unlinkRequestSentSponsor => isEs ? 'Solicitud de desvinculación enviada a tu padrino.' : 'Unlink request sent to your sponsor.';
+  String get unlinkRequestSentSponsor => isEs
+      ? 'Solicitud de desvinculación enviada a tu padrino. Debe aceptarla para completar el proceso.'
+      : 'Unlink request sent to your sponsor. They must accept it to complete the process.';
+  String get acceptUnlink => isEs ? 'Aceptar desvinculación' : 'Accept unlink';
+  String get denyUnlink => isEs ? 'Denegar' : 'Deny';
   String get sponsorLinkRemoved => isEs ? 'Vínculo con padrino eliminado.' : 'Sponsor link removed.';
   String get enterSponsorCodeSnack => isEs ? 'Ingresa un código de padrino' : 'Enter a sponsor code';
   String get requestSentWaiting => isEs ? 'Solicitud enviada. Esperando aprobación.' : 'Request sent. Waiting for approval.';
@@ -290,10 +348,27 @@ class AppStrings {
   String get waitingForTarget => isEs ? 'Esperando que' : 'Waiting for';
   String get toAcceptRequest => isEs ? 'acepte tu solicitud.' : 'to accept your request.';
   String get requestStillPending => isEs ? 'Esta solicitud sigue pendiente.' : 'This request is still pending.';
+  String get pendingState => isEs ? 'Pendiente' : 'Pending';
+  String get approvedState => isEs ? 'Aprobada' : 'Approved';
+  String get waitingForApproval => isEs
+      ? 'Esperando la respuesta de tu padrino.'
+      : 'Waiting for your sponsor to respond.';
+  String get sponsorApprovalNeededTitle => isEs
+      ? 'Se necesita aprobación del padrino'
+      : 'Sponsor approval required';
+  String get sponsorApprovalNeededBody => isEs
+      ? 'Los cambios protegidos necesitan aprobación del padrino.'
+      : 'Protected changes need sponsor approval.';
+  String get requestApproval => isEs ? 'Solicitar aprobación' : 'Request approval';
+  String get accountSectionTitle => isEs ? 'Tu cuenta' : 'Your account';
+  String get reminderNotifications => isEs ? 'Avisos de solicitudes' : 'Request alerts';
+  String get reminderNotificationsSubtitle => isEs
+      ? 'Notificaciones cuando llegue una solicitud o una aprobación.'
+      : 'Notifications when a request or approval arrives.';
   String get zonePauseApprovalTitle => isEs ? 'Aprobación de pausa de zona' : 'Zone pause approval';
   String get settingsApprovalTitle => isEs ? 'Aprobación de ajustes' : 'Settings approval';
   String get shieldPauseTitle => isEs ? 'Pausa del escudo de apps' : 'App shield pause';
-  String get unlinkApprovalTitle => isEs ? 'Aprobación de desvinculación' : 'Unlink approval';
+  String get unlinkApprovalTitle => isEs ? 'Solicitud de desvinculación' : 'Unlink request';
   String zoneActiveLabel(String time) => isEs ? 'Activa · $time' : 'Active · $time';
   String insideZoneLabel(String name) => isEs ? 'Dentro de $name' : 'Inside $name';
   String get zoneInactive => isEs ? 'Inactiva' : 'Inactive';
@@ -363,8 +438,11 @@ class AppStrings {
   // ── Notifications ──
   String get notifySponsorRequestTitle =>
       isEs ? 'Solicitud del padrino' : 'Sponsor request';
-  String notifySponsorRequestBody(String name, String type) =>
-      isEs ? '$name solicitó $type.' : '$name requested $type.';
+  String notifySponsorRequestBody(String name, String type, [String? message]) {
+    final base = isEs ? '$name solicitó $type.' : '$name requested $type.';
+    final note = (message ?? '').trim();
+    return note.isEmpty ? base : '$base\n“$note”';
+  }
   String get notifyPauseApprovedTitle =>
       isEs ? 'Pausa de 15 minutos aprobada' : '15-minute pause approved';
   String get notifyPauseApprovedBody => isEs
@@ -381,6 +459,36 @@ class AppStrings {
   String get notifyUnlinkEmailBody => isEs
       ? 'Revisa tu correo para el código de desvinculación de Detox.'
       : 'Check your email for the Detox unlink code.';
+  String get notifyLinkRequestTitle => isEs
+      ? 'Nueva solicitud de vínculo'
+      : 'New sponsor link request';
+  String notifyLinkRequestBody(String name) => isEs
+      ? '$name quiere vincular su cuenta contigo.'
+      : '$name wants to link accounts with you.';
+  String get notifyLinkAcceptedTitle =>
+      isEs ? 'Solicitud de vínculo aceptada' : 'Sponsor link accepted';
+  String notifyLinkAcceptedBody(String name) => isEs
+      ? '$name aceptó vincular su cuenta contigo.'
+      : '$name accepted your link request.';
+  String get notifyLinkRejectedTitle =>
+      isEs ? 'Solicitud de vínculo rechazada' : 'Sponsor link rejected';
+  String notifyLinkRejectedBody(String name) => isEs
+      ? '$name rechazó tu solicitud de vínculo.'
+      : '$name rejected your link request.';
+  String get notifyUnlinkRequestTitle =>
+      isEs ? 'Solicitud de desvinculación' : 'Unlink request';
+  String notifyUnlinkRequestBody(String name, [String? message]) {
+    final base = isEs
+        ? '$name solicita desvincular su cuenta contigo.'
+        : '$name asks to unlink their account from yours.';
+    final note = (message ?? '').trim();
+    return note.isEmpty ? base : '$base\n“$note”';
+  }
+  String get notifyUnlinkApprovedTitle =>
+      isEs ? 'Vínculo eliminado' : 'Sponsor link removed';
+  String get notifyUnlinkApprovedBody => isEs
+      ? 'Tu padrino aceptó la desvinculación.'
+      : 'Your sponsor accepted the unlink request.';
 
   // ── Zone state messages ──
   String zoneNoAppsSelected(String name) => isEs

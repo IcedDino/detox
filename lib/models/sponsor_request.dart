@@ -14,6 +14,8 @@ class SponsorRequest {
     this.code,
     this.createdAt,
     this.expiresAt,
+    this.message,
+    this.replyMessage,
   });
 
   final String id;
@@ -26,6 +28,15 @@ class SponsorRequest {
   final String? code;
   final DateTime? createdAt;
   final DateTime? expiresAt;
+
+  /// Optional note the requester writes to explain the request.
+  final String? message;
+
+  /// Optional answer the sponsor writes when accepting or denying.
+  final String? replyMessage;
+
+  bool get hasMessage => message != null && message!.trim().isNotEmpty;
+  bool get hasReply => replyMessage != null && replyMessage!.trim().isNotEmpty;
 
   bool get isPending => status == 'pending';
   bool get isApproved => status == 'approved';
@@ -65,6 +76,8 @@ class SponsorRequest {
       code: map['code'] as String?,
       createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
       expiresAt: (map['expiresAt'] as Timestamp?)?.toDate(),
+      message: (map['message'] as String?)?.trim(),
+      replyMessage: (map['replyMessage'] as String?)?.trim(),
     );
   }
 }

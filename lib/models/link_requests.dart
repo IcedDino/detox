@@ -12,6 +12,7 @@ class LinkRequest {
     this.acceptedAt,
     this.rejectedAt,
     this.type = 'sponsor',
+    this.message,
   });
 
   final String id;
@@ -25,6 +26,10 @@ class LinkRequest {
   final DateTime? rejectedAt;
   final String type;
 
+  /// Optional note the requester writes with the link request.
+  final String? message;
+
+  bool get hasMessage => message != null && message!.trim().isNotEmpty;
   bool get isPending => status == 'pending';
   bool get isAccepted => status == 'accepted';
   bool get isRejected => status == 'rejected';
@@ -40,6 +45,7 @@ class LinkRequest {
     DateTime? acceptedAt,
     DateTime? rejectedAt,
     String? type,
+    String? message,
   }) {
     return LinkRequest(
       id: id ?? this.id,
@@ -52,6 +58,7 @@ class LinkRequest {
       acceptedAt: acceptedAt ?? this.acceptedAt,
       rejectedAt: rejectedAt ?? this.rejectedAt,
       type: type ?? this.type,
+      message: message ?? this.message,
     );
   }
 
@@ -63,6 +70,7 @@ class LinkRequest {
       'targetName': targetName,
       'status': status,
       'type': type,
+      'message': message,
       'createdAt': createdAt == null
           ? null
           : Timestamp.fromDate(createdAt!),
@@ -87,6 +95,7 @@ class LinkRequest {
       targetName: (map['targetName'] ?? '') as String,
       status: (map['status'] ?? 'pending') as String,
       type: (map['type'] ?? 'sponsor') as String,
+      message: (map['message'] as String?)?.trim(),
       createdAt: _timestampToDateTime(map['createdAt']),
       acceptedAt: _timestampToDateTime(map['acceptedAt']),
       rejectedAt: _timestampToDateTime(map['rejectedAt']),

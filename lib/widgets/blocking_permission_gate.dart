@@ -6,12 +6,15 @@ import '../services/app_blocking_service.dart';
 import '../services/usage_service.dart';
 import '../theme/app_theme.dart';
 
-/// Makes sure the two special Android permissions (usage access + overlay)
-/// are ready before a focus session that needs blocking starts.
+/// Makes sure the Android permissions that keep the shield working — including
+/// while Detox is in the background — are ready before a focus session that
+/// needs blocking starts.
 ///
-/// These permissions cannot be requested with a native system pop-up, so a
-/// short in-app dialog drives the user through each Settings screen, one tap
-/// each, right at the moment they are needed.
+/// Usage access and overlay cannot be requested with a native system pop-up, so
+/// a short in-app dialog drives the user through each Settings screen, one tap
+/// each, right at the moment they are needed. The battery optimization
+/// exemption is asked in the same pass, because without it Android can kill the
+/// shield service when the screen is off or Detox is not in the foreground.
 ///
 /// Returns true when the session may start (permissions already granted, or
 /// the user chose to continue without blocking). Returns false when the user
@@ -23,7 +26,9 @@ Future<bool> ensureBlockingPermissions(BuildContext context) async {
       .getPermissionStatus()
       .then((status) => status.usageReady);
   final overlayReady = await AppBlockingService.instance.hasOverlayPermission();
-  if (usageReady && overlayReady) return true;
+  final backgroundReady =
+      await AppBlockingService.instance.isIgnoringBatteryOptimizations();
+  if (usageReady && overlayReady && backgroundReady) return true;
 
   if (!context.mounted) return false;
 
@@ -47,9 +52,15 @@ class _BlockingPermissionsDialogState extends State<_BlockingPermissionsDialog>
     with WidgetsBindingObserver {
   bool _usageReady = false;
   bool _overlayReady = false;
+  bool _backgroundReady = false;
   bool _checking = true;
   bool _waitingSettings = false;
-  bool _autoOpenedOverlay = false;
+
+  /// One flag per permission so each pass through Settings visits every missing
+  /// screen exactly once instead of looping.
+  bool _openedUsage = false;
+  bool _openedOverlay = false;
+  bool _openedBackground = false;
 
   @override
   void initState() {
@@ -75,37 +86,55 @@ class _BlockingPermissionsDialogState extends State<_BlockingPermissionsDialog>
         .then((status) => status.usageReady);
     final overlayReady =
         await AppBlockingService.instance.hasOverlayPermission();
+    final backgroundReady =
+        await AppBlockingService.instance.isIgnoringBatteryOptimizations();
     if (!mounted) return;
 
     setState(() {
       _usageReady = usageReady;
       _overlayReady = overlayReady;
+      _backgroundReady = backgroundReady;
       _checking = false;
     });
 
-    if (usageReady && overlayReady) {
+    if (usageReady && overlayReady && backgroundReady) {
       Navigator.of(context).pop(true);
       return;
     }
 
     // The user already consented once (they tapped the activate button), so
     // chain straight into the next Settings screen to keep it one tap each.
-    if (usageReady && !overlayReady && _waitingSettings && !_autoOpenedOverlay) {
-      _autoOpenedOverlay = true;
-      await AppBlockingService.instance.openOverlayPermissionSettings();
+    if (_waitingSettings) {
+      await _openNextMissing();
     }
   }
 
   Future<void> _activate() async {
-    setState(() => _waitingSettings = true);
+    setState(() {
+      _waitingSettings = true;
+      _openedUsage = false;
+      _openedOverlay = false;
+      _openedBackground = false;
+    });
+    await _openNextMissing();
+  }
 
-    if (!_usageReady) {
+  Future<void> _openNextMissing() async {
+    if (!mounted) return;
+
+    if (!_usageReady && !_openedUsage) {
+      _openedUsage = true;
       await UsageService().openUsageAccessSettings();
       return;
     }
-    if (!_overlayReady) {
-      _autoOpenedOverlay = true;
+    if (!_overlayReady && !_openedOverlay) {
+      _openedOverlay = true;
       await AppBlockingService.instance.openOverlayPermissionSettings();
+      return;
+    }
+    if (!_backgroundReady && !_openedBackground) {
+      _openedBackground = true;
+      await AppBlockingService.instance.openBatteryOptimizationSettings();
     }
   }
 
@@ -116,16 +145,17 @@ class _BlockingPermissionsDialogState extends State<_BlockingPermissionsDialog>
     final mutedColor = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
 
     return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(detoxRadius)),
-      title: Text(t.isEs ? 'Activa 2 permisos' : 'Enable 2 permissions'),
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(detoxRadius)),
+      title: Text(t.isEs ? 'Activa 3 permisos' : 'Enable 3 permissions'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             t.isEs
-                ? 'Para cubrir las apps bloqueadas durante la sesión, Detox necesita Datos de uso y Superposición. Te llevamos a Ajustes: es un toque por cada uno.'
-                : 'To cover blocked apps during the session, Detox needs Usage access and Overlay. We will take you to Settings: one tap each.',
+                ? 'Para cubrir las apps bloqueadas y seguir protegiéndote con la pantalla apagada, Detox necesita Datos de uso, Superposición y trabajo en segundo plano. Te llevamos a cada ajuste: es un toque por permiso.'
+                : 'To cover blocked apps and keep protecting you with the screen off, Detox needs Usage access, Overlay and background work. We will take you to each setting: one tap per permission.',
             style: Theme.of(context)
                 .textTheme
                 .bodyMedium
@@ -135,6 +165,11 @@ class _BlockingPermissionsDialogState extends State<_BlockingPermissionsDialog>
           _permissionRow(t.isEs ? 'Datos de uso' : 'Usage access', _usageReady),
           const SizedBox(height: 8),
           _permissionRow(t.isEs ? 'Superposición' : 'Overlay', _overlayReady),
+          const SizedBox(height: 8),
+          _permissionRow(
+            t.isEs ? 'Segundo plano' : 'Background work',
+            _backgroundReady,
+          ),
           const SizedBox(height: 18),
           SizedBox(
             width: double.infinity,
@@ -150,10 +185,12 @@ class _BlockingPermissionsDialogState extends State<_BlockingPermissionsDialog>
                           child: CircularProgressIndicator(strokeWidth: 2),
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          t.isEs
-                              ? 'Concede el permiso y vuelve'
-                              : 'Grant it, then come back',
+                        Flexible(
+                          child: Text(
+                            t.isEs
+                                ? 'Concede el permiso y vuelve'
+                                : 'Grant it, then come back',
+                          ),
                         ),
                       ],
                     )
@@ -200,7 +237,9 @@ class _BlockingPermissionsDialogState extends State<_BlockingPermissionsDialog>
               : color,
         ),
         const SizedBox(width: 8),
-        Expanded(child: Text(label, style: Theme.of(context).textTheme.bodyMedium)),
+        Expanded(
+          child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
+        ),
         const SizedBox(width: 8),
         Text(
           _checking

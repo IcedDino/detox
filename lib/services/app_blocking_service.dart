@@ -74,6 +74,27 @@ class AppBlockingService {
     } catch (_) {}
   }
 
+  /// Android may kill the shield service while Detox is in the background
+  /// unless the app is exempt from battery optimization.
+  Future<bool> isIgnoringBatteryOptimizations() async {
+    if (!_isAndroid) return true;
+    try {
+      return await _channel.invokeMethod<bool>(
+            'isIgnoringBatteryOptimizations',
+          ) ??
+          false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> openBatteryOptimizationSettings() async {
+    if (!_isAndroid) return;
+    try {
+      await _channel.invokeMethod('requestIgnoreBatteryOptimizations');
+    } catch (_) {}
+  }
+
   Future<bool> startShield({
     required List<String> blockedPackages,
     required String reason,

@@ -83,6 +83,14 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Unlink requests the user sends to the Detox support team. The team
+    // answers them from the Firebase console, which bypasses these rules.
+    match /meta/admin/unlink_requests/{requestId} {
+      allow get, list: if signedIn();
+      allow create, update: if isRequesterCreate();
+      allow delete: if false;
+    }
+
     match /mail/{docId} {
       allow create: if signedIn();
       allow read, update, delete: if false;

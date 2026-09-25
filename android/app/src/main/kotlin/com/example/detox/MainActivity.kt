@@ -192,6 +192,37 @@ class MainActivity : FlutterActivity() {
                         result.success(null)
                     }
 
+                    "isIgnoringBatteryOptimizations" -> {
+                        result.success(isIgnoringBatteryOptimizations())
+                    }
+
+                    "requestIgnoreBatteryOptimizations" -> {
+                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+                            result.success(true)
+                            return@setMethodCallHandler
+                        }
+                        try {
+                            val direct = Intent(
+                                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                Uri.parse("package:$packageName")
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            try {
+                                startActivity(direct)
+                            } catch (e: Exception) {
+                                // Some manufacturers hide the per-app dialog; the
+                                // battery optimization list still lets the user
+                                // exempt Detox manually.
+                                val fallback = Intent(
+                                    Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
+                                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                startActivity(fallback)
+                            }
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("BATTERY_SETTINGS_ERROR", e.message, null)
+                        }
+                    }
+
                     "startBlocking" -> {
                         val blockedPackages =
                             call.argument<List<String>>("blockedPackages") ?: emptyList()
@@ -313,6 +344,17 @@ class MainActivity : FlutterActivity() {
                 "name" to packageManager.getApplicationLabel(app).toString(),
                 "packageName" to app.packageName,
             )
+        }
+    }
+
+    private fun isIgnoringBatteryOptimizations(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+        return try {
+            val powerManager =
+                getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            powerManager.isIgnoringBatteryOptimizations(packageName)
+        } catch (e: Exception) {
+            false
         }
     }
 

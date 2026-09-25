@@ -28,6 +28,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
@@ -45,7 +46,13 @@ class FocusBlockerService : Service() {
         const val EXTRA_HAS_SPONSOR = "has_sponsor"
         const val EXTRA_STRICT_MODE = "strict_mode"
 
-        private const val CHANNEL_ID = "detox_focus_shield"
+        // Android requires a foreground service to post a notification, but the
+        // shield has to stay invisible: the channel is created with
+        // IMPORTANCE_NONE so nothing shows up in the notification shade. Set
+        // SHOW_SERVICE_NOTIFICATION to true to bring the visible notice back.
+        private const val CHANNEL_ID = "detox_shield_service"
+        private const val LEGACY_CHANNEL_ID = "detox_focus_shield"
+        private const val SHOW_SERVICE_NOTIFICATION = false
         private const val NOTIFICATION_ID = 4812
         private const val PREFS = "detox_native"
         private const val KEY_PAUSE_FREE_USED = "pause_free_used"
@@ -227,29 +234,52 @@ class FocusBlockerService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(tr("Detox focus shield", "Escudo de enfoque Detox"))
+            .setContentTitle(tr("Detox protection", "Protección de Detox"))
             .setContentText(
                 tr(
-                    "Selected apps will be covered during your focus session.",
-                    "Las apps seleccionadas se cubrirán durante tu sesión de enfoque."
+                    "Selected apps stay covered.",
+                    "Las apps seleccionadas siguen cubiertas."
                 )
             )
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
+            .setSilent(true)
+            .setShowWhen(false)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
             .build()
     }
 
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = getSystemService(NotificationManager::class.java)
+            // Remove the old, visible channel so its notification disappears
+            // from devices that already had the shield running.
+            manager.deleteNotificationChannel(LEGACY_CHANNEL_ID)
+            val importance = if (SHOW_SERVICE_NOTIFICATION) {
+                NotificationManager.IMPORTANCE_MIN
+            } else {
+                NotificationManager.IMPORTANCE_NONE
+            }
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                tr("Detox Focus Shield", "Escudo de enfoque Detox"),
-                NotificationManager.IMPORTANCE_LOW
+                tr("Detox protection", "Protección de Detox"),
+                importance
             )
+            channel.setShowBadge(false)
+            channel.setSound(null, null)
+            channel.enableVibration(false)
             manager.createNotificationChannel(channel)
         }
+    }
+
+    /// The message field only makes sense when the next tap is the one that asks
+    /// the sponsor for a pause.
+    private fun canAskSponsor(withPrefs: android.content.SharedPreferences = prefs): Boolean {
+        ensureDailyPauseReset(withPrefs)
+        return hasSponsorCache &&
+            !canUseFreePause(withPrefs) &&
+            !canUseAdPause(withPrefs)
     }
 
     private fun refreshCachedPrefsState() {
@@ -610,6 +640,34 @@ class FocusBlockerService : Service() {
             }
         }
 
+        val messageInput = EditText(this).apply {
+            tag = "messageInput"
+            hint = tr(
+                "Why do you need it? (optional)",
+                "¿Por qué lo necesitas? (opcional)"
+            )
+            setHintTextColor(Color.parseColor("#7E8EA1"))
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            maxLines = 2
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                    android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpF(14)
+                setColor(Color.parseColor("#16233A"))
+                setStroke(dp(1), Color.parseColor("#2A4363"))
+            }
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            visibility = if (canAskSponsor()) View.VISIBLE else View.GONE
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dp(12)
+            }
+        }
+
         val actionButton = Button(this).apply {
             tag = "actionButton"
             isAllCaps = false
@@ -675,7 +733,13 @@ class FocusBlockerService : Service() {
                             "Enviando solicitud de pausa de 15 minutos..."
                         )
                     )
-                    requestShieldPauseFromSponsor()
+                    val message = overlayView
+                        ?.findViewWithTag<EditText>("messageInput")
+                        ?.text
+                        ?.toString()
+                        ?.trim()
+                        .orEmpty()
+                    requestShieldPauseFromSponsor(message)
                 } else {
                     keepOverlayPinned = true
                     updateOverlayReason(
@@ -745,6 +809,7 @@ class FocusBlockerService : Service() {
         card.addView(title)
         card.addView(blockedAppLabel)
         card.addView(body)
+        card.addView(messageInput)
         card.addView(actionButton)
         card.addView(backButton)
         card.addView(footer)
@@ -769,6 +834,7 @@ class FocusBlockerService : Service() {
             android.graphics.PixelFormat.OPAQUE
         )
         params.gravity = Gravity.CENTER
+        params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         overlayView = outer
         try {
             windowManager.addView(outer, params)
@@ -891,7 +957,7 @@ class FocusBlockerService : Service() {
         }
     }
 
-    private fun requestShieldPauseFromSponsor() {
+    private fun requestShieldPauseFromSponsor(message: String = "") {
         val user = FirebaseAuth.getInstance().currentUser
         if (user == null) {
             requestInFlight = false
@@ -963,6 +1029,8 @@ class FocusBlockerService : Service() {
                         "requestType" to "shield_pause",
                         "status" to "pending",
                         "durationMinutes" to 15,
+                        "message" to message,
+                        "replyMessage" to FieldValue.delete(),
                         "createdAt" to FieldValue.serverTimestamp(),
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
@@ -1090,6 +1158,9 @@ class FocusBlockerService : Service() {
     private fun syncOverlayButtonState() {
         ensureDailyPauseReset(prefs)
         val canAct = canUseFreePause(prefs) || canUseAdPause(prefs) || hasSponsorCache
+
+        overlayView?.findViewWithTag<EditText>("messageInput")?.visibility =
+            if (!strictModeCache && canAskSponsor()) View.VISIBLE else View.GONE
 
         val actionButton = overlayView?.findViewWithTag<Button>("actionButton") ?: return
         actionButton.isEnabled = !strictModeCache && !requestInFlight && !waitingAdResult && canAct

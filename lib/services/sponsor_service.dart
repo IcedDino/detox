@@ -69,9 +69,6 @@ class SponsorService {
   CollectionReference<Map<String, dynamic>> get _requestsCollectionRef =>
       _firestore.collection('meta').doc('sponsor').collection('unlock_requests');
 
-  CollectionReference<Map<String, dynamic>> get _mailCollectionRef =>
-      _firestore.collection('mail');
-
   String? get _uid => _auth.currentUser?.uid;
 
   static const List<String> _pairScopedRequestTypes = <String>[
@@ -167,7 +164,15 @@ class SponsorService {
       return items;
     });
   }
-  Future<void> approveDirectRequest(String requestId) async {
+  /// The message the user writes is optional; an empty one is removed from the
+  /// document so the other side never shows an empty note.
+  Object _cleanMessage(String? message) {
+    final value = message?.trim() ?? '';
+    if (value.isEmpty) return FieldValue.delete();
+    return value.length > 300 ? value.substring(0, 300) : value;
+  }
+
+  Future<void> approveDirectRequest(String requestId, {String? replyMessage}) async {
     final uid = _uid;
     if (uid == null) {
       throw SponsorException(_t.errSignInFirst);
@@ -239,6 +244,7 @@ class SponsorService {
           'updatedAt': FieldValue.serverTimestamp(),
           'code': FieldValue.delete(),
           'consumedAt': FieldValue.delete(),
+          'replyMessage': _cleanMessage(replyMessage),
         },
         SetOptions(merge: true),
       );
@@ -246,7 +252,85 @@ class SponsorService {
     await StorageService().incrementPauseApproved();
   }
 
-  Future<void> rejectRequest(String requestId) async {
+  /// The sponsor accepts an unlink request: the link is removed for both users
+  /// right away and their pending pair state is cleared.
+  Future<void> approveUnlinkRequest(
+    String requestId, {
+    String? replyMessage,
+  }) async {
+    final uid = _uid;
+    final meDoc = _userDoc;
+    if (uid == null || meDoc == null) {
+      throw SponsorException(_t.errSignInFirst);
+    }
+
+    final ref = _requestsCollectionRef.doc(requestId);
+    String? requesterUid;
+
+    await _firestore.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      final data = snap.data();
+
+      if (data == null) {
+        throw SponsorException(_t.errRequestNotFound);
+      }
+
+      final request = SponsorRequest.fromDoc(snap.id, data);
+
+      if (request.sponsorUid != uid) {
+        throw SponsorException(_t.errRequestNotYours);
+      }
+      if (request.requestType != 'unlink_sponsor') {
+        throw SponsorException(_t.errUnsupportedRequestType);
+      }
+      if (request.isApproved) return;
+      if (!request.isPending && !request.isExpired) {
+        throw SponsorException(_t.errRequestNotPending);
+      }
+
+      requesterUid = request.requesterUid;
+      final requesterRef =
+          _firestore.collection('users').doc(request.requesterUid);
+      final requesterSnap = await tx.get(requesterRef);
+      final requesterData = requesterSnap.data() ?? <String, dynamic>{};
+
+      final meSnap = await tx.get(meDoc);
+      final meData = meSnap.data() ?? <String, dynamic>{};
+
+      if (requesterData['sponsorUid'] == uid) {
+        tx.set(requesterRef, {
+          'sponsorUid': FieldValue.delete(),
+          'sponsorLinkedAt': FieldValue.delete(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+      if (meData['sponsorUid'] == request.requesterUid) {
+        tx.set(meDoc, {
+          'sponsorUid': FieldValue.delete(),
+          'sponsorLinkedAt': FieldValue.delete(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
+      tx.set(ref, {
+        'status': 'approved',
+        'approvedAt': FieldValue.serverTimestamp(),
+        'appliedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'replyMessage': _cleanMessage(replyMessage),
+      }, SetOptions(merge: true));
+    });
+
+    final linkedRequesterUid = requesterUid;
+    if (linkedRequesterUid != null) {
+      await _purgeSponsorPairState(
+        requesterUid: linkedRequesterUid,
+        sponsorUid: uid,
+      );
+    }
+  }
+
+  Future<void> rejectRequest(String requestId, {String? replyMessage}) async {
     final uid = _uid;
     if (uid == null) {
       throw SponsorException(_t.errSignInFirst);
@@ -278,6 +362,7 @@ class SponsorService {
           'status': 'rejected',
           'rejectedAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
+          'replyMessage': _cleanMessage(replyMessage),
         },
         SetOptions(merge: true),
       );
@@ -618,162 +703,46 @@ class SponsorService {
       );
     }
   }
-  Future<void> requestUnlinkSponsorCode() async {
+  /// Sends the unlink request to the sponsor. They answer it with accept or
+  /// deny from their own sponsor center; accepting removes the link.
+  Future<void> requestUnlinkSponsor({String? message}) async {
     await createUnlockRequest(
       requestType: 'unlink_sponsor',
       durationMinutes: 0,
+      message: message,
     );
   }
 
-  Future<void> requestEmailUnlinkCode() async {
+  /// Asks the Detox team (admins) to unlink the account. The request lands in
+  /// Firestore so the team can accept or deny it from their panel.
+  Future<void> requestSupportUnlink({String? message}) async {
     final uid = _uid;
-    final meDoc = _userDoc;
-
-    if (uid == null || meDoc == null) {
+    if (uid == null) {
       throw SponsorException(_t.errSignInFirst);
-    }
-
-    final sponsorUid = await getSponsorUid();
-    if (sponsorUid == null) {
-      throw SponsorException(_t.errLinkSponsorFirst);
     }
 
     final me = _auth.currentUser;
-    final email = me?.email?.trim();
-    if (email == null || email.isEmpty) {
-      throw SponsorException(_t.errAddEmailFirst);
-    }
+    final sponsorUid = await getSponsorUid();
+    final requestId = '${uid}_admin_unlink';
 
-    final code = _generateNumericCode();
-    final expiresAt = DateTime.now().add(const Duration(minutes: 10));
-    final requestId = _unlockRequestId(uid, 'unlink_email');
-    final requestRef = _requestsCollectionRef.doc(requestId);
-
-    await _firestore.runTransaction((tx) async {
-      final requestSnap = await tx.get(requestRef);
-      final requestData = requestSnap.data();
-
-      if (requestData != null) {
-        final existing = SponsorRequest.fromDoc(requestSnap.id, requestData);
-        if (!existing.isConsumed &&
-            (existing.isPending || (existing.isApproved && !existing.isExpired))) {
-          throw SponsorException(_t.errEmailUnlinkPending);
-        }
-      }
-
-      tx.set(requestRef, {
-        'requesterUid': uid,
-        'requesterName': me?.displayName?.trim().isNotEmpty == true
-            ? me!.displayName!.trim()
-            : email,
-        'sponsorUid': sponsorUid,
-        'requestType': 'unlink_email',
-        'status': 'emailed',
-        'durationMinutes': 0,
-        'code': code,
-        'createdAt': FieldValue.serverTimestamp(),
-        'expiresAt': Timestamp.fromDate(expiresAt),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      tx.set(meDoc, {
-        'unlinkEmailCode': code,
-        'unlinkEmailCodeExpiresAt': Timestamp.fromDate(expiresAt),
-        'unlinkEmailRequestId': requestId,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    });
-
-    await _mailCollectionRef.add({
-      'to': [email],
-      'message': {
-        'subject': _t.unlinkCodeEmailSubject,
-        'text': _t.unlinkCodeEmailText(code),
-        'html': _t.unlinkCodeEmailHtml(code),
-      },
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    await _firestore
+        .collection('meta')
+        .doc('admin')
+        .collection('unlink_requests')
+        .doc(requestId)
+        .set({
+      'requesterUid': uid,
+      'requesterName': me?.displayName?.trim().isNotEmpty == true
+          ? me!.displayName!.trim()
+          : (me?.email ?? _t.defaultUserName),
+      'requesterEmail': me?.email ?? '',
+      'sponsorUid': sponsorUid ?? '',
+      'message': _cleanMessage(message),
+      'status': 'pending',
+      'source': 'detox_app',
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
-
-  Future<void> consumeEmailUnlinkCode(String code) async {
-    final uid = _uid;
-    final userDoc = _userDoc;
-
-    if (uid == null || userDoc == null) {
-      throw SponsorException(_t.errSignInFirst);
-    }
-
-    final value = code.trim();
-    if (value.isEmpty) {
-      throw SponsorException(_t.errEnterEmailCode);
-    }
-
-    String? unlinkedSponsorUid;
-
-    await _firestore.runTransaction((tx) async {
-      final userSnap = await tx.get(userDoc);
-      final userData = userSnap.data() ?? <String, dynamic>{};
-
-      final savedCode = userData['unlinkEmailCode'] as String?;
-      final expires = (userData['unlinkEmailCodeExpiresAt'] as Timestamp?)?.toDate();
-      final requestId = userData['unlinkEmailRequestId'] as String?;
-
-      if (savedCode == null ||
-          expires == null ||
-          DateTime.now().isAfter(expires) ||
-          savedCode != value) {
-        throw SponsorException(_t.errEmailCodeInvalid);
-      }
-
-      if (requestId != null && requestId.isNotEmpty) {
-        tx.set(_requestsCollectionRef.doc(requestId), {
-          'status': 'consumed',
-          'consumedAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      }
-
-      final sponsorUid = userData['sponsorUid'] as String?;
-      if (sponsorUid != null && sponsorUid.isNotEmpty) {
-        unlinkedSponsorUid = sponsorUid;
-        final sponsorRef = _firestore.collection('users').doc(sponsorUid);
-        final sponsorSnap = await tx.get(sponsorRef);
-        final sponsorData = sponsorSnap.data() ?? <String, dynamic>{};
-
-        tx.set(userDoc, {
-          'sponsorUid': FieldValue.delete(),
-          'sponsorLinkedAt': FieldValue.delete(),
-          'unlinkEmailCode': FieldValue.delete(),
-          'unlinkEmailCodeExpiresAt': FieldValue.delete(),
-          'unlinkEmailRequestId': FieldValue.delete(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-
-        if (sponsorData['sponsorUid'] == uid) {
-          tx.set(sponsorRef, {
-            'sponsorUid': FieldValue.delete(),
-            'sponsorLinkedAt': FieldValue.delete(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
-        }
-      } else {
-        tx.set(userDoc, {
-          'unlinkEmailCode': FieldValue.delete(),
-          'unlinkEmailCodeExpiresAt': FieldValue.delete(),
-          'unlinkEmailRequestId': FieldValue.delete(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      }
-    });
-
-    if (unlinkedSponsorUid != null) {
-      await _purgeSponsorPairState(
-        requesterUid: uid,
-        sponsorUid: unlinkedSponsorUid!,
-      );
-    }
-  }
-
 
   Future<void> _purgeSponsorPairState({
     required String requesterUid,
@@ -877,6 +846,7 @@ class SponsorService {
   Future<void> createUnlockRequest({
     required String requestType,
     required int durationMinutes,
+    String? message,
   }) async {
     final uid = _uid;
     if (uid == null) {
@@ -920,6 +890,8 @@ class SponsorService {
         'requestType': requestType,
         'status': 'pending',
         'durationMinutes': durationMinutes,
+        'message': _cleanMessage(message),
+        'replyMessage': FieldValue.delete(),
         'createdAt': FieldValue.serverTimestamp(),
         'code': FieldValue.delete(),
         'approvedAt': FieldValue.delete(),
@@ -973,7 +945,10 @@ class SponsorService {
     });
   }
 
-  Future<String> approveRequest(String requestId) async {
+  Future<String> approveRequest(
+    String requestId, {
+    String? replyMessage,
+  }) async {
     final uid = _uid;
     if (uid == null) {
       throw SponsorException(_t.errSignInFirst);
@@ -1012,6 +987,7 @@ class SponsorService {
         'expiresAt':
         Timestamp.fromDate(DateTime.now().add(const Duration(minutes: 3))),
         'updatedAt': FieldValue.serverTimestamp(),
+        'replyMessage': _cleanMessage(replyMessage),
       }, SetOptions(merge: true));
 
       return code;
