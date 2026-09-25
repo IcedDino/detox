@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 256 256" role="img" aria-label="Detox: malla de construccion del simbolo">
+  <title>Detox: malla de construccion del simbolo</title>
+  <rect width="256" height="256" fill="#F4F7F3"/>
+  <line x1="0" y1="0" x2="0" y2="256" stroke="#D3DED6" stroke-width="0.9" opacity="1.0"/>
+  <line x1="0" y1="0" x2="256" y2="0" stroke="#D3DED6" stroke-width="0.9" opacity="1.0"/>
+  <line x1="16" y1="0" x2="16" y2="256" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="0" y1="16" x2="256" y2="16" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="32" y1="0" x2="32" y2="256" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="0" y1="32" x2="256" y2="32" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="48" y1="0" x2="48" y2="256" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="0" y1="48" x2="256" y2="48" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="64" y1="0" x2="64" y2="256" stroke="#D3DED6" stroke-width="0.9" opacity="1.0"/>
+  <line x1="0" y1="64" x2="256" y2="64" stroke="#D3DED6" stroke-width="0.9" opacity="1.0"/>
+  <line x1="80" y1="0" x2="80" y2="256" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="0" y1="80" x2="256" y2="80" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="96" y1="0" x2="96" y2="256" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="0" y1="96" x2="256" y2="96" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="112" y1="0" x2="112" y2="256" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="0" y1="112" x2="256" y2="112" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="128" y1="0" x2="128" y2="256" stroke="#D3DED6" stroke-width="0.9" opacity="1.0"/>
+  <line x1="0" y1="128" x2="256" y2="128" stroke="#D3DED6" stroke-width="0.9" opacity="1.0"/>
+  <line x1="144" y1="0" x2="144" y2="256" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="0" y1="144" x2="256" y2="144" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="160" y1="0" x2="160" y2="256" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="0" y1="160" x2="256" y2="160" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="176" y1="0" x2="176" y2="256" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="0" y1="176" x2="256" y2="176" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="192" y1="0" x2="192" y2="256" stroke="#D3DED6" stroke-width="0.9" opacity="1.0"/>
+  <line x1="0" y1="192" x2="256" y2="192" stroke="#D3DED6" stroke-width="0.9" opacity="1.0"/>
+  <line x1="208" y1="0" x2="208" y2="256" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="0" y1="208" x2="256" y2="208" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="224" y1="0" x2="224" y2="256" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="0" y1="224" x2="256" y2="224" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="240" y1="0" x2="240" y2="256" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="0" y1="240" x2="256" y2="240" stroke="#D3DED6" stroke-width="0.5" opacity="0.55"/>
+  <line x1="256" y1="0" x2="256" y2="256" stroke="#D3DED6" stroke-width="0.9" opacity="1.0"/>
+  <line x1="0" y1="256" x2="256" y2="256" stroke="#D3DED6" stroke-width="0.9" opacity="1.0"/>
+  <line x1="128" y1="8" x2="128" y2="248" stroke="#8C988F" stroke-width="0.5" stroke-dasharray="4 4"/>
+  <line x1="8" y1="128" x2="248" y2="128" stroke="#8C988F" stroke-width="0.5" stroke-dasharray="4 4"/>
+  <path d="M 86.00 40.00 H 170.00 A 46.00 46.00 0 0 1 216.00 86.00 V 170.00 A 46.00 46.00 0 0 1 170.00 216.00 H 86.00 A 46.00 46.00 0 0 1 40.00 170.00 V 86.00 A 46.00 46.00 0 0 1 86.00 40.00 Z" fill="none" stroke="#426A59" stroke-width="0.8"/>
+  <path d="M 106.00 84.00 H 150.00 A 22.00 22.00 0 0 1 172.00 106.00 V 150.00 A 22.00 22.00 0 0 1 150.00 172.00 H 106.00 A 22.00 22.00 0 0 1 84.00 150.00 V 106.00 A 22.00 22.00 0 0 1 106.00 84.00 Z" fill="none" stroke="#426A59" stroke-width="0.6" stroke-dasharray="3 2"/>
+  <rect x="172.0" y="106.0" width="44.0" height="44.0" fill="none" stroke="#5CCDE9" stroke-width="1"/>
+  <circle cx="128" cy="128" r="22.0" fill="none" stroke="#426A59" stroke-width="0.6" stroke-dasharray="3 2"/>
+  <text x="128" y="34" fill="#426A59" stroke="#F4F7F3" stroke-width="2.4" paint-order="stroke" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="7.5" font-weight="600" text-anchor="middle">88</text>
+  <text x="60" y="130" fill="#426A59" stroke="#F4F7F3" stroke-width="2.4" paint-order="stroke" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="7.5" font-weight="600" text-anchor="middle">44</text>
+  <text x="66" y="66" fill="#426A59" stroke="#F4F7F3" stroke-width="2.4" paint-order="stroke" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="7.5" font-weight="600" text-anchor="middle">R46</text>
+  <text x="99" y="99" fill="#426A59" stroke="#F4F7F3" stroke-width="2.4" paint-order="stroke" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="7.5" font-weight="600" text-anchor="middle">R22</text>
+  <text x="194" y="127" fill="#426A59" stroke="#F4F7F3" stroke-width="2.4" paint-order="stroke" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="7.5" font-weight="600" text-anchor="middle">44x44</text>
+  <rect x="8" y="226" width="240" height="30" fill="#F4F7F3"/>
+  <text x="128" y="240" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="6" text-anchor="middle">malla 256 x 256  -  muro 44  -  esquina exterior R46  -  esquina interior R22</text>
+  <text x="128" y="251" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="6" text-anchor="middle">puerta 44 x 44 centrada  -  nucleo R22  -  margen libre minimo 16  -  trazo minimo 22</text>
+</svg>

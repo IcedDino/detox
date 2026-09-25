@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900" role="img" aria-label="Detox: tablero de direcciones">
+  <title>Detox: tablero de direcciones</title>
+  <rect width="1400" height="900" fill="#F4F7F3"/>
+  <text x="64" y="86" fill="#202B26" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="46" font-weight="600">Detox — rediseño del símbolo</text>
+  <text x="64" y="128" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="22">Tres rutas construidas con la paleta real de la app, sin letras, sin degradados y sin brillos.</text>
+  <text x="64" y="162" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">Antes: mapa de bits de 1024 px, 48.806 colores, media #5CCDE9 sobre #020202. Ninguna forma se podía corregir ni escalar.</text>
+  <rect x="64" y="208" width="404" height="560" rx="28" fill="#FFFFFF"/>
+  <g transform="translate(98 242) scale(.78)">
+  <rect width="256" height="256" rx="52" fill="#0B110F"/>
+  <g transform="translate(128 128) scale(0.7600) translate(-128 -128)">
+  <path d="M 86.00 40.00 H 170.00 A 46.00 46.00 0 0 1 216.00 86.00 V 170.00 A 46.00 46.00 0 0 1 170.00 216.00 H 86.00 A 46.00 46.00 0 0 1 40.00 170.00 V 86.00 A 46.00 46.00 0 0 1 86.00 40.00 Z M 106.00 84.00 H 150.00 A 22.00 22.00 0 0 1 172.00 106.00 V 150.00 A 22.00 22.00 0 0 1 150.00 172.00 H 106.00 A 22.00 22.00 0 0 1 84.00 150.00 V 106.00 A 22.00 22.00 0 0 1 106.00 84.00 Z M 172.00 106.00 H 216.00 V 150.00 H 172.00 Z" fill-rule="evenodd" fill="#8BC7AE"/>
+  <circle cx="128" cy="128" r="22.0" fill="#8BC7AE"/>
+  </g>
+  </g>
+  <text x="98" y="544" fill="#202B26" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="32" font-weight="600">A · Umbral</text>
+  <text x="98" y="578" fill="#426A59" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="17" font-weight="600" letter-spacing="1.4">ELEGIDA</text>
+  <text x="98" y="618" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">Una sala de esquinas redondeadas</text>
+  <text x="98" y="646" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">—el mismo lenguaje que las tarjetas</text>
+  <text x="98" y="674" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">de la app— con una sola puerta en</text>
+  <text x="98" y="702" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">el muro y el núcleo dentro. El</text>
+  <text x="98" y="730" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">squircle no se confunde con otro</text>
+  <text x="98" y="758" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">anillo y aguanta la máscara del</text>
+  <text x="98" y="786" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">sistema sin perder el aire.</text>
+  <rect x="500" y="208" width="404" height="560" rx="28" fill="#FFFFFF"/>
+  <g transform="translate(534 242) scale(.78)">
+  <rect width="256" height="256" rx="52" fill="#0B110F"/>
+  <g transform="translate(128 128) scale(0.7600) translate(-128 -128)">
+  <rect x="48" y="64.00" width="24" height="128.00" rx="12" fill="#8BC7AE"/>
+  <rect x="92" y="82.00" width="24" height="92.00" rx="12" fill="#8BC7AE"/>
+  <rect x="136" y="100.00" width="24" height="56.00" rx="12" fill="#8BC7AE"/>
+  <circle cx="196" cy="128" r="16" fill="#8BC7AE"/>
+  </g>
+  </g>
+  <text x="534" y="544" fill="#202B26" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="32" font-weight="600">B · Ruido a calma</text>
+  <text x="534" y="578" fill="#426A59" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="17" font-weight="600" letter-spacing="1.4">ALTERNATIVA</text>
+  <text x="534" y="618" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">Tres barras que bajan de altura</text>
+  <text x="534" y="646" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">hasta un punto de reposo. Cuenta</text>
+  <text x="534" y="674" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">muy bien la promesa del producto,</text>
+  <text x="534" y="702" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">pero su silueta horizontal es</text>
+  <text x="534" y="730" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">menos propia como icono de app y</text>
+  <text x="534" y="758" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">compite con el texto en el lockup.</text>
+  <rect x="936" y="208" width="404" height="560" rx="28" fill="#FFFFFF"/>
+  <g transform="translate(970 242) scale(.78)">
+  <rect width="256" height="256" rx="52" fill="#0B110F"/>
+  <g transform="translate(128 128) scale(0.7600) translate(-128 -128)">
+  <path d="M 40.00 128.00 A 88.00 88.00 0 1 1 216.00 128.00 A 88.00 88.00 0 1 1 40.00 128.00 Z M 84.00 128.00 A 44.00 44.00 0 1 1 172.00 128.00 A 44.00 44.00 0 1 1 84.00 128.00 Z M 167.55 108.71 L 214.28 85.92 L 214.28 170.08 L 167.55 147.29 Z" fill-rule="evenodd" fill="#8BC7AE"/>
+  <circle cx="128" cy="128" r="22.0" fill="#8BC7AE"/>
+  </g>
+  </g>
+  <text x="970" y="544" fill="#202B26" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="32" font-weight="600">C · Umbral circular</text>
+  <text x="970" y="578" fill="#426A59" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="17" font-weight="600" letter-spacing="1.4">ALTERNATIVA</text>
+  <text x="970" y="618" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">La misma idea con contenedor</text>
+  <text x="970" y="646" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">circular. Es la opción más segura</text>
+  <text x="970" y="674" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">y la más parecida a lo que ya</text>
+  <text x="970" y="702" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">existe en el mercado de bienestar</text>
+  <text x="970" y="730" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">digital, por eso pierde algo de</text>
+  <text x="970" y="758" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">carácter frente a A.</text>
+  <text x="64" y="856" fill="#68746C" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="18">Retícula de 256 × 256 · muro 44 · esquina exterior 46 · puerta 48 × 44 · núcleo 22 · trazo mínimo 22 unidades (2,75 px a 32 px).</text>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 256 256" role="img" aria-label="Detox: alternativa B, ruido a calma">
+  <title>Detox: alternativa B, ruido a calma</title>
+  <rect width="256" height="256" fill="#0B110F"/>
+  <g transform="translate(128 128) scale(1.0000) translate(-128 -128)">
+  <rect x="48" y="64.00" width="24" height="128.00" rx="12" fill="#8BC7AE"/>
+  <rect x="92" y="82.00" width="24" height="92.00" rx="12" fill="#8BC7AE"/>
+  <rect x="136" y="100.00" width="24" height="56.00" rx="12" fill="#8BC7AE"/>
+  <circle cx="196" cy="128" r="16" fill="#8BC7AE"/>
+  </g>
+</svg>

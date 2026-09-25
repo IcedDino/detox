@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 256 256" role="img" aria-label="Detox: alternativa C, Umbral circular">
+  <title>Detox: alternativa C, Umbral circular</title>
+  <rect width="256" height="256" fill="#0B110F"/>
+  <g transform="translate(128 128) scale(1.0000) translate(-128 -128)">
+  <path d="M 40.00 128.00 A 88.00 88.00 0 1 1 216.00 128.00 A 88.00 88.00 0 1 1 40.00 128.00 Z M 84.00 128.00 A 44.00 44.00 0 1 1 172.00 128.00 A 44.00 44.00 0 1 1 84.00 128.00 Z M 167.55 108.71 L 214.28 85.92 L 214.28 170.08 L 167.55 147.29 Z" fill-rule="evenodd" fill="#8BC7AE"/>
+  <circle cx="128" cy="128" r="22.0" fill="#8BC7AE"/>
+  </g>
+</svg>

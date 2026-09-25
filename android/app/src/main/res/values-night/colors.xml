@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Detox is dark first, so the splash never flashes white on a dark device.
+         ic_launcher_background stays in values/colors.xml: the launcher icon has
+         one colour on every device. -->
+    <color name="launch_background">#0B110F</color>
+</resources>

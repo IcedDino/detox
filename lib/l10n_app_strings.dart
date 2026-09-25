@@ -174,6 +174,40 @@ class AppStrings {
       isEs ? 'Enfoque sin distracciones' : 'Focus without distractions';
   String get otherWaysToContinue =>
       isEs ? 'Otras formas de acceso' : 'Other ways to continue';
+
+  String get developedBy =>
+      isEs ? 'Desarrollado por Nerqova' : 'Built by Nerqova';
+
+  // ── Legal documents, rendered inside the app ──
+  String get legalSection => isEs ? 'Legal' : 'Legal';
+  String get legalTerms =>
+      isEs ? 'Términos y Condiciones' : 'Terms and Conditions';
+  String get legalPrivacy => isEs ? 'Aviso de Privacidad' : 'Privacy Notice';
+  String get legalIntro =>
+      isEs ? 'Al continuar aceptas los' : 'By continuing you agree to the';
+  String get legalJoin => isEs ? 'y el' : 'and the';
+  String get legalUpdatedLabel =>
+      isEs ? 'Última actualización' : 'Last updated';
+  String get legalOpenFailed => isEs
+      ? 'No se pudo abrir el documento. Reintenta.'
+      : 'Could not open the document. Try again.';
+  String get legalReadTerms =>
+      isEs ? 'Leer los Términos y Condiciones' : 'Read the Terms and Conditions';
+  String get legalReadPrivacy =>
+      isEs ? 'Leer el Aviso de Privacidad' : 'Read the Privacy Notice';
+  String get legalAcceptance =>
+      isEs ? 'Leo y acepto los' : 'I have read and accept the';
+  String get retry => isEs ? 'Reintentar' : 'Retry';
+
+  // ── Sign-in screen ──
+  String get orContinueWith => isEs ? 'o continúa con' : 'or continue with';
+  String get showPassword =>
+      isEs ? 'Mostrar contraseña' : 'Show password';
+  String get hidePassword =>
+      isEs ? 'Ocultar contraseña' : 'Hide password';
+  String get switchToSignUp =>
+      isEs ? 'Crear una cuenta' : 'Create an account';
+  String get switchToSignIn => isEs ? 'Iniciar sesión' : 'Sign in';
   String get noAccountYet =>
       isEs ? '¿No tienes cuenta aún?' : "Don't have an account yet?";
   String get alreadyHaveAccount =>

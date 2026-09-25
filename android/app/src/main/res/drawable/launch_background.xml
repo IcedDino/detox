@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
+<!-- Detox launch screen.
+     The colour comes from @color/launch_background, which resolves to the light
+     value in values/colors.xml and to the charcoal in values-night/colors.xml,
+     so the first frame never flashes a theme the user did not pick. The symbol
+     resolves to drawable-*/splash_symbol.png or drawable-night-*/splash_symbol.png
+     for the same reason. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@android:color/white" />
-
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
+    <item android:drawable="@color/launch_background" />
+    <item>
         <bitmap
             android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+            android:src="@drawable/splash_symbol" />
+    </item>
 </layer-list>

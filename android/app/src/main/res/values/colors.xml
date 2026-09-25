@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- DetoxColors.bg in lib/theme/app_theme.dart. The adaptive launcher icon
+         uses this as its background layer. -->
+    <color name="ic_launcher_background">#0B110F</color>
+
+    <!-- Window colour behind the splash, before the Flutter engine draws.
+         values-night/colors.xml overrides it with the same charcoal. -->
+    <color name="launch_background">#F4F7F3</color>
+</resources>

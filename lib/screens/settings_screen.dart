@@ -12,6 +12,7 @@ import '../models/concentration_zone.dart';
 import '../models/installed_app_entry.dart';
 import '../models/sponsor_profile.dart';
 import '../screens/automation_settings_screen.dart';
+import '../screens/legal_document_screen.dart';
 import '../screens/sponsor_screen.dart';
 import '../services/auth_service.dart';
 import '../services/app_catalog_service.dart';
@@ -949,6 +950,31 @@ class _SettingsScreenState extends State<SettingsScreen>
                 ),
               );
             }),
+      (context) => const SizedBox(height: DetoxSpace.section),
+      (context) => SectionTitle(title: t.legalSection),
+      (context) => const SizedBox(height: 12),
+      (context) => SoftActionTile(
+            icon: Icons.description_outlined,
+            title: t.legalTerms,
+            subtitle: t.legalReadTerms,
+            onTap: () => LegalDocumentScreen.open(context, LegalDocument.terms),
+          ),
+      (context) => const SizedBox(height: 10),
+      (context) => SoftActionTile(
+            icon: Icons.privacy_tip_outlined,
+            title: t.legalPrivacy,
+            subtitle: t.legalReadPrivacy,
+            onTap: () =>
+                LegalDocumentScreen.open(context, LegalDocument.privacy),
+          ),
+      (context) => const SizedBox(height: DetoxSpace.section),
+      (context) => Center(
+            child: Text(
+              t.developedBy,
+              style:
+                  Theme.of(context).textTheme.labelSmall?.copyWith(color: muted),
+            ),
+          ),
     ];
     return ListView.builder(
       key: const PageStorageKey('settings-list'),

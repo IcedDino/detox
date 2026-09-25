@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n_app_strings.dart';
 import '../models/auth_user.dart';
+import '../screens/legal_document_screen.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/detox_logo.dart';
@@ -25,6 +26,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final _signUpPassword = TextEditingController();
   final _tab = ValueNotifier<int>(0);
   bool _busy = false;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -115,10 +117,15 @@ class _AuthScreenState extends State<AuthScreen> {
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) => SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
+              padding: const EdgeInsets.fromLTRB(
+                DetoxSpace.section,
+                28,
+                DetoxSpace.section,
+                28,
+              ),
               child: ConstrainedBox(
                 constraints:
-                    BoxConstraints(minHeight: constraints.maxHeight - 52),
+                    BoxConstraints(minHeight: constraints.maxHeight - 56),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 420),
@@ -126,83 +133,84 @@ class _AuthScreenState extends State<AuthScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // ── Centered, quiet brand header ──
+                        // ── Brand statement, quiet and centered ──
                         const Center(
-                            child: DetoxLogo(size: 76, showLabel: true)),
-                        const SizedBox(height: 10),
-                        Center(
-                          child: Text(
-                            t.useEmailFirst,
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.bodyMedium
-                                ?.copyWith(color: mutedColor),
-                          ),
+                          child: DetoxLogo(size: 64, showLabel: true),
                         ),
-                        const SizedBox(height: 28),
-                        // ── Tabs ──
-                        ValueListenableBuilder<int>(
-                          valueListenable: _tab,
-                          builder: (context, value, _) => Container(
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? DetoxColors.bgAlt
-                                  : const Color(0xFFF1F3EF),
-                              borderRadius: BorderRadius.circular(detoxRadius),
-                            ),
-                            padding: const EdgeInsets.all(4),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: _SegmentButton(
-                                    label: t.signIn,
-                                    selected: value == 0,
-                                    onTap: () => _tab.value = 0,
+                        const SizedBox(height: 26),
+                        Text(
+                          t.ownYourAttention,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.displayMedium,
+                        ),
+                        const SizedBox(height: 30),
+                        // ── One surface holds the whole sign-in flow ──
+                        GlassCard(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              ValueListenableBuilder<int>(
+                                valueListenable: _tab,
+                                builder: (context, value, _) =>
+                                    AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 200),
+                                  switchInCurve: Curves.easeOut,
+                                  switchOutCurve: Curves.easeIn,
+                                  child: KeyedSubtree(
+                                    key: ValueKey<int>(value),
+                                    child: value == 0
+                                        ? _buildSignInPanel(mutedColor)
+                                        : _buildSignUpPanel(mutedColor),
                                   ),
                                 ),
-                                Expanded(
-                                  child: _SegmentButton(
-                                    label: t.createAccount,
-                                    selected: value == 1,
-                                    onTap: () => _tab.value = 1,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 22),
-                        ValueListenableBuilder<int>(
-                          valueListenable: _tab,
-                          builder: (context, value, _) => AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 220),
-                            switchInCurve: Curves.easeOut,
-                            switchOutCurve: Curves.easeIn,
-                            child: value == 0
-                                ? _buildSignInPanel(mutedColor)
-                                : _buildSignUpPanel(mutedColor),
+                              ),
+                              const SizedBox(height: 20),
+                              // Short on purpose: the label sits between two
+                              // rules and must survive narrow screens.
+                              _DividerLabel(label: t.orContinueWith),
+                              const SizedBox(height: 16),
+                              // Stacked, not side by side: at 320 dp two buttons
+                              // in a row cannot hold "Continuar con teléfono".
+                              _SecondaryAuthButton(
+                                icon: Icons.g_mobiledata_rounded,
+                                label: t.continueWithGoogle,
+                                onTap: _busy ? null : _signInWithGoogle,
+                              ),
+                              const SizedBox(height: 10),
+                              _SecondaryAuthButton(
+                                icon: Icons.phone_iphone_rounded,
+                                label: t.continueWithPhone,
+                                onTap: _busy ? null : _showPhoneSheet,
+                              ),
+                              const SizedBox(height: 18),
+                              _LegalAcceptance(mutedColor: mutedColor),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 20),
-                        _DividerLabel(label: t.otherWaysToContinue),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _SecondaryAuthButton(
-                                icon: Icons.g_mobiledata_rounded,
-                                label: 'Google',
-                                onTap: _busy ? null : _signInWithGoogle,
-                              ),
+                        ValueListenableBuilder<int>(
+                          valueListenable: _tab,
+                          builder: (context, value, _) => _AuthSwitchLink(
+                            prompt: value == 0
+                                ? t.noAccountYet
+                                : t.alreadyHaveAccount,
+                            action: value == 0
+                                ? t.switchToSignUp
+                                : t.switchToSignIn,
+                            onTap: () => _tab.value = value == 0 ? 1 : 0,
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+                        Center(
+                          child: Text(
+                            t.developedBy,
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: mutedColor,
+                              letterSpacing: 0.2,
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _SecondaryAuthButton(
-                                icon: Icons.phone_iphone_rounded,
-                                label: t.phoneSignIn,
-                                onTap: _busy ? null : _showPhoneSheet,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ],
                     ),
@@ -218,21 +226,18 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Widget _buildSignInPanel(Color mutedColor) {
     final t = AppStrings.of(context);
+    final theme = Theme.of(context);
     return Form(
       key: _signInFormKey,
       child: AutofillGroup(
-        key: const ValueKey('signin'),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(t.welcomeBack, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 6),
+            Text(t.welcomeBack, style: theme.textTheme.titleLarge),
+            const SizedBox(height: 4),
             Text(
               t.signInSubtitle,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: mutedColor),
+              style: theme.textTheme.bodySmall?.copyWith(color: mutedColor),
             ),
             const SizedBox(height: 18),
             TextFormField(
@@ -251,15 +256,16 @@ class _AuthScreenState extends State<AuthScreen> {
                   ? t.enterValidEmail
                   : null,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: DetoxSpace.item),
             TextFormField(
               controller: _signInPassword,
-              obscureText: true,
+              obscureText: _obscurePassword,
               textInputAction: TextInputAction.done,
               autofillHints: const [AutofillHints.password],
               decoration: InputDecoration(
                 labelText: t.password,
                 prefixIcon: const Icon(Icons.lock_outline_rounded),
+                suffixIcon: _passwordToggle(mutedColor),
               ),
               validator: (value) =>
                   (value == null || value.length < 6) ? t.useSixChars : null,
@@ -270,13 +276,7 @@ class _AuthScreenState extends State<AuthScreen> {
             const SizedBox(height: 18),
             FilledButton(
               onPressed: _busy ? null : _signIn,
-              child: _busy
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2.2),
-                    )
-                  : Text(t.signIn),
+              child: _busy ? const _ButtonSpinner() : Text(t.signIn),
             ),
           ],
         ),
@@ -286,22 +286,18 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Widget _buildSignUpPanel(Color mutedColor) {
     final t = AppStrings.of(context);
+    final theme = Theme.of(context);
     return Form(
       key: _signUpFormKey,
       child: AutofillGroup(
-        key: const ValueKey('signup'),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(t.createAccountTitle,
-                style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 6),
+            Text(t.createAccountTitle, style: theme.textTheme.titleLarge),
+            const SizedBox(height: 4),
             Text(
               t.createAccountSubtitle,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: mutedColor),
+              style: theme.textTheme.bodySmall?.copyWith(color: mutedColor),
             ),
             const SizedBox(height: 18),
             TextFormField(
@@ -316,7 +312,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   ? t.enterName
                   : null,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: DetoxSpace.item),
             TextFormField(
               controller: _signUpEmail,
               keyboardType: TextInputType.emailAddress,
@@ -333,15 +329,16 @@ class _AuthScreenState extends State<AuthScreen> {
                   ? t.enterValidEmail
                   : null,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: DetoxSpace.item),
             TextFormField(
               controller: _signUpPassword,
-              obscureText: true,
+              obscureText: _obscurePassword,
               textInputAction: TextInputAction.done,
               autofillHints: const [AutofillHints.newPassword],
               decoration: InputDecoration(
                 labelText: t.password,
                 prefixIcon: const Icon(Icons.lock_outline_rounded),
+                suffixIcon: _passwordToggle(mutedColor),
               ),
               validator: (value) =>
                   (value == null || value.length < 6) ? t.useSixChars : null,
@@ -352,17 +349,39 @@ class _AuthScreenState extends State<AuthScreen> {
             const SizedBox(height: 18),
             FilledButton(
               onPressed: _busy ? null : _signUp,
-              child: _busy
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2.2),
-                    )
-                  : Text(t.createAccount),
+              child: _busy ? const _ButtonSpinner() : Text(t.createAccount),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _passwordToggle(Color mutedColor) {
+    final t = AppStrings.of(context);
+    return IconButton(
+      tooltip: _obscurePassword ? t.showPassword : t.hidePassword,
+      color: mutedColor,
+      iconSize: 20,
+      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+      icon: Icon(
+        _obscurePassword
+            ? Icons.visibility_outlined
+            : Icons.visibility_off_outlined,
+      ),
+    );
+  }
+}
+
+class _ButtonSpinner extends StatelessWidget {
+  const _ButtonSpinner();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: 20,
+      height: 20,
+      child: CircularProgressIndicator(strokeWidth: 2.2),
     );
   }
 }
@@ -412,7 +431,6 @@ class _SecondaryAuthButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return OutlinedButton.icon(
       onPressed: onTap,
       icon: Icon(icon, size: 20),
@@ -423,59 +441,108 @@ class _SecondaryAuthButton extends StatelessWidget {
       ),
       style: OutlinedButton.styleFrom(
         minimumSize: const Size.fromHeight(52),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-        side: BorderSide(
-          color: isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder,
-        ),
-        backgroundColor: isDark ? DetoxColors.card : Colors.white,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(detoxRadius)),
       ),
     );
   }
 }
 
-class _SegmentButton extends StatelessWidget {
-  const _SegmentButton(
-      {required this.label, required this.selected, required this.onTap});
+/// Switch between signing in and creating an account, inline and quiet.
+class _AuthSwitchLink extends StatelessWidget {
+  const _AuthSwitchLink({
+    required this.prompt,
+    required this.action,
+    required this.onTap,
+  });
 
-  final String label;
-  final bool selected;
+  final String prompt;
+  final String action;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        // Flat selection: separation comes from surface color and border,
-        // never from a shadow.
-        decoration: BoxDecoration(
-          color: selected
-              ? (isDark ? DetoxColors.card : Colors.white)
-              : Colors.transparent,
+    final muted = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
+    final accent = isDark ? DetoxColors.accent : DetoxColors.accentDeep;
+
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 6,
+      runSpacing: 2,
+      children: [
+        Text(prompt, style: TextStyle(color: muted, fontSize: 14)),
+        InkWell(
           borderRadius: BorderRadius.circular(detoxRadius),
-          border: Border.all(
-            color: selected
-                ? (isDark
-                    ? DetoxColors.cardBorder
-                    : DetoxColors.lightCardBorder)
-                : Colors.transparent,
+          onTap: onTap,
+          child: Text(
+            action,
+            style: TextStyle(
+              color: accent,
+              fontSize: 14,
+              fontWeight: detoxWeightEmphasis,
+              decoration: TextDecoration.underline,
+              decorationColor: accent,
+            ),
           ),
         ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-            fontSize: 14,
-            color: selected
-                ? (isDark ? DetoxColors.text : DetoxColors.lightText)
-                : (isDark ? DetoxColors.muted : DetoxColors.lightMuted),
-          ),
+      ],
+    );
+  }
+}
+
+/// Acceptance line shown under the form: the documents open inside the app.
+class _LegalAcceptance extends StatelessWidget {
+  const _LegalAcceptance({required this.mutedColor});
+
+  final Color mutedColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppStrings.of(context);
+    final base = TextStyle(
+      color: mutedColor,
+      fontSize: 12,
+      fontWeight: FontWeight.w500,
+      height: 1.45,
+    );
+
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 5,
+      runSpacing: 3,
+      children: [
+        Text(t.legalAcceptance, style: base),
+        _LegalLink(label: t.legalTerms, document: LegalDocument.terms),
+        Text(t.legalJoin, style: base),
+        _LegalLink(label: t.legalPrivacy, document: LegalDocument.privacy),
+      ],
+    );
+  }
+}
+
+class _LegalLink extends StatelessWidget {
+  const _LegalLink({required this.label, required this.document});
+
+  final String label;
+  final LegalDocument document;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = isDark ? DetoxColors.accent : DetoxColors.accentDeep;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(detoxRadius),
+      onTap: () => LegalDocumentScreen.open(context, document),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: accent,
+          fontSize: 12,
+          fontWeight: detoxWeightEmphasis,
+          height: 1.45,
+          decoration: TextDecoration.underline,
+          decorationColor: accent,
         ),
       ),
     );
@@ -547,6 +614,10 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
   @override
   Widget build(BuildContext context) {
     final t = AppStrings.of(context);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final muted = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
+
     return Padding(
       padding: EdgeInsets.only(
         left: 16,
@@ -555,20 +626,18 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
         top: 16,
       ),
       child: GlassCard(
+        padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Text(t.phoneSignIn, style: theme.textTheme.titleLarge),
+            const SizedBox(height: 6),
             Text(
-              t.phoneSignIn,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              t.phoneInstructions,
+              style: theme.textTheme.bodySmall?.copyWith(color: muted),
             ),
-            const SizedBox(height: 10),
-            Text(t.phoneInstructions,
-                style: const TextStyle(color: DetoxColors.muted)),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             TextField(
               controller: _phoneController,
               keyboardType: TextInputType.phone,
@@ -578,7 +647,7 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
               ),
             ),
             if (_codeSent) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: DetoxSpace.item),
               TextField(
                 controller: _codeController,
                 keyboardType: TextInputType.number,
@@ -588,25 +657,16 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
                 ),
               ),
             ],
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _sending ? null : () => Navigator.pop(context),
-                    child: Text(t.cancel),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: _sending
-                        ? null
-                        : (_codeSent ? _verifyCode : _requestCode),
-                    child: Text(_codeSent ? t.verifyCode : t.sendCode),
-                  ),
-                ),
-              ],
+            const SizedBox(height: 18),
+            FilledButton(
+              onPressed:
+                  _sending ? null : (_codeSent ? _verifyCode : _requestCode),
+              child: Text(_codeSent ? t.verifyCode : t.sendCode),
+            ),
+            const SizedBox(height: DetoxSpace.item),
+            TextButton(
+              onPressed: _sending ? null : () => Navigator.pop(context),
+              child: Text(t.cancel),
             ),
           ],
         ),

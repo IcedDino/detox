@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Detox — Bienestar digital</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #F4F7F3;
+  --surface: #FFFFFF;
+  --text: #202B26;
+  --muted: #68746C;
+  --accent: #426A59;
+  --border: rgba(32, 43, 38, 0.10);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0B110F;
+    --surface: #151E1A;
+    --text: #E8EDEA;
+    --muted: #8C988F;
+    --accent: #8BC7AE;
+    --border: rgba(255, 255, 255, 0.08);
+  }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem; text-align: center; }
+h1 { font-size: 2rem; font-weight: 700; margin-bottom: .5rem; }
+p { color: var(--muted); margin-bottom: 2rem; font-size: 1.1rem; }
+nav a { display: inline-block; margin: .4rem; padding: .7rem 1.4rem; background: var(--accent); color: #fff; border-radius: 8px; text-decoration: none; font-weight: 500; font-size: .95rem; }
+nav a:hover { opacity: .85; }
+footer { margin-top: 3rem; color: var(--muted); font-size: .8rem; }
+</style>
+</head>
+<body>
+<h1>Detox</h1>
+<p>Bienestar digital · App para Android</p>
+<nav>
+  <a href="/delete-account">Eliminar cuenta</a>
+  <a href="/aviso-de-privacidad">Aviso de privacidad</a>
+  <a href="/terminos-y-condiciones">Términos y condiciones</a>
+</nav>
+<footer>© 2026 Nerqova · detox-c0790.web.app</footer>
+</body>
+</html>

@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aviso de Privacidad — Detox</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #F4F7F3;
+  --surface: #FFFFFF;
+  --text: #202B26;
+  --muted: #68746C;
+  --accent: #426A59;
+  --border: rgba(32, 43, 38, 0.10);
+  --quote: #EAF0EA;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0B110F;
+    --surface: #151E1A;
+    --text: #E8EDEA;
+    --muted: #8C988F;
+    --accent: #8BC7AE;
+    --border: rgba(255, 255, 255, 0.08);
+    --quote: #101916;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+  font-size: 17px;
+  line-height: 1.65;
+}
+main { max-width: 760px; margin: 0 auto; padding: 56px 24px 96px; }
+h1 { font-size: 2rem; line-height: 1.2; letter-spacing: -0.02em; margin: 0 0 1.5rem; }
+h2 {
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+  margin: 2.75rem 0 0.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+h3 { font-size: 1.05rem; margin: 1.75rem 0 0.5rem; }
+p, li { margin: 0.75rem 0; }
+ul, ol { padding-left: 1.4rem; }
+li > p { margin: 0; }
+a { color: var(--accent); }
+strong { font-weight: 600; }
+code {
+  font-family: Consolas, Menlo, monospace;
+  font-size: 0.9em;
+  background: var(--quote);
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  word-break: break-word;
+}
+hr { border: 0; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+blockquote {
+  margin: 1.5rem 0;
+  padding: 1rem 1.25rem;
+  background: var(--quote);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+}
+blockquote p { margin: 0.4rem 0; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  font-size: 0.94rem;
+  display: block;
+  overflow-x: auto;
+}
+th, td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.7rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+}
+th {
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+tbody tr:last-child td { border-bottom: 0; }
+@media (min-width: 620px) { table { display: table; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Aviso de Privacidad</h1>
+<p><strong>Última actualización:</strong> 25 de septiembre de 2026</p>
+<p>En México, el documento que informa cómo se tratan los datos personales se llama <strong>Aviso de Privacidad</strong>. Este aviso cumple esa función y también sirve como política de privacidad para las tiendas de aplicaciones.</p>
+<hr>
+<h2>1. Quién es el responsable</h2>
+<p><strong>Nerqova</strong> («nosotros»), con domicilio en <strong>[DOMICILIO]</strong>, [CIUDAD], [ESTADO], México, es el responsable del tratamiento de tus datos personales.</p>
+<ul>
+<li><strong>Correo de contacto y privacidad:</strong> nerqovaassist@gmail.com</li>
+<li><strong>Aplicación:</strong> Detox, distribuida con el identificador <code>com.nerqova.detox</code></li>
+</ul>
+<p>Nerqova opera actualmente como <strong>marca comercial</strong>. Cuando la entidad legal quede constituida, este aviso se actualizará con la razón social y el registro federal de contribuyentes correspondientes.</p>
+<hr>
+<h2>2. Qué datos personales tratamos</h2>
+<table><thead><tr>
+<th>Dato</th>
+<th>De dónde sale</th>
+<th>Para qué</th>
+<th>Dónde se guarda</th>
+</tr></thead><tbody>
+<tr>
+<td>Nombre y correo electrónico</td>
+<td>Lo escribes al crear la cuenta</td>
+<td>Identificarte y darte acceso</td>
+<td>Firebase Authentication y Firestore</td>
+</tr>
+<tr>
+<td>Número de teléfono</td>
+<td>Solo si entras con teléfono</td>
+<td>Verificar tu identidad por SMS</td>
+<td>Firebase Authentication</td>
+</tr>
+<tr>
+<td>Proveedor de acceso</td>
+<td>Google o correo</td>
+<td>Mantener tu sesión</td>
+<td>Firebase Authentication</td>
+</tr>
+<tr>
+<td>Apps bloqueadas, límites diarios y horarios</td>
+<td>Los eliges tú</td>
+<td>Prestar el servicio que pediste</td>
+<td>Firestore</td>
+</tr>
+<tr>
+<td>Zonas de concentración (nombre, coordenadas y radio)</td>
+<td>Las creas tú</td>
+<td>Activar el bloqueo cuando llegas a ese lugar</td>
+<td>Firestore</td>
+</tr>
+<tr>
+<td>Vínculo con tu padrino: identificador, fechas, tipo de solicitud, el mensaje que escribes y la decisión</td>
+<td>Lo genera el uso de la función de padrino</td>
+<td>Que tu padrino pueda aprobar o denegar</td>
+<td>Firestore</td>
+</tr>
+<tr>
+<td>Identificador de publicidad del dispositivo</td>
+<td>Lo asigna el sistema operativo</td>
+<td>Mostrar el anuncio que da la pausa extra</td>
+<td>Google AdMob</td>
+</tr>
+</tbody></table>
+<p>Firebase es un servicio de Google. Los datos de tu cuenta se alojan en la infraestructura de Google Cloud, que puede estar fuera de México.</p>
+<h3>2.1 Qué NO recogemos</h3>
+<p>Queremos que esto quede muy claro, porque es la parte que más nos preguntan:</p>
+<ul>
+<li><strong>Tu tiempo de pantalla y el detalle de uso de tus apps nunca salen de tu dispositivo.</strong> No se sincronizan, no se envían a nuestros servidores y no los podemos ver. El historial de uso se lee localmente y se queda localmente. Lo único que se sincroniza son los ajustes que tú configuras.</li>
+<li><strong>No hacemos un historial de tu ubicación.</strong> Solo guardamos las coordenadas de las zonas de concentración que tú creas a propósito, para saber cuándo entras y sales de ellas.</li>
+<li>No accedemos a tus contactos, tus mensajes, tus fotos, tus archivos ni a lo que escribes.</li>
+<li>No leemos el contenido de las apps que bloqueas ni lo que haces dentro de ellas.</li>
+</ul>
+<hr>
+<h2>3. Finalidades primarias</h2>
+<p>Son las necesarias para prestarte el servicio. No puedes usarlo sin aceptarlas:</p>
+<ol>
+<li>Crear y mantener tu cuenta.</li>
+<li>Sincronizar tus ajustes de enfoque entre tus dispositivos.</li>
+<li>Aplicar el bloqueo de apps, los límites y las zonas que tú configures.</li>
+<li>Operar la función de padrino, cuando decidas vincular uno.</li>
+<li>Atender tus solicitudes de soporte y las relacionadas con tus datos.</li>
+</ol>
+<h2>4. Finalidades secundarias</h2>
+<p>Son opcionales y <strong>no afectan</strong> la prestación del servicio:</p>
+<ol>
+<li><strong>Publicidad.</strong> La app es gratuita y se sostiene con anuncios. El anuncio recompensado que da una pausa extra se muestra a través de Google AdMob, que puede usar el identificador de publicidad de tu dispositivo para seleccionar el anuncio. <strong>Si te opones a esta finalidad, simplemente no completes el anuncio:</strong> la pausa gratuita diaria sigue funcionando igual y puedes seguir usando todo lo demás.</li>
+</ol>
+<p><strong>Cómo oponerte a las finalidades secundarias:</strong> escribe a nerqovaassist@gmail.com indicando «Oposición a publicidad». También puedes restablecer o limitar tu identificador de publicidad desde los ajustes de Android, y desactivar la personalización de anuncios.</p>
+<hr>
+<h2>5. Datos personales sensibles</h2>
+<p><strong>No tratamos datos personales sensibles.</strong> Ninguna de las categorías que la ley considera sensible —origen étnico o racial, estado de salud, información genética, creencias religiosas o filosóficas, afiliación sindical o preferencia sexual— se recoge en esta aplicación.</p>
+<p>Por eso no pedimos tu consentimiento expreso por escrito para datos sensibles: no hay ninguno que tratar.</p>
+<hr>
+<h2>6. Permisos especiales del sistema</h2>
+<p>Detox funciona sobre Android y necesita permisos que el sistema trata de forma especial. Cada uno se explica aquí y <strong>tú decides si lo concedes</strong>:</p>
+<table><thead><tr>
+<th>Permiso</th>
+<th>Para qué</th>
+<th>Si lo niegas</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>Acceso de uso</strong> (<code>PACKAGE_USAGE_STATS</code>)</td>
+<td>Medir tu tiempo de pantalla y detectar qué app está en primer plano para poder cubrirla</td>
+<td>Las estadísticas y el bloqueo no funcionarán</td>
+</tr>
+<tr>
+<td><strong>Superposición</strong> (<code>SYSTEM_ALERT_WINDOW</code>)</td>
+<td>Mostrar la pantalla de bloqueo encima de la app que está bloqueada</td>
+<td>El bloqueo no puede cubrir nada</td>
+</tr>
+<tr>
+<td><strong>Ubicación</strong> (<code>ACCESS_FINE_LOCATION</code>, <code>ACCESS_BACKGROUND_LOCATION</code>)</td>
+<td>Activar el bloqueo al llegar a una zona de concentración que tú creaste</td>
+<td>Puedes omitirlo con «Omitir por ahora» y usar todo lo demás manualmente</td>
+</tr>
+<tr>
+<td><strong>Notificaciones</strong> (<code>POST_NOTIFICATIONS</code>)</td>
+<td>Mostrar el temporizador y el estado del bloqueo</td>
+<td>No verás el aviso del temporizador</td>
+</tr>
+<tr>
+<td><strong>Batería</strong> (<code>REQUEST_IGNORE_BATTERY_OPTIMIZATIONS</code>)</td>
+<td>Evitar que Android apague el bloqueo mientras duerme</td>
+<td>El bloqueo puede detenerse solo</td>
+</tr>
+</tbody></table>
+<p>Puedes revocar cualquiera de estos permisos en cualquier momento desde los ajustes de Android. Revocar Acceso de uso o Superposición detiene el servicio de bloqueo, porque sin ellos no puede hacer su trabajo.</p>
+<hr>
+<h2>7. Con quién compartimos datos</h2>
+<p>No vendemos tus datos personales. No los compartimos con terceros para fines distintos de los de este aviso. Usamos estos proveedores, que tratan datos <strong>por nuestra cuenta</strong>:</p>
+<table><thead><tr>
+<th>Proveedor</th>
+<th>Servicio</th>
+<th>Qué recibe</th>
+</tr></thead><tbody>
+<tr>
+<td>Google LLC (Firebase Authentication)</td>
+<td>Inicio de sesión y cuentas</td>
+<td>Correo, nombre, teléfono cuando aplica</td>
+</tr>
+<tr>
+<td>Google LLC (Cloud Firestore)</td>
+<td>Base de datos del servicio</td>
+<td>Tus ajustes, zonas y vínculo con padrino</td>
+</tr>
+<tr>
+<td>Google LLC (AdMob)</td>
+<td>Publicidad recompensada</td>
+<td>Identificador de publicidad y datos técnicos del anuncio</td>
+</tr>
+<tr>
+<td>Google LLC (Google Apps Script y Gmail)</td>
+<td>Envío del correo de soporte</td>
+<td>El contenido de una solicitud de desvinculación, cuando tú la envías</td>
+</tr>
+</tbody></table>
+<p>Estos proveedores pueden estar fuera de México, incluido Estados Unidos. Al aceptar este aviso consientes esa transferencia. Google trata los datos conforme a sus propias políticas, disponibles en <code>https://policies.google.com/privacy</code>.</p>
+<h3>7.1 Qué ve tu padrino</h3>
+<p>Si vinculas un padrino, esa persona verá <strong>únicamente</strong>:</p>
+<ul>
+<li>Tu nombre visible.</li>
+<li>El tipo de solicitud que le envías (por ejemplo, desbloquear ajustes o pausar una zona).</li>
+<li>El mensaje que tú escribas en esa solicitud.</li>
+<li>Su propia decisión y el historial de esas decisiones.</li>
+</ul>
+<p>Tu padrino <strong>no ve</strong> tus apps bloqueadas, tus límites, tus zonas, tus hábitos ni tu tiempo de pantalla. La vinculación es voluntaria y puedes pedir la desvinculación en cualquier momento.</p>
+<hr>
+<h2>8. Menores de edad</h2>
+<p>Detox es para personas de <strong>16 años o más</strong>. No recogemos conscientemente datos de menores de esa edad. Si detectamos una cuenta de una persona menor de 16 años, la eliminaremos.</p>
+<p>Si eres madre, padre o tutor y crees que una persona menor de 16 años creó una cuenta, escríbenos a nerqovaassist@gmail.com y la eliminaremos.</p>
+<hr>
+<h2>9. Cuánto tiempo conservamos los datos</h2>
+<table><thead><tr>
+<th>Dato</th>
+<th>Plazo</th>
+</tr></thead><tbody>
+<tr>
+<td>Datos de tu cuenta y tus ajustes</td>
+<td>Mientras mantengas la cuenta activa</td>
+</tr>
+<tr>
+<td>Solicitudes, mensajes y decisiones del padrino</td>
+<td>Mientras exista el vínculo y hasta 12 meses después, para poder resolver reclamaciones</td>
+</tr>
+<tr>
+<td>Registro de la eliminación de la cuenta</td>
+<td>Se conserva un registro mínimo (fecha de eliminación y nombre visible) como evidencia de que la eliminación se atendió y para impedir usos abusivos</td>
+</tr>
+<tr>
+<td>Códigos de desvinculación por correo</td>
+<td>Caducan a los 10 minutos y se borran al usarse</td>
+</tr>
+</tbody></table>
+<p>Una vez cumplidos los plazos, los datos se eliminan o se anonimizan de forma que ya no puedan asociarse contigo.</p>
+<hr>
+<h2>10. Seguridad</h2>
+<p>Aplicamos medidas técnicas y administrativas razonables para proteger tus datos:</p>
+<ul>
+<li>El tráfico viaja cifrado mediante TLS.</li>
+<li>El acceso a la base de datos está restringido por reglas de seguridad: cada cuenta solo puede leer y escribir sus propios documentos.</li>
+<li>Las credenciales de la cuenta se gestionan a través de Firebase Authentication; nunca almacenamos tu contraseña.</li>
+<li>Las decisiones de desvinculación con soporte se hacen mediante enlaces de un solo uso con caducidad de siete días.</li>
+</ul>
+<p>Ningún sistema es infalible. Si ocurriera una vulneración que afecte de forma significativa tus derechos, te lo informaremos por los medios de contacto que tengas registrados.</p>
+<hr>
+<h2>11. Tus derechos ARCO</h2>
+<p>Como titular de los datos puedes ejercer en cualquier momento:</p>
+<ul>
+<li><strong>Acceso:</strong> saber qué datos tenemos y cómo los usamos.</li>
+<li><strong>Rectificación:</strong> pedir que se corrijan si son inexactos o están incompletos.</li>
+<li><strong>Cancelación:</strong> pedir que se eliminen cuando no sean necesarios.</li>
+<li><strong>Oposición:</strong> pedir que dejemos de tratarlos para una finalidad concreta.</li>
+</ul>
+<p>También puedes <strong>revocar tu consentimiento</strong> en cualquier momento, sin efectos retroactivos.</p>
+<h3>11.1 Cómo ejercerlos</h3>
+<p>Envía un correo a <strong>nerqovaassist@gmail.com</strong> con:</p>
+<ol>
+<li>Tu nombre y el correo con el que creaste la cuenta.</li>
+<li>El derecho que quieres ejercer.</li>
+<li>Una descripción clara de lo que solicitas.</li>
+<li>Cualquier documento que ayude a acreditar tu identidad, si fuera necesario.</li>
+</ol>
+<p><strong>Plazos:</strong> te responderemos en un máximo de <strong>20 días hábiles</strong> contados desde que recibamos tu solicitud. Si la solicitud procede, se hará efectiva dentro de los <strong>15 días hábiles</strong> siguientes.</p>
+<p>Ejercer estos derechos es <strong>gratuito</strong>.</p>
+<h3>11.2 Alternativa directa</h3>
+<p>Para la cancelación total no necesitas escribirnos: puedes borrar tu cuenta desde la propia aplicación en <strong>Ajustes → Tu cuenta → Eliminar cuenta</strong>. La eliminación es inmediata y borra tu perfil, tus ajustes sincronizados y el vínculo con tu padrino.</p>
+<p>También publicamos una página web para solicitar la eliminación sin instalar la app, en <strong>[URL DE ELIMINACIÓN DE CUENTA]</strong>.</p>
+<hr>
+<h2>12. Cómo limitar el uso de tus datos</h2>
+<ul>
+<li>Desactiva la personalización de anuncios desde los ajustes de Android.</li>
+<li>No vincules un padrino si no quieres compartir con nadie el hecho de tus solicitudes.</li>
+<li>No crees zonas de concentración si prefieres no guardar ninguna coordenada.</li>
+<li>Revoca los permisos especiales que ya no quieras conceder.</li>
+<li>Ejerce tus derechos ARCO por el procedimiento de la sección 11.</li>
+</ul>
+<hr>
+<h2>13. Autoridad</h2>
+<p>Si consideras que tu derecho a la protección de datos personales fue vulnerado, puedes acudir a la autoridad competente en materia de datos personales de los particulares en México: la <strong>Secretaría Anticorrupción y Buen Gobierno</strong>, a través de la Dirección General de Datos Personales en el Sector Privado.</p>
+<blockquote><p><strong>Nota de contexto:</strong> la Ley Federal de Protección de Datos Personales en Posesión de los Particulares vigente rige desde el 21 de marzo de 2025. Esa reforma extinguió al INAI y trasladó sus funciones de supervisión al sector privado a la Secretaría mencionada. Si encuentras referencias al INAI en cualquier otro documento, están desactualizadas.</p></blockquote>
+<hr>
+<h2>14. Si usas la app fuera de México</h2>
+<p>Detox se distribuye internacionalmente. Si la usas desde otro país, se aplican además las normas locales de protección de datos, y te reconocemos los mismos derechos que este aviso describe.</p>
+<p><strong>Si estás en el Espacio Económico Europeo o el Reino Unido:</strong> la base legal para tratar los datos de tu cuenta es la ejecución del contrato que aceptas al registrarte, y el interés legítimo para la seguridad del servicio. Para la publicidad personalizada, la base legal es tu consentimiento, que puedes retirar en cualquier momento. Tienes además derecho a la portabilidad de tus datos y a presentar una reclamación ante la autoridad de control de tu país.</p>
+<p>Estamos terminando de implementar el mecanismo de consentimiento específico para publicidad que exige la normativa europea. Mientras no esté disponible, la publicidad personalizada no se mostrará a usuarios del Espacio Económico Europeo.</p>
+<hr>
+<h2>15. Cambios a este aviso</h2>
+<p>Podemos actualizar este aviso cuando cambie el servicio o la ley. Publicaremos la versión vigente en esta misma dirección, con su fecha de actualización, y si el cambio es sustancial te lo avisaremos dentro de la aplicación.</p>
+<hr>
+<h2>16. Contacto</h2>
+<p>Para cualquier duda sobre este aviso, tus datos o el ejercicio de tus derechos:</p>
+<p><strong>nerqovaassist@gmail.com</strong></p>
+</main>
+</body>
+</html>

@@ -33,10 +33,18 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    # Generated from docs/legal/*.md by docs/legal/generar.py. The app renders
+    # these natively so a legal link never sends the user to a browser.
+    - assets/legal/
 
+# flutter_launcher_icons is not a declared dependency, so this block is inert
+# today. It is kept accurate for whoever installs the package later. The working
+# generator is docs/brand/detox-icon/aplicar_al_proyecto.py, which also writes
+# the adaptive icon XML and the splash assets.
 flutter_launcher_icons:
   android: true
-  ios: true
+  ios: false
   image_path: assets/images/detox_logo.png
-  adaptive_icon_foreground: assets/images/detox_logo.png
-  adaptive_icon_background: '#0F172A'
+  adaptive_icon_foreground: assets/images/detox_symbolo_oscuro.png
+  adaptive_icon_monochrome: assets/images/detox_symbolo_oscuro.png
+  adaptive_icon_background: '#0B110F'
