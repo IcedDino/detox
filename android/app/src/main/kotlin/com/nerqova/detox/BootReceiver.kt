@@ -1,4 +1,4 @@
-package com.example.detox
+package com.nerqova.detox
 
 import android.content.BroadcastReceiver
 import android.content.Context

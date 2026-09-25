@@ -1,4 +1,4 @@
-package com.example.detox
+package com.nerqova.detox
 
 import android.app.Notification
 import android.app.AppOpsManager
@@ -40,19 +40,17 @@ import java.util.Locale
 
 class FocusBlockerService : Service() {
     companion object {
-        const val ACTION_START = "com.example.detox.START_BLOCKING"
-        const val ACTION_STOP = "com.example.detox.STOP_BLOCKING"
-        const val ACTION_SYNC_SPONSOR_STATE = "com.example.detox.SYNC_SPONSOR_STATE"
+        const val ACTION_START = "com.nerqova.detox.START_BLOCKING"
+        const val ACTION_STOP = "com.nerqova.detox.STOP_BLOCKING"
+        const val ACTION_SYNC_SPONSOR_STATE = "com.nerqova.detox.SYNC_SPONSOR_STATE"
         const val EXTRA_HAS_SPONSOR = "has_sponsor"
         const val EXTRA_STRICT_MODE = "strict_mode"
 
-        // Android requires a foreground service to post a notification, but the
-        // shield has to stay invisible: the channel is created with
-        // IMPORTANCE_NONE so nothing shows up in the notification shade. Set
-        // SHOW_SERVICE_NOTIFICATION to true to bring the visible notice back.
-        private const val CHANNEL_ID = "detox_shield_service"
+        // Keep the foreground service visible to users while a focus session runs.
+        private const val CHANNEL_ID = "detox_shield_service_visible"
+        private const val HIDDEN_CHANNEL_ID = "detox_shield_service"
         private const val LEGACY_CHANNEL_ID = "detox_focus_shield"
-        private const val SHOW_SERVICE_NOTIFICATION = false
+        private const val SHOW_SERVICE_NOTIFICATION = true
         private const val NOTIFICATION_ID = 4812
         private const val PREFS = "detox_native"
         private const val KEY_PAUSE_FREE_USED = "pause_free_used"
@@ -253,8 +251,9 @@ class FocusBlockerService : Service() {
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = getSystemService(NotificationManager::class.java)
-            // Remove the old, visible channel so its notification disappears
-            // from devices that already had the shield running.
+            // Replace channels created with IMPORTANCE_NONE so the foreground
+            // service notification becomes visible after upgrading.
+            manager.deleteNotificationChannel(HIDDEN_CHANNEL_ID)
             manager.deleteNotificationChannel(LEGACY_CHANNEL_ID)
             val importance = if (SHOW_SERVICE_NOTIFICATION) {
                 NotificationManager.IMPORTANCE_MIN

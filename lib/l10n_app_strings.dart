@@ -373,9 +373,6 @@ class AppStrings {
   String insideZoneLabel(String name) => isEs ? 'Dentro de $name' : 'Inside $name';
   String get zoneInactive => isEs ? 'Inactiva' : 'Inactive';
   String get settingsUnlockedLabel => isEs ? 'Desbloqueado' : 'Unlocked';
-  String get settingsPageSubtitle => isEs
-      ? 'Tu cuenta, tus protecciones y tus preferencias.'
-      : 'Your account, your safeguards, and your preferences.';
   String waitingForName(String name) => isEs ? 'Esperando que $name acepte tu solicitud.' : 'Waiting for $name to accept your request.';
 
 

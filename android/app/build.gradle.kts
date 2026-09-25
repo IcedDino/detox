@@ -24,7 +24,7 @@ fun String.escapeForBuildConfig(): String =
 
 val configuredApplicationId =
     gradleOrEnv("detox.applicationId")?.trim().takeUnless { it.isNullOrEmpty() }
-        ?: "com.example.detox"
+        ?: "com.nerqova.detox"
 
 val debugAdmobAppId = "ca-app-pub-3940256099942544~3347511713"
 val debugRewardedInterstitialAdUnitId = "ca-app-pub-3940256099942544/5354046379"
@@ -43,7 +43,7 @@ val hasReleaseSigning = listOf(
 ).all { !keystoreProperties.getProperty(it).isNullOrBlank() }
 
 android {
-    namespace = "com.example.detox"
+    namespace = "com.nerqova.detox"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 

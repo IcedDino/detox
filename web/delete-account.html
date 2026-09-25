@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0d1713">
+  <meta name="description" content="Solicita la eliminación de tu cuenta de Detox y de los datos asociados.">
+  <title>Eliminar cuenta y datos · Detox</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0d1713;
+      --surface: #14211b;
+      --surface-raised: #192921;
+      --line: #2a3c32;
+      --text: #f3f7f3;
+      --muted: #b3c2b8;
+      --accent: #b6f36b;
+      --accent-dark: #17220f;
+      --focus: #e7ffca;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      background: radial-gradient(ellipse at 50% -18%, #254632 0, transparent 52%), var(--bg);
+      color: var(--text);
+      font-size: 16px;
+      line-height: 1.6;
+    }
+    .wrap { width: min(100% - 32px, 760px); margin: 0 auto; padding: 26px 0 56px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 54px; }
+    .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--text); font-weight: 750; letter-spacing: -.03em; text-decoration: none; }
+    .mark { display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid #45633e; border-radius: 13px; background: #1c3021; color: var(--accent); }
+    .mark svg { width: 22px; height: 22px; }
+    .language { min-height: 44px; padding: 8px 13px; border: 1px solid var(--line); border-radius: 999px; background: #15221b; color: var(--text); font: inherit; font-size: 14px; cursor: pointer; }
+    .language:hover { border-color: #668b54; }
+    main { overflow: hidden; border: 1px solid var(--line); border-radius: 26px; background: linear-gradient(155deg, #17271e, #111c16 68%); box-shadow: 0 28px 90px #0005; }
+    .hero { padding: clamp(26px, 7vw, 54px); border-bottom: 1px solid var(--line); }
+    .eyebrow { display: flex; align-items: center; gap: 9px; margin: 0 0 18px; color: var(--accent); font-size: 13px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; }
+    .eyebrow::before { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); content: ""; }
+    h1 { max-width: 610px; margin: 0; font-size: clamp(34px, 7vw, 52px); letter-spacing: -.055em; line-height: 1.08; }
+    .intro { max-width: 590px; margin: 18px 0 0; color: var(--muted); font-size: 18px; }
+    .content { display: grid; gap: 28px; padding: clamp(24px, 6vw, 42px); }
+    h2 { margin: 0 0 10px; font-size: 18px; letter-spacing: -.02em; }
+    p { margin: 0; color: var(--muted); }
+    .data-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 16px 0 0; padding: 0; list-style: none; }
+    .data-list li { min-height: 48px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 12px; background: #111c16; color: #dce7de; font-size: 14px; }
+    .data-list li::before { margin-right: 9px; color: var(--accent); content: "•"; }
+    .callout { padding: 17px 18px; border: 1px solid #435d3c; border-radius: 14px; background: #1a2b1d; }
+    .callout p { color: #d4e2d5; }
+    form { display: grid; gap: 15px; margin-top: 18px; }
+    label { display: block; margin-bottom: 7px; color: #e7eee8; font-size: 14px; font-weight: 650; }
+    input, textarea { display: block; width: 100%; border: 1px solid #3a4c40; border-radius: 11px; outline: none; background: #0e1913; color: var(--text); font: inherit; font-size: 16px; }
+    input { min-height: 50px; padding: 0 14px; }
+    textarea { min-height: 96px; padding: 12px 14px; resize: vertical; }
+    input::placeholder, textarea::placeholder { color: #83948a; }
+    input:focus, textarea:focus, button:focus-visible, a:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-color: var(--accent); }
+    .hint { margin-top: 6px; color: #9bad9f; font-size: 13px; }
+    .submit { display: inline-flex; min-height: 52px; align-items: center; justify-content: center; gap: 10px; margin-top: 3px; padding: 12px 18px; border: 0; border-radius: 12px; background: var(--accent); color: var(--accent-dark); font: inherit; font-weight: 800; cursor: pointer; transition: filter .16s ease, transform .16s ease; }
+    .submit:hover { filter: brightness(1.07); transform: translateY(-1px); }
+    .submit svg { width: 18px; height: 18px; }
+    .mail-fallback { margin-top: 14px; font-size: 14px; }
+    .mail-fallback a, footer a { color: var(--accent); text-underline-offset: 3px; }
+    .fine-print { font-size: 13px; }
+    footer { display: flex; justify-content: space-between; gap: 16px; padding: 22px 3px 0; color: #8fa196; font-size: 13px; }
+    footer a { color: #bdcbbf; }
+    [hidden] { display: none !important; }
+    @media (max-width: 560px) {
+      header { margin-bottom: 30px; }
+      .data-list { grid-template-columns: 1fr; gap: 8px; }
+      .data-list li { min-height: 44px; }
+      footer { flex-direction: column; gap: 5px; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <a class="brand" href="/delete-account" aria-label="Detox">
+        <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3.5c-3.9 0-6.8 3.1-6.8 7.1 0 5 3.3 8.4 6.8 9.9 3.5-1.5 6.8-4.9 6.8-9.9 0-4-2.9-7.1-6.8-7.1Z" stroke="currentColor" stroke-width="1.7"/><path d="M12 7v9m0-4c-1.7 0-3-1.1-3.6-2.6M12 14c1.7 0 3-1.1 3.6-2.6" stroke="currentColor" stroke-linecap="round" stroke-width="1.7"/></svg></span>
+        <span>Detox</span>
+      </a>
+      <button class="language" type="button" id="language-toggle" aria-label="Switch language">English</button>
+    </header>
+
+    <main>
+      <section class="hero">
+        <p class="eyebrow" data-es="Privacidad y control" data-en="Privacy &amp; control">Privacidad y control</p>
+        <h1 data-es="Eliminar cuenta y datos" data-en="Delete your account and data">Eliminar cuenta y datos</h1>
+        <p class="intro" data-es="Puedes borrar tu cuenta desde Detox o enviar una solicitud desde esta página si ya no tienes acceso a la app." data-en="You can delete your account in Detox, or submit a request here if you no longer have access to the app.">Puedes borrar tu cuenta desde Detox o enviar una solicitud desde esta página si ya no tienes acceso a la app.</p>
+      </section>
+
+      <div class="content">
+        <section>
+          <h2 data-es="Qué se eliminará" data-en="What will be deleted">Qué se eliminará</h2>
+          <p data-es="Al completar la solicitud, eliminaremos tu cuenta de acceso y los datos personales y de uso asociados a ella que Detox almacena en sus servicios." data-en="When your request is completed, we will delete your sign-in account and the related personal and usage data stored by Detox.">Al completar la solicitud, eliminaremos tu cuenta de acceso y los datos personales y de uso asociados a ella que Detox almacena en sus servicios.</p>
+          <ul class="data-list">
+            <li data-es="Cuenta y perfil (correo, nombre y proveedor de acceso)" data-en="Account and profile (email, name, and sign-in provider)">Cuenta y perfil (correo, nombre y proveedor de acceso)</li>
+            <li data-es="Límites y preferencias de apps" data-en="App limits and preferences">Límites y preferencias de apps</li>
+            <li data-es="Zonas de concentración y ubicaciones guardadas" data-en="Concentration zones and saved locations">Zonas de concentración y ubicaciones guardadas</li>
+            <li data-es="Vínculos y solicitudes de padrino" data-en="Sponsor links and requests">Vínculos y solicitudes de padrino</li>
+          </ul>
+        </section>
+
+        <section class="callout">
+          <h2 data-es="La forma más rápida: desde la app" data-en="Fastest option: use the app">La forma más rápida: desde la app</h2>
+          <p data-es="Inicia sesión en Detox y abre Ajustes → Eliminar cuenta. La app borrará la cuenta de acceso y limpiará los datos sincronizados asociados." data-en="Sign in to Detox and open Settings → Delete account. The app will remove your sign-in account and clear its associated synced data.">Inicia sesión en Detox y abre Ajustes → Eliminar cuenta. La app borrará la cuenta de acceso y limpiará los datos sincronizados asociados.</p>
+        </section>
+
+        <section>
+          <h2 data-es="Solicitar eliminación por web" data-en="Request deletion on the web">Solicitar eliminación por web</h2>
+          <p data-es="Indica el correo asociado a tu cuenta. Se abrirá tu aplicación de correo con una solicitud lista para enviar; nunca compartas tu contraseña." data-en="Enter the email address linked to your account. Your email app will open with a request ready to send; never share your password.">Indica el correo asociado a tu cuenta. Se abrirá tu aplicación de correo con una solicitud lista para enviar; nunca compartas tu contraseña.</p>
+          <form id="deletion-form">
+            <div>
+              <label for="account-email" data-es="Correo de la cuenta Detox" data-en="Email address for your Detox account">Correo de la cuenta Detox</label>
+              <input id="account-email" name="email" type="email" autocomplete="email" required maxlength="254" placeholder="nombre@ejemplo.com" data-placeholder-es="nombre@ejemplo.com" data-placeholder-en="name@example.com">
+              <p class="hint" data-es="Usaremos este correo únicamente para localizar y verificar la cuenta." data-en="We will use this email only to locate and verify the account.">Usaremos este correo únicamente para localizar y verificar la cuenta.</p>
+            </div>
+            <div>
+              <label for="details" data-es="Información adicional (opcional)" data-en="Additional details (optional)">Información adicional (opcional)</label>
+              <textarea id="details" name="details" maxlength="500" data-placeholder-es="Por ejemplo, si ya no puedes iniciar sesión." data-placeholder-en="For example, if you can no longer sign in." placeholder="Por ejemplo, si ya no puedes iniciar sesión."></textarea>
+            </div>
+            <button class="submit" type="submit">
+              <span data-es="Preparar solicitud" data-en="Prepare request">Preparar solicitud</span>
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </form>
+          <p class="mail-fallback" id="mail-fallback" hidden></p>
+        </section>
+
+        <p class="fine-print" data-es="Para proteger tu cuenta, es posible que soporte te pida confirmar que controlas el correo asociado. No envíes contraseñas, códigos de acceso ni documentos de identidad por este formulario." data-en="To protect your account, support may ask you to confirm that you control the linked email address. Do not send passwords, sign-in codes, or identity documents through this form.">Para proteger tu cuenta, es posible que soporte te pida confirmar que controlas el correo asociado. No envíes contraseñas, códigos de acceso ni documentos de identidad por este formulario.</p>
+      </div>
+    </main>
+
+    <footer>
+      <span>© <span id="year"></span> Detox</span>
+      <span data-es="Esta página procesa la solicitud en tu aplicación de correo; no guarda lo que escribes." data-en="This page prepares the request in your email app; it does not store what you enter.">Esta página procesa la solicitud en tu aplicación de correo; no guarda lo que escribes.</span>
+    </footer>
+  </div>
+  <script>
+    (() => {
+      // Set this to the public support mailbox before deployment.
+      const SUPPORT_EMAIL = "nerqovaassist@gmail.com";
+      const form = document.getElementById("deletion-form");
+      const toggle = document.getElementById("language-toggle");
+      const lang = new URLSearchParams(location.search).get("lang") === "en" ||
+        (!new URLSearchParams(location.search).has("lang") && navigator.language.toLowerCase().startsWith("en")) ? "en" : "es";
+      let currentLang = lang;
+
+      function setLanguage(next) {
+        currentLang = next;
+        document.documentElement.lang = next;
+        document.querySelectorAll("[data-es][data-en]").forEach((node) => {
+          node.textContent = node.dataset[next];
+        });
+        document.querySelectorAll("[data-placeholder-es][data-placeholder-en]").forEach((node) => {
+          node.placeholder = node.dataset[`placeholder${next === "es" ? "Es" : "En"}`];
+        });
+        toggle.textContent = next === "es" ? "English" : "Español";
+        toggle.setAttribute("aria-label", next === "es" ? "Switch language" : "Cambiar idioma");
+      }
+
+      toggle.addEventListener("click", () => setLanguage(currentLang === "es" ? "en" : "es"));
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const email = document.getElementById("account-email").value.trim();
+        const details = document.getElementById("details").value.trim();
+        const subject = currentLang === "es" ? "Solicitud de eliminación de cuenta Detox" : "Detox account deletion request";
+        const body = currentLang === "es"
+          ? `Solicito eliminar mi cuenta de Detox y los datos personales asociados.\n\nCorreo de la cuenta: ${email}${details ? `\n\nInformación adicional: ${details}` : ""}\n\nEntiendo que soporte puede verificar que controlo este correo antes de procesar la solicitud.`
+          : `I request deletion of my Detox account and associated personal data.\n\nAccount email: ${email}${details ? `\n\nAdditional details: ${details}` : ""}\n\nI understand support may verify that I control this email before processing the request.`;
+        location.href = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      });
+      document.getElementById("year").textContent = new Date().getFullYear();
+      setLanguage(lang);
+    })();
+  </script>
+</body>
+</html>

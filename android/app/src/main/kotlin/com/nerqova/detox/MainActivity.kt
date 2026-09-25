@@ -1,4 +1,4 @@
-package com.example.detox
+package com.nerqova.detox
 
 import android.app.AppOpsManager
 import android.app.usage.UsageEvents
@@ -202,21 +202,10 @@ class MainActivity : FlutterActivity() {
                             return@setMethodCallHandler
                         }
                         try {
-                            val direct = Intent(
-                                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                                Uri.parse("package:$packageName")
+                            val settings = Intent(
+                                Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
                             ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            try {
-                                startActivity(direct)
-                            } catch (e: Exception) {
-                                // Some manufacturers hide the per-app dialog; the
-                                // battery optimization list still lets the user
-                                // exempt Detox manually.
-                                val fallback = Intent(
-                                    Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
-                                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                startActivity(fallback)
-                            }
+                            startActivity(settings)
                             result.success(true)
                         } catch (e: Exception) {
                             result.error("BATTERY_SETTINGS_ERROR", e.message, null)

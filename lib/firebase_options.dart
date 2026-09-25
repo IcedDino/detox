@@ -35,7 +35,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCgYO9qPz1iGEKIoWz4wgI5Hsy3ghfIwWo',
-    appId: '1:957513789397:android:ab36f4c7b4989f47e8975c',
+    appId: '1:957513789397:android:8a8a82ca254470f5e8975c',
     messagingSenderId: '957513789397',
     projectId: 'detox-c0790',
     storageBucket: 'detox-c0790.firebasestorage.app',

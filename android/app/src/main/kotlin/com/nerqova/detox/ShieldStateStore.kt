@@ -1,4 +1,4 @@
-package com.example.detox
+package com.nerqova.detox
 
 import android.content.SharedPreferences
 import org.json.JSONArray

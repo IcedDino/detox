@@ -31,7 +31,7 @@ class AppVisibilityFilterService {
     'com.google.android.ext.services',
     'com.google.android.ondevicepersonalization.services',
     'com.iceddino.detox',
-    'com.example.detox',
+    'com.nerqova.detox',
   };
 
   static const List<String> _blockedLabelFragments = [

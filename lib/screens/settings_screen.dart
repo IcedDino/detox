@@ -498,7 +498,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     final sections = <WidgetBuilder>[
       (context) => AppPageHeader(
             title: t.settings,
-            subtitle: t.settingsPageSubtitle,
+            subtitle: '',
           ),
       (context) => const SizedBox(height: DetoxSpace.section),
       (context) => SectionTitle(title: t.accountSectionTitle),
@@ -1502,7 +1502,7 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
                             TileLayer(
                               urlTemplate:
                                   'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                              userAgentPackageName: 'com.example.detox',
+                              userAgentPackageName: 'com.nerqova.detox',
                             ),
                             CircleLayer(
                               circles: [

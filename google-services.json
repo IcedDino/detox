@@ -82,14 +82,6 @@
       },
       "oauth_client": [
         {
-          "client_id": "957513789397-qm4g3qjbuqc98p6lb43hkifkn4e75cav.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.nerqova.detox",
-            "certificate_hash": "2e0df50ac3471b7048c8bffc90489662c66444b5"
-          }
-        },
-        {
           "client_id": "957513789397-7rnrclagedk1461na4mc74jjsi4crika.apps.googleusercontent.com",
           "client_type": 3
         }
