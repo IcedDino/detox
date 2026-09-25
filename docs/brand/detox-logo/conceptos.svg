@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1060" role="img" aria-label="Detox: cinco conceptos de logo">
+  <title>Detox: cinco conceptos de logo</title>
+  <rect width="1600" height="1060" fill="#F4F7F3"/>
+  <text x="72" y="94" fill="#202B26" font-family="Segoe UI, Arial, sans-serif" font-size="48" font-weight="600">Detox</text>
+  <text x="72" y="140" fill="#68746C" font-family="Segoe UI, Arial, sans-serif" font-size="24">Cinco rutas para una relación más clara con la tecnología</text>
+  <rect x="72" y="204" width="460" height="362" rx="28" fill="#FFFFFF"/>
+  <g transform="translate(100 232) scale(.836)"><rect width="256" height="256" rx="54" fill="#0B110F"/>  <g fill="none" stroke="#8BC7AE" stroke-width="17" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M64 51V205H113C161 205 193 173 193 128C193 95 175 68 146 57"/>
+    <path d="M64 51H104"/>
+  </g>
+  <circle cx="127" cy="128" r="8" fill="#8BC7AE"/></g>
+  <text x="338" y="294" fill="#202B26" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="600">01 / D Anillo</text>
+  <text x="338" y="335" fill="#68746C" font-family="Segoe UI, Arial, sans-serif" font-size="17">Letra D + anillo abierto</text>
+  <text x="100" y="498" fill="#202B26" font-family="Segoe UI, Arial, sans-serif" font-size="21">Identidad, progreso y espacio mental.</text>
+  <text x="100" y="534" fill="#68746C" font-family="Segoe UI, Arial, sans-serif" font-size="17">Icono de app: una forma, sin texto ni detalles finos.</text>
+  <rect x="572" y="204" width="460" height="362" rx="28" fill="#FFFFFF"/>
+  <g transform="translate(600 232) scale(.836)"><rect width="256" height="256" rx="54" fill="#0B110F"/>  <circle cx="128" cy="128" r="73" fill="none" stroke="#426A59" stroke-width="16"/>
+  <path d="M128 55A73 73 0 1 1 55 128" fill="none" stroke="#8BC7AE" stroke-width="16" stroke-linecap="round"/>
+  <rect x="102" y="98" width="16" height="60" rx="8" fill="#8BC7AE"/>
+  <rect x="138" y="98" width="16" height="60" rx="8" fill="#8BC7AE"/></g>
+  <text x="838" y="294" fill="#202B26" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="600">02 / Pausa orbital</text>
+  <text x="838" y="335" fill="#68746C" font-family="Segoe UI, Arial, sans-serif" font-size="17">Pausa dentro del tiempo</text>
+  <text x="600" y="498" fill="#202B26" font-family="Segoe UI, Arial, sans-serif" font-size="21">Detener el impulso de abrir el móvil.</text>
+  <text x="600" y="534" fill="#68746C" font-family="Segoe UI, Arial, sans-serif" font-size="17">Icono de app: una forma, sin texto ni detalles finos.</text>
+  <rect x="1072" y="204" width="460" height="362" rx="28" fill="#FFFFFF"/>
+  <g transform="translate(1100 232) scale(.836)"><rect width="256" height="256" rx="54" fill="#0B110F"/>  <g fill="none" stroke="#8BC7AE" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M100 57H66Q57 57 57 66V100"/>
+    <path d="M156 57H190Q199 57 199 66V100"/>
+    <path d="M57 156V190Q57 199 66 199H100"/>
+    <path d="M199 156V190Q199 199 190 199H156"/>
+  </g>
+  <circle cx="128" cy="128" r="12" fill="#8BC7AE"/></g>
+  <text x="1338" y="294" fill="#202B26" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="600">03 / Foco</text>
+  <text x="1338" y="335" fill="#68746C" font-family="Segoe UI, Arial, sans-serif" font-size="17">Marco de concentración</text>
+  <text x="1100" y="498" fill="#202B26" font-family="Segoe UI, Arial, sans-serif" font-size="21">Atención dirigida a lo esencial.</text>
+  <text x="1100" y="534" fill="#68746C" font-family="Segoe UI, Arial, sans-serif" font-size="17">Icono de app: una forma, sin texto ni detalles finos.</text>
+  <rect x="72" y="606" width="460" height="362" rx="28" fill="#FFFFFF"/>
+  <g transform="translate(100 634) scale(.836)"><rect width="256" height="256" rx="54" fill="#0B110F"/>  <g fill="none" stroke="#8BC7AE" stroke-width="17" stroke-linecap="round">
+    <path d="M62 96C91 54 165 54 194 96"/>
+    <path d="M62 160C91 202 165 202 194 160"/>
+  </g>
+  <path d="M94 128H162" fill="none" stroke="#8BC7AE" stroke-width="17" stroke-linecap="round"/></g>
+  <text x="338" y="696" fill="#202B26" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="600">04 / Equilibrio</text>
+  <text x="338" y="737" fill="#68746C" font-family="Segoe UI, Arial, sans-serif" font-size="17">Dos curvas en balance</text>
+  <text x="100" y="900" fill="#202B26" font-family="Segoe UI, Arial, sans-serif" font-size="21">Alternancia sana entre uso y descanso.</text>
+  <text x="100" y="936" fill="#68746C" font-family="Segoe UI, Arial, sans-serif" font-size="17">Icono de app: una forma, sin texto ni detalles finos.</text>
+  <rect x="572" y="606" width="460" height="362" rx="28" fill="#FFFFFF"/>
+  <g transform="translate(600 634) scale(.836)"><rect width="256" height="256" rx="54" fill="#0B110F"/>  <g fill="#8BC7AE">
+    <rect x="58" y="76" width="18" height="104" rx="9"/>
+    <rect x="90" y="91" width="18" height="74" rx="9"/>
+    <rect x="122" y="106" width="18" height="44" rx="9"/>
+    <circle cx="176" cy="128" r="12"/>
+  </g></g>
+  <text x="838" y="696" fill="#202B26" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="600">05 / Ruido a calma</text>
+  <text x="838" y="737" fill="#68746C" font-family="Segoe UI, Arial, sans-serif" font-size="17">Señal que disminuye</text>
+  <text x="600" y="900" fill="#202B26" font-family="Segoe UI, Arial, sans-serif" font-size="21">Menos estímulos, más claridad.</text>
+  <text x="600" y="936" fill="#68746C" font-family="Segoe UI, Arial, sans-serif" font-size="17">Icono de app: una forma, sin texto ni detalles finos.</text>
+</svg>

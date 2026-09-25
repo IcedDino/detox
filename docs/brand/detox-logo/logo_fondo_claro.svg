@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 214" role="img" aria-label="Detox: logo sobre fondo claro">
+  <title>Detox: logo sobre fondo claro</title>
+  <rect width="760" height="214" fill="#F4F7F3"/>
+  <g transform="translate(0 4) scale(.8)">
+  <g fill="none" stroke="#426A59" stroke-width="17" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M64 51V205H113C161 205 193 173 193 128C193 95 175 68 146 57"/>
+    <path d="M64 51H104"/>
+  </g>
+  <circle cx="127" cy="128" r="8" fill="#426A59"/>
+  </g>
+  <text x="207" y="149" fill="#202B26" font-family="Segoe UI, Arial, sans-serif" font-size="110" font-weight="600" letter-spacing="-5">Detox</text>
+</svg>
