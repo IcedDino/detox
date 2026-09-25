@@ -108,8 +108,8 @@ class FocusSessionService {
       reason: smartPackage != null
           ? 'smart_break'
           : snapshot.isPomodoro
-              ? 'pomodoro_work'
-              : 'focus_session',
+          ? 'pomodoro_work'
+          : 'focus_session',
       hasSponsor: hasSponsor,
       source: snapshot.source,
       expiresAt: snapshot.endsAt,
@@ -119,8 +119,10 @@ class FocusSessionService {
   Future<void> startQuickFocusHour() =>
       startFocus(minutes: 60, label: 'Focus hour');
 
-  Future<void> startFocus(
-      {required int minutes, String label = 'Focus session'}) async {
+  Future<void> startFocus({
+    required int minutes,
+    String label = 'Focus session',
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     final packages = await _loadShieldPackages();
     final hasSponsor = await SponsorService.instance.hasSponsor();
@@ -150,8 +152,11 @@ class FocusSessionService {
     }
   }
 
-  Future<void> startPomodoro(
-      {int workMinutes = 25, int breakMinutes = 5, int cycles = 4}) async {
+  Future<void> startPomodoro({
+    int workMinutes = 25,
+    int breakMinutes = 5,
+    int cycles = 4,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     final packages = await _loadShieldPackages();
     final hasSponsor = await SponsorService.instance.hasSponsor();
@@ -181,39 +186,55 @@ class FocusSessionService {
     }
   }
 
-  Future<void> startSmartSuggestionBreak({
+  Future<bool> startSmartSuggestionBreak({
     required String packageName,
     required String appName,
   }) async {
+    final targetPackage = packageName.trim();
+    if (targetPackage.isEmpty ||
+        !await AppBlockingService.instance.hasUsageAccess() ||
+        !await AppBlockingService.instance.hasOverlayPermission()) {
+      return false;
+    }
+
+    final current = await loadSnapshot();
+    if (current.isActive) await stopSession();
+
     final prefs = await SharedPreferences.getInstance();
     final hasSponsor = await SponsorService.instance.hasSponsor();
-    final source = 'smart_break_$packageName';
-
-    await _storage.incrementFocusSessionsStarted();
-    await _storage.markProgressStartedToday();
-
-    await prefs.setBool(_activeKey, true);
+    final source = 'smart_break_$targetPackage';
     final endsAt = DateTime.now().add(const Duration(hours: 1));
-    await prefs.setString(
-      _endsAtKey,
-      endsAt.toIso8601String(),
-    );
-    await prefs.setInt(_minutesKey, 60);
-    await prefs.setString(_labelKey, 'Break from $appName');
-    await prefs.setBool(_isPomodoroKey, false);
-    await prefs.setBool(_isBreakKey, false);
-    await prefs.setInt(_cycleKey, 1);
-    await prefs.setInt(_cyclesTotalKey, 1);
-    await prefs.setInt(_breakMinutesKey, 5);
-    await prefs.setString(_sourceKey, source);
-
-    await AppBlockingService.instance.startShield(
-      blockedPackages: <String>[packageName],
+    final started = await AppBlockingService.instance.startShield(
+      blockedPackages: <String>[targetPackage],
       reason: 'smart_break',
       hasSponsor: hasSponsor,
       source: source,
       expiresAt: endsAt,
     );
+    if (!started) {
+      await AppBlockingService.instance.stopShield(source: source);
+      return false;
+    }
+
+    try {
+      await prefs.setBool(_activeKey, true);
+      await prefs.setString(_endsAtKey, endsAt.toIso8601String());
+      await prefs.setInt(_minutesKey, 60);
+      await prefs.setString(_labelKey, appName);
+      await prefs.setBool(_isPomodoroKey, false);
+      await prefs.setBool(_isBreakKey, false);
+      await prefs.setInt(_cycleKey, 1);
+      await prefs.setInt(_cyclesTotalKey, 1);
+      await prefs.setInt(_breakMinutesKey, 5);
+      await prefs.setString(_sourceKey, source);
+    } catch (_) {
+      await AppBlockingService.instance.stopShield(source: source);
+      rethrow;
+    }
+
+    await _storage.incrementFocusSessionsStarted();
+    await _storage.markProgressStartedToday();
+    return true;
   }
 
   Future<FocusSessionSnapshot> tickAndAdvance() async {
@@ -240,10 +261,9 @@ class FocusSessionService {
       }
       await prefs.setBool(_isBreakKey, true);
       await prefs.setString(
-          _endsAtKey,
-          DateTime.now()
-              .add(Duration(minutes: breakMinutes))
-              .toIso8601String());
+        _endsAtKey,
+        DateTime.now().add(Duration(minutes: breakMinutes)).toIso8601String(),
+      );
       await AppBlockingService.instance.stopShield(source: 'focus');
       return loadSnapshot();
     }

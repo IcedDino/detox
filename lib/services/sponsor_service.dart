@@ -8,6 +8,7 @@ import '../models/auth_user.dart';
 import '../models/link_requests.dart';
 import '../models/sponsor_profile.dart';
 import '../models/sponsor_request.dart';
+import '../models/support_unlink_request.dart';
 import 'storage_service.dart';
 
 class SponsorException implements Exception {
@@ -68,6 +69,14 @@ class SponsorService {
 
   CollectionReference<Map<String, dynamic>> get _requestsCollectionRef =>
       _firestore.collection('meta').doc('sponsor').collection('unlock_requests');
+
+  DocumentReference<Map<String, dynamic>> _supportUnlinkRef(String uid) =>
+      _firestore.collection('meta').doc('admin').collection('unlink_requests')
+          .doc('${uid}_admin_unlink');
+
+  CollectionReference<Map<String, dynamic>> _supportUnlinkHistoryRef(String uid) =>
+      _firestore.collection('meta').doc('admin').collection('unlink_history')
+          .doc(uid).collection('decisions');
 
   String? get _uid => _auth.currentUser?.uid;
 
@@ -713,8 +722,7 @@ class SponsorService {
     );
   }
 
-  /// Asks the Detox team (admins) to unlink the account. The request lands in
-  /// Firestore so the team can accept or deny it from their panel.
+  /// Sends a Firestore request that the support email workflow can review.
   Future<void> requestSupportUnlink({String? message}) async {
     final uid = _uid;
     if (uid == null) {
@@ -723,25 +731,51 @@ class SponsorService {
 
     final me = _auth.currentUser;
     final sponsorUid = await getSponsorUid();
-    final requestId = '${uid}_admin_unlink';
+    if (sponsorUid == null || sponsorUid.isEmpty) {
+      throw SponsorException(_t.errNoSponsorLinked);
+    }
 
-    await _firestore
-        .collection('meta')
-        .doc('admin')
-        .collection('unlink_requests')
-        .doc(requestId)
-        .set({
-      'requesterUid': uid,
-      'requesterName': me?.displayName?.trim().isNotEmpty == true
-          ? me!.displayName!.trim()
-          : (me?.email ?? _t.defaultUserName),
-      'requesterEmail': me?.email ?? '',
-      'sponsorUid': sponsorUid ?? '',
-      'message': _cleanMessage(message),
-      'status': 'pending',
-      'source': 'detox_app',
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    final note = (message ?? '').trim();
+    final ref = _supportUnlinkRef(uid);
+    await _firestore.runTransaction((tx) async {
+      final existing = await tx.get(ref);
+      if (existing.data()?['status'] == 'pending') {
+        throw SponsorException(_t.supportUnlinkAlreadyPending);
+      }
+      tx.set(ref, {
+        'requesterUid': uid,
+        'requesterName': me?.displayName?.trim().isNotEmpty == true
+            ? me!.displayName!.trim()
+            : (me?.email ?? _t.defaultUserName),
+        'requesterEmail': me?.email ?? '',
+        'sponsorUid': sponsorUid,
+        'message': note.length > 300 ? note.substring(0, 300) : note,
+        'status': 'pending',
+        'source': 'detox_app',
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  Stream<SupportUnlinkRequest?> currentSupportUnlink() {
+    final uid = _uid;
+    if (uid == null) return Stream.value(null);
+    return _supportUnlinkRef(uid).snapshots().map((doc) => doc.data() == null
+        ? null
+        : SupportUnlinkRequest.fromDoc(doc.id, doc.data()!));
+  }
+
+  Stream<List<SupportUnlinkRequest>> supportUnlinkHistory() {
+    final uid = _uid;
+    if (uid == null) return Stream.value(const <SupportUnlinkRequest>[]);
+    return _supportUnlinkHistoryRef(uid)
+        .orderBy('decidedAt', descending: true)
+        .limit(20)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => SupportUnlinkRequest.fromDoc(doc.id, doc.data()))
+            .toList());
   }
 
   Future<void> _purgeSponsorPairState({

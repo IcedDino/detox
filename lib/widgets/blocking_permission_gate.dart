@@ -147,7 +147,7 @@ class _BlockingPermissionsDialogState extends State<_BlockingPermissionsDialog>
     return AlertDialog(
       shape:
           RoundedRectangleBorder(borderRadius: BorderRadius.circular(detoxRadius)),
-      title: Text(t.isEs ? 'Activa 3 permisos' : 'Enable 3 permissions'),
+      title: Text(t.isEs ? 'Completa 3 ajustes' : 'Complete 3 settings'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -161,13 +161,20 @@ class _BlockingPermissionsDialogState extends State<_BlockingPermissionsDialog>
                 .bodyMedium
                 ?.copyWith(color: mutedColor, height: 1.4),
           ),
+          const SizedBox(height: 8),
+          Text(
+            t.isEs
+                ? 'El inicio automático del fabricante es distinto de la exención de batería de Android que se verifica aquí.'
+                : 'The manufacturer’s auto-launch setting is separate from the Android battery exemption checked here.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: mutedColor),
+          ),
           const SizedBox(height: 14),
           _permissionRow(t.isEs ? 'Datos de uso' : 'Usage access', _usageReady),
           const SizedBox(height: 8),
           _permissionRow(t.isEs ? 'Superposición' : 'Overlay', _overlayReady),
           const SizedBox(height: 8),
           _permissionRow(
-            t.isEs ? 'Segundo plano' : 'Background work',
+            t.isEs ? 'Exención de batería de Android' : 'Android battery exemption',
             _backgroundReady,
           ),
           const SizedBox(height: 18),

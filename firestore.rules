@@ -83,17 +83,48 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Unlink requests the user sends to the Detox support team. The team
-    // answers them from the Firebase console, which bypasses these rules.
+    function validSupportUnlinkSubmission(requestId) {
+      return signedIn() &&
+        requestId == request.auth.uid + "_admin_unlink" &&
+        request.resource.data.keys().hasAll([
+          "requesterUid", "requesterName", "requesterEmail", "sponsorUid",
+          "message", "status", "source", "createdAt", "updatedAt"
+        ]) &&
+        request.resource.data.keys().hasOnly([
+          "requesterUid", "requesterName", "requesterEmail", "sponsorUid",
+          "message", "status", "source", "createdAt", "updatedAt"
+        ]) &&
+        request.resource.data.requesterUid == request.auth.uid &&
+        request.resource.data.requesterName is string &&
+        request.resource.data.requesterEmail is string &&
+        request.resource.data.sponsorUid is string &&
+        request.resource.data.sponsorUid.size() > 0 &&
+        request.resource.data.message is string &&
+        request.resource.data.status == "pending" &&
+        request.resource.data.source == "detox_app" &&
+        request.resource.data.createdAt == request.time &&
+        request.resource.data.updatedAt == request.time;
+    }
+
+    // One current request per user; a pending request cannot be overwritten.
     match /meta/admin/unlink_requests/{requestId} {
-      allow get, list: if signedIn();
-      allow create, update: if isRequesterCreate();
+      allow get: if signedIn() && resource.data.requesterUid == request.auth.uid;
+      allow list: if false;
+      allow create: if validSupportUnlinkSubmission(requestId);
+      allow update: if resource.data.requesterUid == request.auth.uid &&
+        resource.data.status in ["approved", "denied"] &&
+        validSupportUnlinkSubmission(requestId);
       allow delete: if false;
     }
 
+    match /meta/admin/unlink_history/{userId}/decisions/{decisionId} {
+      allow get, list: if isSelf(userId);
+      allow create, update, delete: if false;
+    }
+
     match /mail/{docId} {
-      allow create: if signedIn();
-      allow read, update, delete: if false;
+      // Only the server function may enqueue outgoing mail.
+      allow read, write: if false;
     }
   }
 }

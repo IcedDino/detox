@@ -1,18 +1,12 @@
-Use permissive development rules or extend your Firestore rules before testing sponsor features.
+# Firestore rules for sponsor requests
 
-Example development rules:
+The app's Firestore rules are maintained in [`firestore.rules`](firestore.rules). The current support unlink request is written to `meta/admin/unlink_requests/{uid}_admin_unlink`. An authenticated requester can create a request or submit a new one after the previous request was decided; a pending request cannot be overwritten. The support mailbox receives an email with decision links through Google Apps Script. Decided requests are archived in `meta/admin/unlink_history/{uid}/decisions`, which only that user can read from the app.
 
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read, write: if request.auth != null;
-    }
+Changes to `firestore.rules` do not take effect in the app until they are deployed to the Firebase project. After signing in with an account that can deploy rules, run:
 
-    match /meta/sponsor/unlock_requests/{requestId} {
-      allow read, write: if request.auth != null;
-    }
-  }
-}
+```powershell
+npx firebase-tools login
+npx firebase-tools deploy --only firestore:rules --project detox-c0790
+```
 
-Once the feature is stable, tighten these rules so users can only read and write the exact sponsor docs they need.
+Then retry **Solicitar desvinculación a soporte** while signed in to the app. A successful request creates or updates the document under `meta/admin/unlink_requests`. If Firebase still returns `permission-denied`, confirm that the app is connected to `detox-c0790` and that the published Firestore rules include this collection path.

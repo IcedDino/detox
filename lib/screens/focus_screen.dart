@@ -141,6 +141,11 @@ class _FocusScreenState extends State<FocusScreen>
     if (_snapshot.isBreak) {
       return t.isEs ? 'Descanso' : 'Break';
     }
+    if (_snapshot.isActive && _snapshot.source.startsWith('smart_break_')) {
+      return t.isEs
+          ? 'Pausa de ${_snapshot.label}'
+          : 'Break from ${_snapshot.label}';
+    }
     if (_snapshot.isActive) return _snapshot.label;
     return t.isEs ? 'Nueva sesión' : 'New session';
   }
@@ -375,9 +380,12 @@ class _FocusScreenState extends State<FocusScreen>
         _snapshot.isActive ? _snapshot.remainingSeconds : selectedSeconds;
     final safeTotal = totalSeconds <= 0 ? 1 : totalSeconds;
     final progress = 1 - (remaining / safeTotal);
+    final smartBreakActive =
+        _snapshot.isActive && _snapshot.source.startsWith('smart_break_');
+    final blockedAppsCount = smartBreakActive ? 1 : _shieldedApps.length;
     final blockedAppsLabel = t.isEs
-        ? '${_shieldedApps.length} app${_shieldedApps.length == 1 ? '' : 's'} bloqueadas'
-        : '${_shieldedApps.length} blocked app${_shieldedApps.length == 1 ? '' : 's'}';
+        ? '$blockedAppsCount app${blockedAppsCount == 1 ? '' : 's'} bloqueada${blockedAppsCount == 1 ? '' : 's'}'
+        : '$blockedAppsCount blocked app${blockedAppsCount == 1 ? '' : 's'}';
     final active = _snapshot.isActive;
 
     return ListView(
@@ -547,7 +555,20 @@ class _FocusScreenState extends State<FocusScreen>
         const SizedBox(height: 28),
 
         // ── Blocked apps summary ──
-        if (_shieldedApps.isEmpty)
+        if (smartBreakActive)
+          GlassCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(t.isEs ? 'App en esta pausa' : 'App in this break',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                Text(_snapshot.label,
+                    style: Theme.of(context).textTheme.bodyMedium),
+              ],
+            ),
+          )
+        else if (_shieldedApps.isEmpty)
           GlassCard(
             child: Text(
               t.isEs

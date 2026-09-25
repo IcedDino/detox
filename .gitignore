@@ -5,6 +5,8 @@
 .pub-cache/
 build/
 **/build/
+node_modules/
+.clasp.json
 
 # Android / Gradle
 android/.gradle/

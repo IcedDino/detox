@@ -71,8 +71,9 @@ class _DetoxBootstrapAppState extends State<DetoxBootstrapApp> {
     // fallback mirrors MaterialApp's own resolution over supportedLocales.
     final deviceLanguage =
         WidgetsBinding.instance.platformDispatcher.locale.languageCode;
-    final resolvedLanguage =
-        const ['en', 'es'].contains(deviceLanguage) ? deviceLanguage : 'es';
+    final resolvedLanguage = const ['en', 'es'].contains(deviceLanguage)
+        ? deviceLanguage
+        : 'es';
     AppLocale.set(
       Locale(
         localeCode != null && localeCode.isNotEmpty
@@ -106,9 +107,7 @@ class _DetoxBootstrapAppState extends State<DetoxBootstrapApp> {
             themeMode: ThemeMode.dark,
             home: const Scaffold(
               body: DetoxBackground(
-                child: Center(
-                  child: CircularProgressIndicator(),
-                ),
+                child: Center(child: CircularProgressIndicator()),
               ),
             ),
           );
@@ -146,6 +145,8 @@ class DetoxApp extends StatefulWidget {
 
 class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
 
   final ValueNotifier<int> _index = ValueNotifier<int>(0);
   late final PageController _pageController;
@@ -157,6 +158,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   StreamSubscription<AuthUser?>? _authSubscription;
   String? _syncingUserUid;
   Future<void>? _syncingUserFuture;
+  Future<void>? _notificationActionFuture;
   Locale? _locale;
   bool _protectedServicesRunning = false;
   bool _sponsorCenterQueued = false;
@@ -179,6 +181,9 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    FocusNotificationService.instance.setResponseHandler(
+      _drainPendingLaunchActions,
+    );
     WidgetsBinding.instance.addObserver(this);
     _pageController = PageController(initialPage: _index.value);
     _darkMode = widget.initialDarkMode;
@@ -189,8 +194,10 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
         : Locale(widget.initialLocaleCode!);
     SharedPreferences.getInstance().then((prefs) {
       if (mounted)
-        setState(() => _timeAtmosphereEnabled =
-            prefs.getBool('time_atmosphere_enabled') ?? false);
+        setState(
+          () => _timeAtmosphereEnabled =
+              prefs.getBool('time_atmosphere_enabled') ?? false,
+        );
     });
     _timeRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted && _darkMode && _timeAtmosphereEnabled) setState(() {});
@@ -227,6 +234,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    FocusNotificationService.instance.setResponseHandler(null);
     WidgetsBinding.instance.removeObserver(this);
     _timeRefreshTimer?.cancel();
     _authSubscription?.cancel();
@@ -358,9 +366,75 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   }
 
   Future<void> _consumePendingNotificationAction() async {
-    final action =
-        await FocusNotificationService.instance.consumePendingAction();
-    if (action == null) return;
+    final active = _notificationActionFuture;
+    if (active != null) {
+      await active;
+      return _consumePendingNotificationAction();
+    }
+    final future = _handlePendingNotificationAction();
+    _notificationActionFuture = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_notificationActionFuture, future)) {
+        _notificationActionFuture = null;
+      }
+    }
+  }
+
+  Future<void> _handlePendingNotificationAction() async {
+    final response = await FocusNotificationService.instance
+        .consumePendingResponse();
+    if (response == null) return;
+    final action = response.action;
+
+    if (action == FocusNotificationService.actionSmartStart) {
+      final payload = response.payload;
+      if (!await FocusNotificationService.instance.claimSmartSuggestion(
+        payload,
+      )) {
+        return;
+      }
+      final packageName = (payload?['packageName'] as String?)?.trim() ?? '';
+      final appName = (payload?['appName'] as String?)?.trim() ?? '';
+      if (payload?['type'] != 'smart_suggestion' || packageName.isEmpty) {
+        _showNotificationFeedback(AppStrings.current.smartPauseFailed);
+        return;
+      }
+      try {
+        final started = await FocusSessionService.instance
+            .startSmartSuggestionBreak(
+              packageName: packageName,
+              appName: appName.isEmpty ? packageName : appName,
+            );
+        if (!started) {
+          _showNotificationFeedback(AppStrings.current.smartPauseFailed);
+          return;
+        }
+        await StorageService().incrementSuggestionsAccepted();
+        _showNotificationFeedback(
+          AppStrings.current.smartPauseStarted(
+            appName.isEmpty ? packageName : appName,
+          ),
+        );
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) goToFocus();
+        });
+      } catch (_) {
+        _showNotificationFeedback(AppStrings.current.smartPauseFailed);
+      }
+      return;
+    }
+
+    if (action == FocusNotificationService.actionSmartDismiss) {
+      if (!await FocusNotificationService.instance.claimSmartSuggestion(
+        response.payload,
+      ))
+        return;
+      await StorageService().incrementSuggestionsDenied();
+      _showNotificationFeedback(AppStrings.current.smartPauseDenied);
+      return;
+    }
 
     if (action == 'start_focus_hour') {
       await StorageService().incrementSuggestionsAccepted();
@@ -377,6 +451,15 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     if (action == FocusNotificationService.actionOpenSponsorCenter) {
       _sponsorCenterQueued = true;
     }
+  }
+
+  void _showNotificationFeedback(String message) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final messenger = _scaffoldMessengerKey.currentState;
+      messenger?.hideCurrentSnackBar();
+      messenger?.showSnackBar(SnackBar(content: Text(message)));
+    });
   }
 
   void _tryOpenQueuedSponsorCenter() {
@@ -401,13 +484,13 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     navigator
         .push(MaterialPageRoute(builder: (_) => const SponsorScreen()))
         .whenComplete(() {
-      _openingSponsorCenter = false;
-    });
+          _openingSponsorCenter = false;
+        });
   }
 
   Future<void> _consumePendingBlockAction() async {
-    final action =
-        await AppBlockingService.instance.consumePendingNativeAction();
+    final action = await AppBlockingService.instance
+        .consumePendingNativeAction();
     if (action == null) return;
 
     if (action == NativeBlockAction.requestShieldPause) {
@@ -460,19 +543,25 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: Text(strings.isEs
-            ? '¿Quieres un recorrido rápido?'
-            : 'Would you like a quick tour?'),
-        content: Text(strings.isEs
-            ? 'Te mostraremos las opciones principales de Detox. Puedes omitirlo ahora.'
-            : 'We’ll show you the main Detox features. You can skip it now.'),
+        title: Text(
+          strings.isEs
+              ? '¿Quieres un recorrido rápido?'
+              : 'Would you like a quick tour?',
+        ),
+        content: Text(
+          strings.isEs
+              ? 'Te mostraremos las opciones principales de Detox. Puedes omitirlo ahora.'
+              : 'We’ll show you the main Detox features. You can skip it now.',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(strings.isEs ? 'Omitir' : 'Skip tutorial')),
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(strings.isEs ? 'Omitir' : 'Skip tutorial'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(strings.isEs ? 'Sí, empezar' : 'Yes, start')),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(strings.isEs ? 'Sí, empezar' : 'Yes, start'),
+          ),
         ],
       ),
     );
@@ -490,62 +579,74 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
         ? [
             'Revisa tu uso diario y encuentra accesos para terminar de configurar Detox.',
             'Inicia sesiones de enfoque para mantener la atención en lo que importa.',
-            'Consulta tu progreso y configura restricciones, zonas, horarios y apariencia.'
+            'Consulta tu progreso y configura restricciones, zonas, horarios y apariencia.',
           ]
         : [
             'Review your daily usage and find shortcuts to finish setting up Detox.',
             'Start focus sessions to stay with what matters.',
-            'Track your progress and configure restrictions, zones, schedules, and appearance.'
+            'Track your progress and configure restrictions, zones, schedules, and appearance.',
           ];
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
-          builder: (context, setDialogState) => AlertDialog(
-                icon: Icon(
-                    [
-                      Icons.bar_chart_rounded,
-                      Icons.timer_rounded,
-                      Icons.settings_rounded
-                    ][step],
-                    size: 34,
-                    color: DetoxColors.accent),
-                title: Text(titles[step]),
-                content: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Text(descriptions[step], textAlign: TextAlign.center),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(
-                        3,
-                        (i) => Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 3),
-                            width: i == step ? 18 : 7,
-                            height: 7,
-                            decoration: BoxDecoration(
-                                color: i == step
-                                    ? DetoxColors.accent
-                                    : DetoxColors.muted.withOpacity(.5),
-                                borderRadius: BorderRadius.circular(8)))),
+        builder: (context, setDialogState) => AlertDialog(
+          icon: Icon(
+            [
+              Icons.bar_chart_rounded,
+              Icons.timer_rounded,
+              Icons.settings_rounded,
+            ][step],
+            size: 34,
+            color: DetoxColors.accent,
+          ),
+          title: Text(titles[step]),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(descriptions[step], textAlign: TextAlign.center),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  3,
+                  (i) => Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: i == step ? 18 : 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: i == step
+                          ? DetoxColors.accent
+                          : DetoxColors.muted.withOpacity(.5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
-                ]),
-                actions: [
-                  TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text(strings.isEs ? 'Salir' : 'Close')),
-                  FilledButton(
-                      onPressed: () {
-                        if (step == 2) {
-                          Navigator.pop(context);
-                        } else {
-                          setDialogState(() => step++);
-                        }
-                      },
-                      child: Text(step == 2
-                          ? (strings.isEs ? 'Listo' : 'Done')
-                          : (strings.isEs ? 'Siguiente' : 'Next'))),
-                ],
-              )),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(strings.isEs ? 'Salir' : 'Close'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (step == 2) {
+                  Navigator.pop(context);
+                } else {
+                  setDialogState(() => step++);
+                }
+              },
+              child: Text(
+                step == 2
+                    ? (strings.isEs ? 'Listo' : 'Done')
+                    : (strings.isEs ? 'Siguiente' : 'Next'),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -584,8 +685,9 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
         defaultTargetPlatform == TargetPlatform.android) {
       home = UsageAccessScreen(onGranted: _onUsageAccessGranted);
     } else {
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => _maybeOfferTutorial());
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _maybeOfferTutorial(),
+      );
       home = Scaffold(
         body: Stack(
           fit: StackFit.expand,
@@ -608,14 +710,14 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
                       valueListenable: _index,
                       builder: (context, selectedIndex, child) =>
                           DashboardScreen(
-                        key: const PageStorageKey('dashboard'),
-                        onStartFocus: goToFocus,
-                        onOpenSettings: () {
-                          _index.value = 3;
-                          _selectPage(3);
-                        },
-                        isCurrentPage: selectedIndex == 0,
-                      ),
+                            key: const PageStorageKey('dashboard'),
+                            onStartFocus: goToFocus,
+                            onOpenSettings: () {
+                              _index.value = 3;
+                              _selectPage(3);
+                            },
+                            isCurrentPage: selectedIndex == 0,
+                          ),
                     );
                   }
                   if (index == 1) {
@@ -648,9 +750,13 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
                       onTimeAtmosphereChanged: _setTimeAtmosphere,
                       currentUser: _currentUser,
                       onSignOut: _signOut,
-                      localeCode: (_locale ??
-                              WidgetsBinding.instance.platformDispatcher.locale)
-                          .languageCode,
+                      localeCode:
+                          (_locale ??
+                                  WidgetsBinding
+                                      .instance
+                                      .platformDispatcher
+                                      .locale)
+                              .languageCode,
                       onLocaleChanged: _setLocale,
                     ),
                   );
@@ -697,6 +803,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
 
     return MaterialApp(
       navigatorKey: _navigatorKey,
+      scaffoldMessengerKey: _scaffoldMessengerKey,
       debugShowCheckedModeBanner: false,
       title: 'Detox',
       themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
@@ -728,44 +835,50 @@ class _TimeAtmosphere extends StatelessWidget {
     final tint = sunrise
         ? const Color(0xFFFFA66B)
         : morning
-            ? const Color(0xFFFFD27A)
-            : sunset
-                ? const Color(0xFFFF795D)
-                : const Color(0xFF263F82);
+        ? const Color(0xFFFFD27A)
+        : sunset
+        ? const Color(0xFFFF795D)
+        : const Color(0xFF263F82);
     final opacity = sunrise || sunset
         ? .18
         : morning
-            ? .11
-            : .14;
+        ? .11
+        : .14;
     return IgnorePointer(
-      child: Stack(fit: StackFit.expand, children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                tint.withOpacity(opacity),
-                Colors.transparent,
-                tint.withOpacity(opacity * .35)
-              ],
-              stops: const [0, .48, 1],
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  tint.withOpacity(opacity),
+                  Colors.transparent,
+                  tint.withOpacity(opacity * .35),
+                ],
+                stops: const [0, .48, 1],
+              ),
             ),
           ),
-        ),
-        if (night)
-          Positioned(
-            top: 44,
-            right: 32,
-            child: Opacity(
-              opacity: .27,
-              child: Icon(Icons.nightlight_round,
-                  size: 42, color: const Color(0xFFE2E7FF)),
+          if (night)
+            Positioned(
+              top: 44,
+              right: 32,
+              child: Opacity(
+                opacity: .27,
+                child: Icon(
+                  Icons.nightlight_round,
+                  size: 42,
+                  color: const Color(0xFFE2E7FF),
+                ),
+              ),
             ),
-          ),
-        if (night)
-          const Positioned.fill(child: CustomPaint(painter: _StarPainter())),
-      ]),
+          if (night)
+            const Positioned.fill(child: CustomPaint(painter: _StarPainter())),
+        ],
+      ),
     );
   }
 }
@@ -783,11 +896,14 @@ class _StarPainter extends CustomPainter {
       Offset(.90, .31),
       Offset(.20, .42),
       Offset(.67, .38),
-      Offset(.42, .62)
+      Offset(.42, .62),
     ];
     for (final point in points) {
       canvas.drawCircle(
-          Offset(size.width * point.dx, size.height * point.dy), 1.3, paint);
+        Offset(size.width * point.dx, size.height * point.dy),
+        1.3,
+        paint,
+      );
     }
   }
 

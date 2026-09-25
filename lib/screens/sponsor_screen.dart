@@ -7,6 +7,7 @@ import '../l10n_app_strings.dart';
 import '../models/link_requests.dart';
 import '../models/sponsor_profile.dart';
 import '../models/sponsor_request.dart';
+import '../models/support_unlink_request.dart';
 import '../services/app_blocking_service.dart';
 import '../services/location_zone_service.dart';
 import '../services/sponsor_alert_service.dart';
@@ -181,8 +182,8 @@ class _SponsorScreenState extends State<SponsorScreen>
   Future<void> _requestSupportUnlink() async {
     final message = await showMessagePrompt(
       context,
-      title: t.requestMessageTitle,
-      hint: t.requestMessageHint,
+      title: t.supportUnlinkRequestTitle,
+      hint: t.supportUnlinkRequestHint,
       confirmLabel: t.sendRequestLabel,
     );
     if (message == null) return;
@@ -385,10 +386,32 @@ class _SponsorScreenState extends State<SponsorScreen>
               label: Text(t.requestSponsorUnlink),
             ),
             const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.pop(context, 'requestSupport'),
-              icon: const Icon(Icons.support_agent_rounded),
-              label: Text(t.requestSupportUnlink),
+            StreamBuilder<SupportUnlinkRequest?>(
+              stream: _sponsorService.currentSupportUnlink(),
+              builder: (context, snapshot) {
+                final pending = snapshot.data?.isPending == true;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: snapshot.connectionState == ConnectionState.waiting ||
+                              snapshot.hasError || pending
+                          ? null
+                          : () => Navigator.pop(context, 'requestSupport'),
+                      icon: const Icon(Icons.support_agent_rounded),
+                      label: Text(t.requestSupportUnlink),
+                    ),
+                    if (pending) ...[
+                      const SizedBox(height: 8),
+                      Text(t.supportUnlinkAlreadyPending,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: _muted)),
+                    ],
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 12),
             Text(
@@ -937,89 +960,145 @@ class _SponsorScreenState extends State<SponsorScreen>
   /// One single list of the requests the user sent, with their live state.
   Widget _buildRequestsList() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return StreamBuilder<List<SponsorRequest>>(
-      stream: _sponsorService.outgoingHistory(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return _errorCard(t.isEs
-              ? 'No pudimos cargar tus solicitudes.'
-              : 'We could not load your requests.');
-        }
+    return StreamBuilder<SupportUnlinkRequest?>(
+      stream: _sponsorService.currentSupportUnlink(),
+      builder: (context, currentSnapshot) =>
+          StreamBuilder<List<SupportUnlinkRequest>>(
+        stream: _sponsorService.supportUnlinkHistory(),
+        builder: (context, supportSnapshot) => StreamBuilder<List<SponsorRequest>>(
+          stream: _sponsorService.outgoingHistory(),
+          builder: (context, sponsorSnapshot) {
+            if (currentSnapshot.hasError || supportSnapshot.hasError ||
+                sponsorSnapshot.hasError) {
+              return _errorCard(t.isEs
+                  ? 'No pudimos cargar tus solicitudes.'
+                  : 'We could not load your requests.');
+            }
+            final entries = <Object>[
+              ...?supportSnapshot.data,
+              ...?sponsorSnapshot.data,
+            ];
+            final current = currentSnapshot.data;
+            if (current != null && current.isPending) entries.add(current);
 
-        final requests =
-            (snapshot.data ?? const <SponsorRequest>[]).take(8).toList();
+            DateTime? entryTime(Object entry) => entry is SupportUnlinkRequest
+                ? entry.createdAt
+                : (entry as SponsorRequest).createdAt;
+            entries.sort((a, b) =>
+                (entryTime(b) ?? DateTime.fromMillisecondsSinceEpoch(0))
+                    .compareTo(entryTime(a) ??
+                        DateTime.fromMillisecondsSinceEpoch(0)));
 
-        if (requests.isEmpty) {
-          return GlassCard(
-            child: Text(
-              t.noOutgoingRequests,
-              style:
-                  Theme.of(context).textTheme.bodySmall?.copyWith(color: _muted),
-            ),
-          );
-        }
-
-        return Column(
-          children: requests.map((request) {
-            final state = _outgoingState(request, isDark);
-            final date = _dateLabel(request.createdAt);
-
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: GlassCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            request.prettyType,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        StatusPill(
-                          label: state.label,
-                          icon: state.icon,
-                          color: state.color,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      [
-                        t.durationMinLabel(request.durationMinutes),
-                        if (date.isNotEmpty) date,
-                      ].join(' · '),
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: _muted),
-                    ),
-                    if (request.hasMessage) ...[
-                      const SizedBox(height: 10),
-                      _noteBox(
-                        label: t.yourMessageLabel,
-                        text: request.message!,
-                      ),
-                    ],
-                    if (request.hasReply) ...[
-                      const SizedBox(height: 10),
-                      _noteBox(
-                        label: t.sponsorReplyLabel,
-                        text: request.replyMessage!,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
+            if (entries.isEmpty) {
+              return GlassCard(
+                child: Text(t.noOutgoingRequests,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: _muted)),
+              );
+            }
+            return Column(
+              children: entries.map((entry) =>
+                  entry is SupportUnlinkRequest
+                      ? _buildSupportUnlinkHistoryCard(entry, isDark)
+                      : _buildSponsorHistoryCard(entry as SponsorRequest, isDark))
+                  .toList(),
             );
-          }).toList(),
-        );
-      },
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSupportUnlinkHistoryCard(
+      SupportUnlinkRequest request, bool isDark) {
+    final label = request.isPending
+        ? t.statusPending
+        : request.isDenied
+            ? t.supportDeniedState
+            : t.approvedState;
+    final icon = request.isPending
+        ? Icons.schedule_rounded
+        : request.isDenied
+            ? Icons.cancel_outlined
+            : Icons.verified_rounded;
+    final color = request.isDenied
+        ? DetoxColors.danger
+        : _stateColor(isDark, warning: request.isPending);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GlassCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Expanded(child: Text(t.supportUnlinkTitle,
+                  style: Theme.of(context).textTheme.titleMedium)),
+              const SizedBox(width: 8),
+              StatusPill(label: label, icon: icon, color: color),
+            ]),
+            if (request.createdAt != null) ...[
+              const SizedBox(height: 6),
+              Text(_dateLabel(request.createdAt),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: _muted)),
+            ],
+            if (request.hasMessage) ...[
+              const SizedBox(height: 10),
+              _noteBox(label: t.yourMessageLabel, text: request.message!),
+            ],
+            if (request.isDenied && request.hasReply) ...[
+              const SizedBox(height: 10),
+              _noteBox(label: t.supportDenialReason,
+                  text: request.replyMessage!),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSponsorHistoryCard(SponsorRequest request, bool isDark) {
+    final state = _outgoingState(request, isDark);
+    final date = _dateLabel(request.createdAt);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GlassCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Expanded(child: Text(request.prettyType,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium)),
+              const SizedBox(width: 8),
+              StatusPill(label: state.label, icon: state.icon,
+                  color: state.color),
+            ]),
+            const SizedBox(height: 6),
+            Text([
+              t.durationMinLabel(request.durationMinutes),
+              if (date.isNotEmpty) date,
+            ].join(' · '),
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: _muted)),
+            if (request.hasMessage) ...[
+              const SizedBox(height: 10),
+              _noteBox(label: t.yourMessageLabel, text: request.message!),
+            ],
+            if (request.hasReply) ...[
+              const SizedBox(height: 10),
+              _noteBox(label: t.sponsorReplyLabel,
+                  text: request.replyMessage!),
+            ],
+          ],
+        ),
+      ),
     );
   }
 

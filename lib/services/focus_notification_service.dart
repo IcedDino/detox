@@ -4,6 +4,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+class PendingFocusNotificationResponse {
+  const PendingFocusNotificationResponse(this.action, this.payload);
+
+  final String action;
+  final Map<String, dynamic>? payload;
+}
+
 class FocusNotificationService {
   FocusNotificationService._();
   static final FocusNotificationService instance = FocusNotificationService._();
@@ -22,6 +29,7 @@ class FocusNotificationService {
 
   static const String _pendingActionKey = 'pending_notification_action_v1';
   static const String _pendingPayloadKey = 'pending_notification_payload_v1';
+  static const String _handledSuggestionsKey = 'handled_smart_suggestions_v1';
 
   static const String actionOpenSponsorCenter = 'open_sponsor_center';
   static const String actionStartFocusHour = 'start_focus_hour';
@@ -30,10 +38,15 @@ class FocusNotificationService {
   static const String actionSmartDismiss = 'smart_dismiss';
 
   final FlutterLocalNotificationsPlugin _plugin =
-  FlutterLocalNotificationsPlugin();
+      FlutterLocalNotificationsPlugin();
 
   bool _initialized = false;
   bool _suppressedUntilResume = false;
+  Future<void> Function()? _responseHandler;
+
+  void setResponseHandler(Future<void> Function()? handler) {
+    _responseHandler = handler;
+  }
 
   bool get _isAndroid =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
@@ -48,6 +61,8 @@ class FocusNotificationService {
       settings: settings,
       onDidReceiveNotificationResponse: (response) async {
         await _persistResponse(response);
+        final handler = _responseHandler;
+        if (handler != null) await handler();
       },
     );
 
@@ -59,9 +74,10 @@ class FocusNotificationService {
       }
     }
 
-    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
-
+    final androidPlugin = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
 
     await androidPlugin?.createNotificationChannel(
       const AndroidNotificationChannel(
@@ -93,13 +109,14 @@ class FocusNotificationService {
     _initialized = true;
   }
 
-
   Future<bool> hasPermission() async {
     if (!_isAndroid) return true;
     await initialize();
 
-    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final androidPlugin = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     final enabled = await androidPlugin?.areNotificationsEnabled();
     return enabled ?? false;
   }
@@ -108,8 +125,10 @@ class FocusNotificationService {
     if (!_isAndroid) return true;
     await initialize();
 
-    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final androidPlugin = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
 
     final granted = await androidPlugin?.requestNotificationsPermission();
     if (granted != null) return granted;
@@ -125,16 +144,10 @@ class FocusNotificationService {
         ? actionId
         : ((payload != null && payload.isNotEmpty) ? payload : null);
 
-    await savePendingAction(
-      effectiveAction,
-      payload: payload,
-    );
+    await savePendingAction(effectiveAction, payload: payload);
   }
 
-  Future<void> savePendingAction(
-      String? action, {
-        String? payload,
-      }) async {
+  Future<void> savePendingAction(String? action, {String? payload}) async {
     final prefs = await SharedPreferences.getInstance();
 
     if (action != null && action.isNotEmpty) {
@@ -150,35 +163,37 @@ class FocusNotificationService {
     }
   }
 
-  Future<String?> consumePendingAction() async {
+  Future<PendingFocusNotificationResponse?> consumePendingResponse() async {
     final prefs = await SharedPreferences.getInstance();
-    final value = prefs.getString(_pendingActionKey);
-    if (value != null) {
-      await prefs.remove(_pendingActionKey);
-    }
-    return value;
-  }
-
-  Future<Map<String, dynamic>?> consumePendingPayload() async {
-    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final action = prefs.getString(_pendingActionKey);
     final raw = prefs.getString(_pendingPayloadKey);
-    if (raw == null || raw.isEmpty) return null;
-
+    await prefs.remove(_pendingActionKey);
     await prefs.remove(_pendingPayloadKey);
-
+    if (action == null || action.isEmpty) return null;
+    Map<String, dynamic>? payload;
     try {
-      final decoded = jsonDecode(raw);
+      final decoded = jsonDecode(raw ?? '');
       if (decoded is Map<String, dynamic>) {
-        return decoded;
-      }
-      if (decoded is Map) {
-        return decoded.map(
-              (key, value) => MapEntry(key.toString(), value),
-        );
+        payload = decoded;
+      } else if (decoded is Map) {
+        payload = decoded.map((key, value) => MapEntry(key.toString(), value));
       }
     } catch (_) {}
+    return PendingFocusNotificationResponse(action, payload);
+  }
 
-    return null;
+  Future<bool> claimSmartSuggestion(Map<String, dynamic>? payload) async {
+    final suggestionId = payload?['suggestionId'];
+    if (suggestionId is! String || suggestionId.isEmpty) return true;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final handled = prefs.getStringList(_handledSuggestionsKey) ?? <String>[];
+    if (handled.contains(suggestionId)) return false;
+    handled.add(suggestionId);
+    if (handled.length > 30) handled.removeRange(0, handled.length - 30);
+    await prefs.setStringList(_handledSuggestionsKey, handled);
+    return true;
   }
 
   Future<void> resetSuppression() async {
@@ -239,6 +254,7 @@ class FocusNotificationService {
 
     final payload = jsonEncode({
       'type': 'smart_suggestion',
+      'suggestionId': DateTime.now().microsecondsSinceEpoch.toString(),
       'packageName': packageName,
       'appName': appName,
     });
@@ -262,6 +278,7 @@ class FocusNotificationService {
             actionSmartDismiss,
             denyLabel,
             cancelNotification: true,
+            showsUserInterface: true,
           ),
         ],
       ),
@@ -335,8 +352,10 @@ class FocusNotificationService {
   }
 
   Future<bool> _isVisible() async {
-    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final androidPlugin = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
 
     if (androidPlugin == null) return false;
 

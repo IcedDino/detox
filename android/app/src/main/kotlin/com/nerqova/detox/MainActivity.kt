@@ -203,12 +203,20 @@ class MainActivity : FlutterActivity() {
                         }
                         try {
                             val settings = Intent(
-                                Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
+                                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                Uri.parse("package:$packageName")
                             ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             startActivity(settings)
                             result.success(true)
                         } catch (e: Exception) {
-                            result.error("BATTERY_SETTINGS_ERROR", e.message, null)
+                            try {
+                                startActivity(Intent(
+                                    Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
+                                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                result.success(true)
+                            } catch (fallbackError: Exception) {
+                                result.error("BATTERY_SETTINGS_ERROR", fallbackError.message, null)
+                            }
                         }
                     }
 
