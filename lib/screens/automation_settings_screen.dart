@@ -11,7 +11,8 @@ class AutomationSettingsScreen extends StatefulWidget {
   const AutomationSettingsScreen({super.key});
 
   @override
-  State<AutomationSettingsScreen> createState() => _AutomationSettingsScreenState();
+  State<AutomationSettingsScreen> createState() =>
+      _AutomationSettingsScreenState();
 }
 
 class _AutomationSettingsScreenState extends State<AutomationSettingsScreen> {
@@ -41,34 +42,44 @@ class _AutomationSettingsScreenState extends State<AutomationSettingsScreen> {
     await _storage.saveAutomationRules(rules);
     if (!mounted) return;
     setState(() => _rules = rules);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppStrings.of(context).automationSaved)));
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppStrings.of(context).automationSaved)));
   }
 
   AutomationRule _socialPreset() => AutomationRule(
-    id: DateTime.now().millisecondsSinceEpoch.toString(),
-    name: 'Social 08:00-14:00',
-    startMinuteOfDay: 8 * 60,
-    endMinuteOfDay: 14 * 60,
-    weekdays: const [1, 2, 3, 4, 5],
-    blockedPackages: _appLimits.where((e) => (e.packageName ?? '').contains('instagram') || (e.packageName ?? '').contains('musically')).map((e) => e.packageName!).toList(),
-    strictMode: false,
-  );
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: 'Social 08:00-14:00',
+        startMinuteOfDay: 8 * 60,
+        endMinuteOfDay: 14 * 60,
+        weekdays: const [1, 2, 3, 4, 5],
+        blockedPackages: _appLimits
+            .where((e) =>
+                (e.packageName ?? '').contains('instagram') ||
+                (e.packageName ?? '').contains('musically'))
+            .map((e) => e.packageName!)
+            .toList(),
+        strictMode: false,
+      );
 
   AutomationRule _nightPreset() => AutomationRule(
-    id: DateTime.now().millisecondsSinceEpoch.toString(),
-    name: 'Night 22:00-07:00',
-    startMinuteOfDay: 22 * 60,
-    endMinuteOfDay: 7 * 60,
-    weekdays: const [1, 2, 3, 4, 5, 6, 7],
-    blockedPackages: _appLimits.where((e) => (e.packageName ?? '').isNotEmpty).map((e) => e.packageName!).toList(),
-    strictMode: false,
-  );
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: 'Night 22:00-07:00',
+        startMinuteOfDay: 22 * 60,
+        endMinuteOfDay: 7 * 60,
+        weekdays: const [1, 2, 3, 4, 5, 6, 7],
+        blockedPackages: _appLimits
+            .where((e) => (e.packageName ?? '').isNotEmpty)
+            .map((e) => e.packageName!)
+            .toList(),
+        strictMode: false,
+      );
 
   @override
   Widget build(BuildContext context) {
     final t = AppStrings.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(t.isEs ? 'Horarios de Detox' : 'Detox schedules')),
+      appBar:
+          AppBar(title: Text(t.isEs ? 'Horarios de Detox' : 'Detox schedules')),
       backgroundColor: Colors.transparent,
       body: DetoxBackground(
         child: SafeArea(
@@ -77,15 +88,6 @@ class _AutomationSettingsScreenState extends State<AutomationSettingsScreen> {
               : ListView(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
                   children: [
-                    AppPageHeader(
-                      eyebrow: t.isEs ? 'Horarios de Detox' : 'Detox schedules',
-                      title: t.isEs ? 'Programa sesiones automáticas de Detox' : 'Schedule automatic Detox sessions',
-                      subtitle: t.isEs
-                          ? 'Úsalo como alternativa a las zonas: crea horarios y presets de apps para activar Detox en ciertos momentos del día.'
-                          : 'Use it as an alternative to zones: create schedules and app presets to activate Detox at specific times of day.',
-                      icon: Icons.schedule_rounded,
-                    ),
-                    const SizedBox(height: 16),
                     SectionTitle(
                       title: t.isEs ? 'Presets rápidos' : 'Quick presets',
                       subtitle: t.isEs
@@ -99,11 +101,13 @@ class _AutomationSettingsScreenState extends State<AutomationSettingsScreen> {
                         runSpacing: 10,
                         children: [
                           FilledButton.tonal(
-                            onPressed: () => _saveRules([..._rules, _socialPreset()]),
+                            onPressed: () =>
+                                _saveRules([..._rules, _socialPreset()]),
                             child: Text(t.addSocialPreset),
                           ),
                           FilledButton.tonal(
-                            onPressed: () => _saveRules([..._rules, _nightPreset()]),
+                            onPressed: () =>
+                                _saveRules([..._rules, _nightPreset()]),
                             child: Text(t.addEntertainmentPreset),
                           ),
                         ],
@@ -116,13 +120,19 @@ class _AutomationSettingsScreenState extends State<AutomationSettingsScreen> {
                           ? 'Bloqueos programados que se activan solos durante el día.'
                           : 'Scheduled blocks that turn on automatically during the day.',
                       trailing: IconButton(
+                        tooltip: t.isEs ? 'Añadir horario' : 'Add schedule',
                         onPressed: () async {
-                          final created = await showModalBottomSheet<AutomationRule>(
+                          final created =
+                              await showModalBottomSheet<AutomationRule>(
                             context: context,
                             isScrollControlled: true,
-                            backgroundColor: Theme.of(context).colorScheme.surface,
-                            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(detoxRadius))),
-                            builder: (_) => _AutomationRuleEditor(appLimits: _appLimits),
+                            backgroundColor:
+                                Theme.of(context).colorScheme.surface,
+                            shape: const RoundedRectangleBorder(
+                                borderRadius: BorderRadius.vertical(
+                                    top: Radius.circular(detoxRadius))),
+                            builder: (_) =>
+                                _AutomationRuleEditor(appLimits: _appLimits),
                           );
                           if (created != null) {
                             await _saveRules([..._rules, created]);
@@ -140,108 +150,128 @@ class _AutomationSettingsScreenState extends State<AutomationSettingsScreen> {
                         ),
                       )
                     else
-                      GlassCard(
-                        child: Column(
-                          children: _rules.map((rule) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(detoxRadius),
-                                  color: Theme.of(context).brightness == Brightness.dark
-                                      ? DetoxColors.cardSubtle
-                                      : DetoxColors.lightCardSubtle,
-                                  border: Border.all(
-                                    color: Theme.of(context).brightness == Brightness.dark
-                                        ? DetoxColors.cardBorder
-                                        : DetoxColors.lightCardBorder,
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(rule.name, style: const TextStyle(fontWeight: detoxWeightEmphasis)),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                '${_format(rule.startMinuteOfDay)} - ${_format(rule.endMinuteOfDay)} • ${rule.onlyInsideZone ? t.zoneAndSchedule : t.scheduleOnly}',
-                                                style: const TextStyle(color: DetoxColors.muted),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                rule.strictMode ? t.strictModeLabel : t.normalMode,
-                                                style: const TextStyle(color: DetoxColors.muted),
-                                              ),
-                                            ],
-                                          ),
+                      Column(
+                        children: _rules.map((rule) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: GlassCard(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(rule.name,
+                                                style: const TextStyle(
+                                                    fontWeight:
+                                                        detoxWeightEmphasis)),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              '${_format(rule.startMinuteOfDay)} - ${_format(rule.endMinuteOfDay)} • ${rule.onlyInsideZone ? t.zoneAndSchedule : t.scheduleOnly}',
+                                              style: const TextStyle(
+                                                  color: DetoxColors.muted),
+                                            ),
+                                          ],
                                         ),
-                                        Switch(
+                                      ),
+                                      Semantics(
+                                        label: t.isEs
+                                            ? 'Activar ${rule.name}'
+                                            : 'Enable ${rule.name}',
+                                        child: Switch(
                                           value: rule.enabled,
                                           onChanged: (value) => _saveRules(
-                                            _rules.map((e) => e.id == rule.id ? e.copyWith(enabled: value) : e).toList(),
+                                            _rules
+                                                .map((e) => e.id == rule.id
+                                                    ? e.copyWith(enabled: value)
+                                                    : e)
+                                                .toList(),
                                           ),
                                         ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: [
-                                        StatusPill(
-                                          label: rule.strictMode ? t.strictModeLabel : t.normalMode,
-                                          icon: rule.strictMode ? Icons.lock_outline_rounded : Icons.tune_rounded,
-                                          color: rule.strictMode ? DetoxColors.warning : DetoxColors.accentSoft,
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      StatusPill(
+                                        label: rule.strictMode
+                                            ? t.strictModeLabel
+                                            : t.normalMode,
+                                        icon: rule.strictMode
+                                            ? Icons.lock_outline_rounded
+                                            : Icons.tune_rounded,
+                                        color: rule.strictMode
+                                            ? DetoxColors.warning
+                                            : DetoxColors.accentSoft,
+                                      ),
+                                      Text(
+                                          '${rule.blockedPackages.length} apps',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: () async {
+                                            final updated =
+                                                await showModalBottomSheet<
+                                                    AutomationRule>(
+                                              context: context,
+                                              isScrollControlled: true,
+                                              backgroundColor: Theme.of(context)
+                                                  .colorScheme
+                                                  .surface,
+                                              shape: const RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.vertical(
+                                                          top: Radius.circular(
+                                                              detoxRadius))),
+                                              builder: (_) =>
+                                                  _AutomationRuleEditor(
+                                                      appLimits: _appLimits,
+                                                      initialRule: rule),
+                                            );
+                                            if (updated != null) {
+                                              await _saveRules(_rules
+                                                  .map((e) => e.id == rule.id
+                                                      ? updated
+                                                      : e)
+                                                  .toList());
+                                            }
+                                          },
+                                          icon: const Icon(Icons.edit_outlined),
+                                          label: Text(t.editSchedule),
                                         ),
-                                        StatusPill(
-                                          label: '${rule.blockedPackages.length} ${t.isEs ? 'apps' : 'apps'}',
-                                          icon: Icons.apps_rounded,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: () => _saveRules(_rules
+                                              .where((e) => e.id != rule.id)
+                                              .toList()),
+                                          icon:
+                                              const Icon(Icons.delete_outline),
+                                          label: Text(t.deleteText),
                                         ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: OutlinedButton.icon(
-                                            onPressed: () async {
-                                              final updated = await showModalBottomSheet<AutomationRule>(
-                                                context: context,
-                                                isScrollControlled: true,
-                                                backgroundColor: Theme.of(context).colorScheme.surface,
-                                                shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(detoxRadius))),
-                                                builder: (_) => _AutomationRuleEditor(appLimits: _appLimits, initialRule: rule),
-                                              );
-                                              if (updated != null) {
-                                                await _saveRules(_rules.map((e) => e.id == rule.id ? updated : e).toList());
-                                              }
-                                            },
-                                            icon: const Icon(Icons.edit_outlined),
-                                            label: Text(t.editSchedule),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: OutlinedButton.icon(
-                                            onPressed: () => _saveRules(_rules.where((e) => e.id != rule.id).toList()),
-                                            icon: const Icon(Icons.delete_outline),
-                                            label: Text(t.deleteText),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                            );
-                          }).toList(),
-                        ),
+                            ),
+                          );
+                        }).toList(),
                       ),
                   ],
                 ),
@@ -249,7 +279,6 @@ class _AutomationSettingsScreenState extends State<AutomationSettingsScreen> {
       ),
     );
   }
-
 
   String _format(int minuteOfDay) {
     final h = (minuteOfDay ~/ 60).toString().padLeft(2, '0');
@@ -281,11 +310,23 @@ class _AutomationRuleEditorState extends State<_AutomationRuleEditor> {
     super.initState();
     final rule = widget.initialRule;
     final t = AppStrings(WidgetsBinding.instance.platformDispatcher.locale);
-    _name = TextEditingController(text: rule?.name ?? (t.isEs ? 'Nuevo horario' : 'New schedule'));
-    _start = TimeOfDay(hour: (rule?.startMinuteOfDay ?? 480) ~/ 60, minute: (rule?.startMinuteOfDay ?? 480) % 60);
-    _end = TimeOfDay(hour: (rule?.endMinuteOfDay ?? 840) ~/ 60, minute: (rule?.endMinuteOfDay ?? 840) % 60);
-    _weekdays = {...(rule?.weekdays ?? const [1,2,3,4,5])};
-    _packages = {...(rule?.blockedPackages ?? widget.appLimits.where((e) => (e.packageName ?? '').isNotEmpty).map((e) => e.packageName!))};
+    _name = TextEditingController(
+        text: rule?.name ?? (t.isEs ? 'Nuevo horario' : 'New schedule'));
+    _start = TimeOfDay(
+        hour: (rule?.startMinuteOfDay ?? 480) ~/ 60,
+        minute: (rule?.startMinuteOfDay ?? 480) % 60);
+    _end = TimeOfDay(
+        hour: (rule?.endMinuteOfDay ?? 840) ~/ 60,
+        minute: (rule?.endMinuteOfDay ?? 840) % 60);
+    _weekdays = {
+      ...(rule?.weekdays ?? const [1, 2, 3, 4, 5])
+    };
+    _packages = {
+      ...(rule?.blockedPackages ??
+          widget.appLimits
+              .where((e) => (e.packageName ?? '').isNotEmpty)
+              .map((e) => e.packageName!))
+    };
     _strictMode = rule?.strictMode ?? false;
     _onlyInsideZone = rule?.onlyInsideZone ?? false;
   }
@@ -294,22 +335,54 @@ class _AutomationRuleEditorState extends State<_AutomationRuleEditor> {
   Widget build(BuildContext context) {
     final t = AppStrings.of(context);
     return Padding(
-      padding: EdgeInsets.only(left: 20, right: 20, top: 20, bottom: MediaQuery.of(context).viewInsets.bottom + 24),
+      padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.initialRule == null ? t.createSchedule : t.editSchedule, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            Text(widget.initialRule == null ? t.createSchedule : t.editSchedule,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-            TextField(controller: _name, decoration: InputDecoration(labelText: t.ruleName)),
+            TextField(
+                controller: _name,
+                decoration: InputDecoration(labelText: t.ruleName)),
             const SizedBox(height: 12),
             Row(children: [
-              Expanded(child: ListTile(contentPadding: EdgeInsets.zero, title: Text(t.startTime), subtitle: Text(_start.format(context)), onTap: () async { final picked = await showTimePicker(context: context, initialTime: _start); if (picked != null) setState(() => _start = picked); })),
-              Expanded(child: ListTile(contentPadding: EdgeInsets.zero, title: Text(t.endTime), subtitle: Text(_end.format(context)), onTap: () async { final picked = await showTimePicker(context: context, initialTime: _end); if (picked != null) setState(() => _end = picked); })),
+              Expanded(
+                  child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(t.startTime),
+                      subtitle: Text(_start.format(context)),
+                      onTap: () async {
+                        final picked = await showTimePicker(
+                            context: context, initialTime: _start);
+                        if (picked != null) setState(() => _start = picked);
+                      })),
+              Expanded(
+                  child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(t.endTime),
+                      subtitle: Text(_end.format(context)),
+                      onTap: () async {
+                        final picked = await showTimePicker(
+                            context: context, initialTime: _end);
+                        if (picked != null) setState(() => _end = picked);
+                      })),
             ]),
             const SizedBox(height: 10),
-            Text(t.weekdays, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+            Text(t.weekdays,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 8, children: [
               for (final day in [
@@ -321,30 +394,71 @@ class _AutomationRuleEditorState extends State<_AutomationRuleEditor> {
                 (6, t.isEs ? 'Sáb' : 'Sat'),
                 (7, t.isEs ? 'Dom' : 'Sun'),
               ])
-                FilterChip(label: Text(day.$2), selected: _weekdays.contains(day.$1), onSelected: (value) => setState(() => value ? _weekdays.add(day.$1) : _weekdays.remove(day.$1)))
+                FilterChip(
+                    label: Text(day.$2),
+                    selected: _weekdays.contains(day.$1),
+                    onSelected: (value) => setState(() => value
+                        ? _weekdays.add(day.$1)
+                        : _weekdays.remove(day.$1)))
             ]),
             const SizedBox(height: 12),
-            SwitchListTile(contentPadding: EdgeInsets.zero, value: _strictMode, onChanged: (value) => setState(() => _strictMode = value), title: Text(t.strictModeLabel), subtitle: Text(_strictMode ? t.hardModeGlobalSubtitle : t.normalSchedulesBody)),
-            SwitchListTile(contentPadding: EdgeInsets.zero, value: _onlyInsideZone, onChanged: (value) => setState(() => _onlyInsideZone = value), title: Text(t.zoneAndSchedule), subtitle: Text(t.scheduleOnly)),
+            SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _strictMode,
+                onChanged: (value) => setState(() => _strictMode = value),
+                title: Text(t.strictModeLabel),
+                subtitle: Text(_strictMode
+                    ? t.hardModeGlobalSubtitle
+                    : t.normalSchedulesBody)),
+            SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _onlyInsideZone,
+                onChanged: (value) => setState(() => _onlyInsideZone = value),
+                title: Text(t.zoneAndSchedule),
+                subtitle: Text(t.scheduleOnly)),
             const SizedBox(height: 8),
-            Text(t.chooseApps, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+            Text(t.chooseApps,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Wrap(spacing: 8, runSpacing: 8, children: widget.appLimits.where((e) => (e.packageName ?? '').isNotEmpty).map((item) => FilterChip(label: Text(item.appName), selected: _packages.contains(item.packageName!), onSelected: (value) => setState(() => value ? _packages.add(item.packageName!) : _packages.remove(item.packageName!)))).toList()),
+            Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: widget.appLimits
+                    .where((e) => (e.packageName ?? '').isNotEmpty)
+                    .map((item) => FilterChip(
+                        label: Text(item.appName),
+                        selected: _packages.contains(item.packageName!),
+                        onSelected: (value) => setState(() => value
+                            ? _packages.add(item.packageName!)
+                            : _packages.remove(item.packageName!))))
+                    .toList()),
             const SizedBox(height: 18),
             FilledButton(
-              onPressed: _packages.isEmpty ? null : () {
-                Navigator.pop(context, AutomationRule(
-                  id: widget.initialRule?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-                  name: _name.text.trim().isEmpty ? (t.isEs ? 'Horario' : 'Schedule') : _name.text.trim(),
-                  startMinuteOfDay: _start.hour * 60 + _start.minute,
-                  endMinuteOfDay: _end.hour * 60 + _end.minute,
-                  weekdays: _weekdays.toList()..sort(),
-                  blockedPackages: _packages.toList()..sort(),
-                  enabled: widget.initialRule?.enabled ?? true,
-                  strictMode: _strictMode,
-                  onlyInsideZone: _onlyInsideZone,
-                ));
-              },
+              onPressed: _packages.isEmpty
+                  ? null
+                  : () {
+                      Navigator.pop(
+                          context,
+                          AutomationRule(
+                            id: widget.initialRule?.id ??
+                                DateTime.now()
+                                    .millisecondsSinceEpoch
+                                    .toString(),
+                            name: _name.text.trim().isEmpty
+                                ? (t.isEs ? 'Horario' : 'Schedule')
+                                : _name.text.trim(),
+                            startMinuteOfDay: _start.hour * 60 + _start.minute,
+                            endMinuteOfDay: _end.hour * 60 + _end.minute,
+                            weekdays: _weekdays.toList()..sort(),
+                            blockedPackages: _packages.toList()..sort(),
+                            enabled: widget.initialRule?.enabled ?? true,
+                            strictMode: _strictMode,
+                            onlyInsideZone: _onlyInsideZone,
+                          ));
+                    },
               child: Text(t.saveText),
             ),
           ],

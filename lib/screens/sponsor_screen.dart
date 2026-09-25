@@ -55,8 +55,7 @@ class _SponsorScreenState extends State<SponsorScreen>
     setState(() => _loading = true);
     try {
       await _sponsorService.ensureCurrentUserInitialized();
-      final sponsorContext =
-          await _sponsorService.loadCurrentUserContext();
+      final sponsorContext = await _sponsorService.loadCurrentUserContext();
       final sponsor = sponsorContext.sponsorProfile;
 
       await AppBlockingService.instance.syncSponsorState(sponsor != null);
@@ -209,8 +208,8 @@ class _SponsorScreenState extends State<SponsorScreen>
         request.requestType == 'settings_unlock'
             ? t.settingsAccessApproved
             : request.requestType == 'shield_pause'
-            ? t.shieldPauseApproved
-            : t.zonePauseApproved,
+                ? t.shieldPauseApproved
+                : t.zonePauseApproved,
       );
       await _refresh();
     } catch (e) {
@@ -260,8 +259,8 @@ class _SponsorScreenState extends State<SponsorScreen>
               SelectableText(
                 code,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -301,8 +300,8 @@ class _SponsorScreenState extends State<SponsorScreen>
             Text(
               t.endSponsorLinkTitle,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: 10),
             Text(
@@ -452,8 +451,8 @@ class _SponsorScreenState extends State<SponsorScreen>
             Text(
               t.incomingSponsorLinkRequests,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: 8),
             ...requests.map((req) {
@@ -465,9 +464,10 @@ class _SponsorScreenState extends State<SponsorScreen>
                     children: [
                       Text(
                         '${req.requesterName} wants to be your sponsor partner',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -479,8 +479,9 @@ class _SponsorScreenState extends State<SponsorScreen>
                         children: [
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed:
-                              _linkActionBusy ? null : () => _rejectLink(req),
+                              onPressed: _linkActionBusy
+                                  ? null
+                                  : () => _rejectLink(req),
                               icon: const Icon(Icons.close_rounded),
                               label: Text(t.reject),
                             ),
@@ -488,8 +489,9 @@ class _SponsorScreenState extends State<SponsorScreen>
                           const SizedBox(width: 12),
                           Expanded(
                             child: FilledButton.icon(
-                              onPressed:
-                              _linkActionBusy ? null : () => _acceptLink(req),
+                              onPressed: _linkActionBusy
+                                  ? null
+                                  : () => _acceptLink(req),
                               icon: const Icon(Icons.check_rounded),
                               label: Text(t.accept),
                             ),
@@ -531,8 +533,8 @@ class _SponsorScreenState extends State<SponsorScreen>
             Text(
               t.pendingSponsorLinkRequests,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: 8),
             ...requests.map((req) {
@@ -544,9 +546,10 @@ class _SponsorScreenState extends State<SponsorScreen>
                     children: [
                       Text(
                         t.waitingForName(req.targetName),
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -579,7 +582,8 @@ class _SponsorScreenState extends State<SponsorScreen>
         }
 
         final requests = (snapshot.data ?? const <SponsorRequest>[])
-            .where((request) => request.isPending || (request.isApproved && !request.isExpired))
+            .where((request) =>
+                request.isPending || (request.isApproved && !request.isExpired))
             .toList();
 
         if (requests.isEmpty) {
@@ -600,10 +604,10 @@ class _SponsorScreenState extends State<SponsorScreen>
             final title = request.requestType == 'zone_override'
                 ? t.zonePauseApprovalTitle
                 : request.requestType == 'settings_unlock'
-                ? t.settingsApprovalTitle
-                : request.requestType == 'shield_pause'
-                ? t.shieldPauseTitle
-                : t.unlinkApprovalTitle;
+                    ? t.settingsApprovalTitle
+                    : request.requestType == 'shield_pause'
+                        ? t.shieldPauseTitle
+                        : t.unlinkApprovalTitle;
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
@@ -614,8 +618,8 @@ class _SponsorScreenState extends State<SponsorScreen>
                     Text(
                       title,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                            fontWeight: FontWeight.bold,
+                          ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -631,9 +635,10 @@ class _SponsorScreenState extends State<SponsorScreen>
                       const SizedBox(height: 12),
                       SelectableText(
                         request.code!,
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style:
+                            Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
                       ),
                       const SizedBox(height: 6),
                       Text(
@@ -715,15 +720,6 @@ class _SponsorScreenState extends State<SponsorScreen>
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
                     children: [
-                      AppPageHeader(
-                        eyebrow: t.isEs ? 'Padrino' : 'Sponsor',
-                        title: t.isEs ? 'Apoyo extra cuando lo necesitas' : 'Extra support when you need it',
-                        subtitle: t.isEs
-                            ? 'Aquí puedes vincular a una persona de confianza para aprobar pausas, cambios delicados y desbloqueos temporales.'
-                            : 'Link a trusted person who can approve pauses, sensitive changes, and temporary unlocks.',
-                        icon: Icons.handshake_outlined,
-                      ),
-                      const SizedBox(height: 18),
                       _buildIncomingUnlockRequests(),
                       const SizedBox(height: 14),
                       if (_sponsor == null) ...[
@@ -736,14 +732,23 @@ class _SponsorScreenState extends State<SponsorScreen>
                         subtitle: t.sponsorCodeShare,
                         badge: StatusPill(
                           label: _sponsor == null
-                              ? (t.isEs ? 'Sin vínculo activo' : 'No active link')
+                              ? (t.isEs
+                                  ? 'Sin vínculo activo'
+                                  : 'No active link')
                               : (t.isEs ? 'Vinculado' : 'Linked'),
-                          icon: _sponsor == null ? Icons.link_off_rounded : Icons.check_circle_rounded,
-                          color: _sponsor == null ? DetoxColors.warning : DetoxColors.success,
+                          icon: _sponsor == null
+                              ? Icons.link_off_rounded
+                              : Icons.check_circle_rounded,
+                          color: _sponsor == null
+                              ? DetoxColors.warning
+                              : DetoxColors.success,
                         ),
                         child: SelectableText(
                           _myCode,
-                          style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                          style: Theme.of(context)
+                              .textTheme
+                              .displaySmall
+                              ?.copyWith(
                                 fontWeight: detoxWeightEmphasis,
                                 letterSpacing: 1.0,
                               ),
@@ -759,7 +764,8 @@ class _SponsorScreenState extends State<SponsorScreen>
                             children: [
                               TextField(
                                 controller: _codeController,
-                                textCapitalization: TextCapitalization.characters,
+                                textCapitalization:
+                                    TextCapitalization.characters,
                                 decoration: InputDecoration(
                                   labelText: t.enterSponsorCodeHint,
                                   prefixIcon: const Icon(Icons.link_rounded),
@@ -780,7 +786,9 @@ class _SponsorScreenState extends State<SponsorScreen>
                           title: _sponsor!.displayName,
                           subtitle: _sponsor!.email,
                           badge: StatusPill(
-                            label: t.isEs ? 'Protección activa' : 'Protection active',
+                            label: t.isEs
+                                ? 'Protección activa'
+                                : 'Protection active',
                             icon: Icons.verified_user_outlined,
                             color: DetoxColors.success,
                           ),
@@ -790,8 +798,10 @@ class _SponsorScreenState extends State<SponsorScreen>
                                 children: [
                                   Expanded(
                                     child: FilledButton.icon(
-                                      onPressed: () => _request('zone_override'),
-                                      icon: const Icon(Icons.pause_circle_outline),
+                                      onPressed: () =>
+                                          _request('zone_override'),
+                                      icon: const Icon(
+                                          Icons.pause_circle_outline),
                                       label: Text(t.requestZonePause),
                                     ),
                                   ),
@@ -802,7 +812,8 @@ class _SponsorScreenState extends State<SponsorScreen>
                                 children: [
                                   Expanded(
                                     child: OutlinedButton.icon(
-                                      onPressed: () => _request('settings_unlock'),
+                                      onPressed: () =>
+                                          _request('settings_unlock'),
                                       icon: const Icon(Icons.lock_open_rounded),
                                       label: Text(t.requestSettingsApproval),
                                     ),
@@ -842,7 +853,9 @@ class _SponsorScreenState extends State<SponsorScreen>
                           }
 
                           final requests =
-                              (snapshot.data ?? const <SponsorRequest>[]).take(6).toList();
+                              (snapshot.data ?? const <SponsorRequest>[])
+                                  .take(6)
+                                  .toList();
 
                           if (requests.isEmpty) {
                             return GlassCard(
@@ -923,7 +936,9 @@ class _SponsorScreenState extends State<SponsorScreen>
                           }
 
                           final requests =
-                              (snapshot.data ?? const <SponsorRequest>[]).take(12).toList();
+                              (snapshot.data ?? const <SponsorRequest>[])
+                                  .take(12)
+                                  .toList();
 
                           if (requests.isEmpty) {
                             return GlassCard(
@@ -957,7 +972,8 @@ class _SponsorScreenState extends State<SponsorScreen>
                                     contentPadding: EdgeInsets.zero,
                                     leading: Icon(
                                       request.requestType == 'unlink_sponsor' ||
-                                              request.requestType == 'unlink_email'
+                                              request.requestType ==
+                                                  'unlink_email'
                                           ? Icons.link_off_rounded
                                           : request.isConsumed
                                               ? Icons.history_toggle_off_rounded

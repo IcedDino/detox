@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../l10n_app_strings.dart';
 import '../models/usage_models.dart';
 import '../theme/app_theme.dart';
 import 'app_icon_badge.dart';
@@ -17,11 +16,11 @@ class TopAppTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = AppStrings.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
-    final border = isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder;
-    final background = isDark ? DetoxColors.cardSubtle : DetoxColors.lightCardSubtle;
+    final border =
+        isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder;
+    final background =
+        isDark ? DetoxColors.cardSubtle : DetoxColors.lightCardSubtle;
 
     return RepaintBoundary(
       child: Container(
@@ -51,12 +50,15 @@ class TopAppTile extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: DetoxColors.accent,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Theme.of(context).colorScheme.surface, width: 2),
+                      border: Border.all(
+                          color: Theme.of(context).colorScheme.surface,
+                          width: 2),
                     ),
                     alignment: Alignment.center,
                     child: Text(
                       '${index + 1}',
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          fontSize: 10, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
@@ -64,29 +66,20 @@ class TopAppTile extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    entry.appName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: detoxWeightEmphasis),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    t.minToday(entry.minutes),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: muted),
-                  ),
-                ],
+              child: Text(
+                entry.appName,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: detoxWeightEmphasis),
               ),
             ),
             const SizedBox(width: 8),
             Text(
               '${entry.minutes}m',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
             ),
           ],
         ),

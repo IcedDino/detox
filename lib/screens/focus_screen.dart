@@ -42,6 +42,7 @@ class _FocusScreenState extends State<FocusScreen>
   Duration _selectedDuration = const Duration(minutes: 25);
   List<AppLimit> _shieldedApps = const [];
   bool _strictMode = false;
+  bool _pomodoroMode = false;
   Timer? _tick;
 
   @override
@@ -89,6 +90,7 @@ class _FocusScreenState extends State<FocusScreen>
           .where((e) => e.useInFocusMode && (e.packageName ?? '').isNotEmpty)
           .toList();
       _strictMode = strict;
+      if (snap.isActive) _pomodoroMode = snap.isPomodoro;
     });
     _ensureTicker();
   }
@@ -205,18 +207,14 @@ class _FocusScreenState extends State<FocusScreen>
     final allowed = await ensureBlockingPermissions(context);
     if (!allowed || !mounted) return;
     await FocusNotificationService.instance.requestPermission();
-    await _sessions.startFocus(
-      minutes: _selectedDuration.inMinutes,
-      label: 'Focus',
-    );
-    await _load();
-  }
-
-  Future<void> _startPomodoro() async {
-    final allowed = await ensureBlockingPermissions(context);
-    if (!allowed || !mounted) return;
-    await FocusNotificationService.instance.requestPermission();
-    await _sessions.startPomodoro();
+    if (_pomodoroMode) {
+      await _sessions.startPomodoro();
+    } else {
+      await _sessions.startFocus(
+        minutes: _selectedDuration.inMinutes,
+        label: 'Focus',
+      );
+    }
     await _load();
   }
 
@@ -235,7 +233,7 @@ class _FocusScreenState extends State<FocusScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(detoxRadius)),
       ),
       builder: (sheetContext) {
-        bool localStrict = _strictMode;
+        int localMode = _pomodoroMode ? 2 : (_strictMode ? 1 : 0);
         return StatefulBuilder(
           builder: (context, setSheetState) {
             return SafeArea(
@@ -246,14 +244,14 @@ class _FocusScreenState extends State<FocusScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      t.isEs ? 'Modo de bloqueo' : 'Blocking mode',
+                      t.isEs ? 'Modo de sesión' : 'Session mode',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 8),
                     Text(
                       t.isEs
-                          ? 'El modo estricto reduce salidas y pausas mientras el bloqueo esté activo.'
-                          : 'Strict mode reduces exits and pauses while blocking is active.',
+                          ? 'Elige cómo quieres concentrarte.'
+                          : 'Choose how you want to focus.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color:
                                 Theme.of(context).brightness == Brightness.dark
@@ -262,11 +260,10 @@ class _FocusScreenState extends State<FocusScreen>
                           ),
                     ),
                     const SizedBox(height: 16),
-                    RadioListTile<bool>(
-                      value: false,
-                      groupValue: localStrict,
-                      onChanged: (v) =>
-                          setSheetState(() => localStrict = false),
+                    RadioListTile<int>(
+                      value: 0,
+                      groupValue: localMode,
+                      onChanged: (_) => setSheetState(() => localMode = 0),
                       title: Text(t.isEs ? 'Normal' : 'Normal'),
                       subtitle: Text(
                         t.isEs
@@ -274,10 +271,10 @@ class _FocusScreenState extends State<FocusScreen>
                             : 'Pauses and exit available.',
                       ),
                     ),
-                    RadioListTile<bool>(
-                      value: true,
-                      groupValue: localStrict,
-                      onChanged: (v) => setSheetState(() => localStrict = true),
+                    RadioListTile<int>(
+                      value: 1,
+                      groupValue: localMode,
+                      onChanged: (_) => setSheetState(() => localMode = 1),
                       title: Text(t.isEs ? 'Estricto' : 'Strict'),
                       subtitle: Text(
                         t.isEs
@@ -285,14 +282,29 @@ class _FocusScreenState extends State<FocusScreen>
                             : 'No pauses or easy exit until done.',
                       ),
                     ),
+                    RadioListTile<int>(
+                      value: 2,
+                      groupValue: localMode,
+                      onChanged: (_) => setSheetState(() => localMode = 2),
+                      title: const Text('Pomodoro'),
+                      subtitle: Text(
+                        t.isEs
+                            ? '25 min de enfoque y 5 min de descanso.'
+                            : '25 min of focus and a 5 min break.',
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     FilledButton(
                       onPressed: () async {
                         Navigator.pop(context);
-                        await _storage.saveStrictModeEnabled(localStrict);
+                        final strictMode = localMode == 1;
+                        await _storage.saveStrictModeEnabled(strictMode);
                         await AppBlockingService.instance.refreshStrictMode();
                         if (!mounted) return;
-                        setState(() => _strictMode = localStrict);
+                        setState(() {
+                          _strictMode = strictMode;
+                          _pomodoroMode = localMode == 2;
+                        });
                       },
                       child: Text(t.isEs ? 'Guardar' : 'Save'),
                     ),
@@ -303,6 +315,47 @@ class _FocusScreenState extends State<FocusScreen>
           },
         );
       },
+    );
+  }
+
+  void _showAllFocusApps() {
+    final apps = _shieldedApps;
+    final t = AppStrings.of(context);
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: FractionallySizedBox(
+          heightFactor: 0.65,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                child: Text(
+                  t.isEs ? 'Apps en esta sesión' : 'Apps in this session',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      for (final app in apps)
+                        ListTile(
+                          title: Text(app.appName.trim().isNotEmpty
+                              ? app.appName
+                              : app.packageName!),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -341,12 +394,16 @@ class _FocusScreenState extends State<FocusScreen>
         const SizedBox(height: 8),
         Center(
           child: SizedBox(
-            height: 240,
-            width: 240,
+            height: 208,
+            width: 208,
             child: Stack(
               alignment: Alignment.center,
               children: [
                 CircularProgressIndicator(
+                  constraints: const BoxConstraints.tightFor(
+                    width: 208,
+                    height: 208,
+                  ),
                   value: progress.clamp(0.0, 1.0),
                   strokeWidth: 8,
                   strokeCap: StrokeCap.round,
@@ -355,58 +412,27 @@ class _FocusScreenState extends State<FocusScreen>
                       : DetoxColors.accentDeep.withOpacity(0.10),
                 ),
                 Center(
-                  child: Container(
-                    width: 208,
-                    height: 208,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: isDark
-                            ? const [Color(0xFF19251F), Color(0xFF111815)]
-                            : const [Color(0xFFE8F1EA), Colors.white],
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _formatTimer(remaining),
+                        style:
+                            Theme.of(context).textTheme.displayLarge?.copyWith(
+                          color: active ? DetoxColors.accentSoft : null,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
                       ),
-                      border: Border.all(
-                        color: isDark
-                            ? const Color(0x1FFFFFFF)
-                            : DetoxColors.lightCardBorder,
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          active
-                              ? Icons.self_improvement_rounded
-                              : Icons.timer_outlined,
-                          size: 22,
-                          color: active ? DetoxColors.accent : muted,
-                        ),
+                      if (active) ...[
                         const SizedBox(height: 8),
-                        Text(
-                          _formatTimer(remaining),
-                          style: Theme.of(context)
-                              .textTheme
-                              .displayLarge
-                              ?.copyWith(
-                            color: active ? DetoxColors.accentSoft : null,
-                            fontFeatures: const [FontFeature.tabularFigures()],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          active
-                              ? blockedAppsLabel
-                              : _durationLabel(t, _selectedDuration),
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: muted),
-                        ),
+                        Text(blockedAppsLabel,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: muted)),
                       ],
-                    ),
+                    ],
                   ),
                 ),
               ],
@@ -420,7 +446,7 @@ class _FocusScreenState extends State<FocusScreen>
         if (!active)
           InkWell(
             borderRadius: BorderRadius.circular(detoxRadius),
-            onTap: _pickDuration,
+            onTap: _pomodoroMode ? null : _pickDuration,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
@@ -441,11 +467,16 @@ class _FocusScreenState extends State<FocusScreen>
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      _durationLabel(t, _selectedDuration),
+                      _pomodoroMode
+                          ? (t.isEs
+                              ? '25 min de enfoque · 5 min de descanso'
+                              : '25 min focus · 5 min break')
+                          : _durationLabel(t, _selectedDuration),
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
-                  Icon(Icons.expand_more_rounded, size: 20, color: muted),
+                  if (!_pomodoroMode)
+                    Icon(Icons.expand_more_rounded, size: 20, color: muted),
                 ],
               ),
             ),
@@ -472,16 +503,24 @@ class _FocusScreenState extends State<FocusScreen>
             child: Row(
               children: [
                 Icon(
-                  _strictMode ? Icons.lock_outline_rounded : Icons.tune_rounded,
+                  _pomodoroMode
+                      ? Icons.timer_outlined
+                      : _strictMode
+                          ? Icons.lock_outline_rounded
+                          : Icons.tune_rounded,
                   size: 20,
-                  color: _strictMode ? DetoxColors.warning : DetoxColors.accent,
+                  color: _strictMode && !_pomodoroMode
+                      ? DetoxColors.warning
+                      : DetoxColors.accent,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    _strictMode
-                        ? (t.isEs ? 'Modo estricto' : 'Strict mode')
-                        : (t.isEs ? 'Modo normal' : 'Normal mode'),
+                    _pomodoroMode
+                        ? 'Pomodoro'
+                        : _strictMode
+                            ? (t.isEs ? 'Modo estricto' : 'Strict mode')
+                            : (t.isEs ? 'Modo normal' : 'Normal mode'),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
@@ -500,26 +539,14 @@ class _FocusScreenState extends State<FocusScreen>
           label: Text(
             active
                 ? (t.isEs ? 'Terminar sesión' : 'End session')
-                : t.startFocusSession,
+                : _pomodoroMode
+                    ? (t.isEs ? 'Empezar Pomodoro' : 'Start Pomodoro')
+                    : t.startFocusSession,
           ),
         ),
-        const SizedBox(height: 10),
-        if (!active)
-          OutlinedButton(
-            onPressed: _startPomodoro,
-            child: Text(
-              t.isEs ? 'Empezar Pomodoro (25/5)' : 'Start Pomodoro (25/5)',
-            ),
-          ),
-
         const SizedBox(height: 28),
 
         // ── Blocked apps summary ──
-        Text(
-          t.isEs ? 'Apps en esta sesión' : 'Apps in this session',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 12),
         if (_shieldedApps.isEmpty)
           GlassCard(
             child: Text(
@@ -532,33 +559,35 @@ class _FocusScreenState extends State<FocusScreen>
           )
         else
           GlassCard(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (var i = 0; i < _shieldedApps.length; i++) ...[
+                Text(t.isEs ? 'Apps en esta sesión' : 'Apps in this session',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 4),
+                Text(blockedAppsLabel,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: muted)),
+                const SizedBox(height: 12),
+                for (final app in _shieldedApps.take(3))
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _shieldedApps[i].appName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ),
-                      ],
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Text(
+                      app.appName.trim().isNotEmpty
+                          ? app.appName
+                          : app.packageName!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ),
-                  if (i != _shieldedApps.length - 1)
-                    Divider(
-                      height: 1,
-                      color: isDark
-                          ? DetoxColors.cardBorder
-                          : DetoxColors.lightCardBorder,
-                    ),
-                ],
+                if (_shieldedApps.length > 3)
+                  TextButton(
+                    onPressed: _showAllFocusApps,
+                    child: Text(t.isEs ? 'Ver todas' : 'See all'),
+                  ),
               ],
             ),
           ),

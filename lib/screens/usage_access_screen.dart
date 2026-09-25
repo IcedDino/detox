@@ -20,6 +20,7 @@ class _UsageAccessScreenState extends State<UsageAccessScreen>
   bool _checking = true;
   bool _openingSettings = false;
   bool _reportedGranted = false;
+  bool _settingsError = false;
 
   @override
   void initState() {
@@ -53,8 +54,13 @@ class _UsageAccessScreenState extends State<UsageAccessScreen>
   }
 
   Future<void> _openSettings() async {
-    setState(() => _openingSettings = true);
-    await UsageService().openUsageAccessSettings();
+    setState(() {
+      _openingSettings = true;
+      _settingsError = false;
+    });
+    final opened = await UsageService().openUsageAccessSettings();
+    if (mounted && !opened) setState(() => _settingsError = true);
+    if (mounted) await _checkPermission();
   }
 
   @override
@@ -74,31 +80,8 @@ class _UsageAccessScreenState extends State<UsageAccessScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      width: 92,
-                      height: 92,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: colors.primary.withValues(alpha: 0.13),
-                        boxShadow: [
-                          BoxShadow(
-                            color: colors.primary.withValues(alpha: 0.14),
-                            blurRadius: 32,
-                            spreadRadius: 4,
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        Icons.spa_rounded,
-                        size: 46,
-                        color: colors.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 26),
                     Text(
-                      es
-                          ? 'Un permiso para empezar 🌱'
-                          : 'One little setup step 🌱',
+                      es ? 'Acceso al tiempo de uso' : 'Usage access',
                       textAlign: TextAlign.center,
                       style:
                           Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -173,6 +156,19 @@ class _UsageAccessScreenState extends State<UsageAccessScreen>
                       ),
                     ),
                     const SizedBox(height: 12),
+                    if (_settingsError) ...[
+                      Text(
+                        es
+                            ? 'No se pudo abrir Ajustes. Inténtalo de nuevo.'
+                            : 'Could not open Settings. Please try again.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: colors.error),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     Text(
                       es
                           ? 'En Ajustes, selecciona Detox y activa “Permitir acceso de uso”.'

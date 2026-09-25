@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:atlas_icons/atlas_icons.dart';
 
 import '../l10n_app_strings.dart';
 import '../models/dashboard_data.dart';
@@ -15,7 +14,6 @@ import '../services/storage_service.dart';
 import '../services/usage_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/top_app_tile.dart';
-import '../widgets/ui_kit.dart';
 
 /// "Today" screen. Answers one question: how am I doing?
 /// One hero number, one primary action, three supporting apps.
@@ -253,57 +251,23 @@ class _DashboardScreenState extends State<DashboardScreen>
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
             children: [
-              // ── Hero: the single number that matters ──
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(detoxRadius + 4),
+                  borderRadius: BorderRadius.circular(detoxRadius),
                   border: Border.all(
                     color: isDark
-                        ? const Color(0x338BC7AE)
-                        : const Color(0x5581A995),
+                        ? DetoxColors.cardBorder
+                        : DetoxColors.lightCardBorder,
                   ),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: isDark
-                        ? const [Color(0xFF1B2A23), Color(0xFF131B17)]
-                        : const [Color(0xFFE4F0E8), Color(0xFFFBFDFB)],
-                  ),
+                  color: Theme.of(context).colorScheme.surface,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            t.isEs ? 'HOY' : 'TODAY',
-                            style: Theme.of(context)
-                                .textTheme
-                                .labelSmall
-                                ?.copyWith(
-                                  color: isDark
-                                      ? DetoxColors.accentSoft
-                                      : DetoxColors.accentDeep,
-                                  letterSpacing: 1.4,
-                                ),
-                          ),
-                        ),
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: DetoxColors.accent.withOpacity(0.14),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.spa_outlined,
-                            color: DetoxColors.accent,
-                            size: 19,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      t.today,
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 12),
                     Text(
@@ -372,35 +336,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ),
               ),
 
-              if (summary != null) ...[
-                const SizedBox(height: 24),
-
-                // ── Supporting metrics: estimated pickups + top app ──
-                Row(
-                  children: [
-                    Expanded(
-                      child: FriendlyStatTile(
-                        label: t.estimatedUnlocks,
-                        value: '${summary.pickups}',
-                        helper: t.today,
-                        icon: Icons.touch_app_outlined,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FriendlyStatTile(
-                        label: t.topApp,
-                        value: topApps.isEmpty ? '—' : topApps.first.appName,
-                        helper: topApps.isEmpty
-                            ? t.noDataYet
-                            : t.minToday(topApps.first.minutes),
-                        icon: Icons.star_outline_rounded,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-
               const SizedBox(height: 24),
 
               // ── The one primary action ──
@@ -409,6 +344,17 @@ class _DashboardScreenState extends State<DashboardScreen>
                 icon: const Icon(Icons.play_arrow_rounded),
                 label: Text(t.isEs ? 'Empezar enfoque' : 'Start focus'),
               ),
+
+              if (summary != null) ...[
+                const SizedBox(height: 16),
+                Text(
+                  '${t.estimatedUnlocks}: ${summary.pickups}',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: muted),
+                ),
+              ],
 
               const SizedBox(height: 28),
 
@@ -481,19 +427,19 @@ class _DashboardScreenState extends State<DashboardScreen>
                 const SizedBox(height: 12),
                 if (_showZoneShortcut)
                   _SetupShortcut(
-                      icon: Atlas.pin_destination,
+                      icon: Icons.location_on_outlined,
                       title: t.isEs ? 'Añadir zonas Detox' : 'Add Detox zones',
                       onTap: widget.onOpenSettings),
                 if (_showRestrictionsShortcut)
                   _SetupShortcut(
-                      icon: Atlas.block_prohibited,
+                      icon: Icons.block_outlined,
                       title: t.isEs
                           ? 'Configurar restricciones de apps'
                           : 'Configure app restrictions',
                       onTap: widget.onOpenSettings),
                 if (_showScheduleShortcut)
                   _SetupShortcut(
-                      icon: Atlas.calendar_schedule,
+                      icon: Icons.calendar_today_outlined,
                       title: t.isEs
                           ? 'Crear horarios Detox'
                           : 'Create Detox schedules',

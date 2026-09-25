@@ -24,7 +24,17 @@ class AuthService {
   AppStrings get _t => AppStrings.current;
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _google = GoogleSignIn();
+  final GoogleSignIn _google = GoogleSignIn.instance;
+  late final Future<void> _googleReady = _google.initialize();
+
+  Future<void> _signOutGoogle() async {
+    try {
+      await _googleReady;
+      await _google.signOut();
+    } catch (_) {
+      // Signing out of Firebase is still possible if Google is unavailable.
+    }
+  }
 
   Future<AuthUser?> getCurrentUser() async {
     final user = _auth.currentUser;
@@ -81,15 +91,12 @@ class AuthService {
 
   Future<AuthUser> signInWithGoogle() async {
     try {
-      // ignore: body_might_complete_normally_catch_error
-      await _google.signOut().catchError((_) {});
-      final googleUser = await _google.signIn();
-      if (googleUser == null) {
-        throw AuthException(_t.authGoogleCancelled);
-      }
-      final googleAuth = await googleUser.authentication;
+      await _googleReady;
+      await _signOutGoogle();
+      final googleUser = await _google.authenticate();
+      final googleAuth = googleUser.authentication;
+      if (googleAuth.idToken == null) throw AuthException(_t.authGoogleFailed);
       final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
       final userCredential = await _auth.signInWithCredential(credential);
@@ -100,6 +107,10 @@ class AuthService {
       return mapped;
     } on FirebaseAuthException catch (e) {
       throw AuthException(_friendlyAuthMessage(e));
+    } on GoogleSignInException catch (e) {
+      throw AuthException(e.code == GoogleSignInExceptionCode.canceled
+          ? _t.authGoogleCancelled
+          : _t.authGoogleBuildSetup);
     } catch (e) {
       if (e is AuthException) rethrow;
       throw AuthException(_t.authGoogleBuildSetup);
@@ -209,15 +220,13 @@ class AuthService {
       await CloudSyncService.instance.markAccountDeleted(mappedUser);
       await user.delete();
       await StorageService.instance.clearLocalUserData();
-      // ignore: body_might_complete_normally_catch_error
-      await _google.signOut().catchError((_) {});
+      await _signOutGoogle();
       // ignore: body_might_complete_normally_catch_error
       await _auth.signOut().catchError((_) {});
     } on FirebaseAuthException catch (e) {
       // The Firestore profile may already be gone at this point.
       // Force the session back to login so the user can retry if needed.
-      // ignore: body_might_complete_normally_catch_error
-      await _google.signOut().catchError((_) {});
+      await _signOutGoogle();
       // ignore: body_might_complete_normally_catch_error
       await _auth.signOut().catchError((_) {});
 
@@ -239,8 +248,7 @@ class AuthService {
 
     await Future.wait([
       _auth.signOut(),
-      // ignore: body_might_complete_normally_catch_error
-      _google.signOut().catchError((_) {}),
+      _signOutGoogle(),
     ]);
   }
 

@@ -40,7 +40,15 @@ class DetoxColors {
   static const Color lightCardBorder = Color(0x14202B26);
   static const Color lightCardSubtle = Color(0xFFF8FAFF);
   static const Color lightText = Color(0xFF202B26);
-  static const Color lightMuted = Color(0xFF6E7A72);
+  static const Color lightMuted = Color(0xFF68746C);
+}
+
+/// Shared layout values for phone screens and touch controls.
+class DetoxSpace {
+  static const double page = 20;
+  static const double section = 24;
+  static const double item = 12;
+  static const double touch = 48;
 }
 
 /// Type scale: display (hero numbers) / title / body / caption.
@@ -63,7 +71,7 @@ const TextTheme _detoxTextTheme = TextTheme(
       TextStyle(fontSize: 15, fontWeight: FontWeight.w600, height: 1.3),
   bodyMedium:
       TextStyle(fontSize: 15, fontWeight: FontWeight.w400, height: 1.45),
-  bodySmall: TextStyle(fontSize: 13, fontWeight: FontWeight.w400, height: 1.4),
+  bodySmall: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, height: 1.4),
   labelSmall: TextStyle(
       fontSize: 12,
       fontWeight: FontWeight.w500,
@@ -87,9 +95,15 @@ class DetoxTheme {
       scaffoldBackgroundColor: DetoxColors.bg,
       colorScheme: const ColorScheme.dark(
         primary: DetoxColors.accentDeep,
+        onPrimary: Colors.white,
         secondary: DetoxColors.accent,
+        onSecondary: DetoxColors.bg,
         surface: DetoxColors.card,
         onSurface: DetoxColors.text,
+        onSurfaceVariant: DetoxColors.muted,
+        outline: DetoxColors.muted,
+        outlineVariant: DetoxColors.cardBorder,
+        error: DetoxColors.danger,
       ),
       textTheme: _detoxTextTheme.apply(
         bodyColor: DetoxColors.text,
@@ -249,9 +263,15 @@ class DetoxTheme {
       scaffoldBackgroundColor: DetoxColors.lightBg,
       colorScheme: const ColorScheme.light(
         primary: DetoxColors.accentDeep,
+        onPrimary: Colors.white,
         secondary: DetoxColors.accent,
+        onSecondary: DetoxColors.lightText,
         surface: DetoxColors.lightSurface,
         onSurface: DetoxColors.lightText,
+        onSurfaceVariant: DetoxColors.lightMuted,
+        outline: DetoxColors.lightMuted,
+        outlineVariant: DetoxColors.lightCardBorder,
+        error: Color(0xFFB3261E),
       ),
       textTheme: _detoxTextTheme.apply(
         bodyColor: DetoxColors.lightText,
@@ -406,8 +426,7 @@ class DetoxTheme {
   }
 }
 
-/// Low contrast background tint adds depth while keeping cards and content
-/// easy to read.
+/// Quiet app background shared by every route.
 class DetoxBackground extends StatelessWidget {
   const DetoxBackground({super.key, required this.child});
 
@@ -415,35 +434,10 @@ class DetoxBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDark
-              ? const [DetoxColors.bg, Color(0xFF111A16), Color(0xFF0C120F)]
-              : const [DetoxColors.lightBg, Color(0xFFEEF3EE), Colors.white],
-        ),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: const Alignment(-0.9, -1.05),
-                radius: 1.2,
-                colors: [
-                  DetoxColors.accent.withOpacity(isDark ? 0.12 : 0.08),
-                  Colors.transparent,
-                ],
-              ),
-            ),
-          ),
-          child,
-        ],
-      ),
+      decoration:
+          BoxDecoration(color: Theme.of(context).scaffoldBackgroundColor),
+      child: child,
     );
   }
 }
@@ -467,15 +461,9 @@ class GlassCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(detoxRadius),
         border: Border.all(
-          color: isDark ? const Color(0x20FFFFFF) : DetoxColors.lightCardBorder,
-        ),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDark
-              ? const [Color(0xFF18221D), DetoxColors.card]
-              : const [Colors.white, Color(0xFFF9FBF8)],
-        ),
+            color:
+                isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder),
+        color: Theme.of(context).colorScheme.surface,
       ),
       child: child,
     );

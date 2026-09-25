@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:atlas_icons/atlas_icons.dart';
 
 import 'firebase_options.dart';
 import 'l10n_app_strings.dart';
@@ -503,8 +502,14 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
-                icon: Icon([Atlas.statistics, Atlas.timer, Atlas.gear][step],
-                    size: 34, color: DetoxColors.accent),
+                icon: Icon(
+                    [
+                      Icons.bar_chart_rounded,
+                      Icons.timer_rounded,
+                      Icons.settings_rounded
+                    ][step],
+                    size: 34,
+                    color: DetoxColors.accent),
                 title: Text(titles[step]),
                 content: Column(mainAxisSize: MainAxisSize.min, children: [
                   Text(descriptions[step], textAlign: TextAlign.center),
@@ -592,8 +597,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
               child: PageView.builder(
                 controller: _pageController,
                 allowImplicitScrolling: false,
-                physics:
-                    const BouncingScrollPhysics(parent: PageScrollPhysics()),
+                physics: const NeverScrollableScrollPhysics(),
                 itemCount: 4,
                 onPageChanged: (value) {
                   _index.value = value;
@@ -655,42 +659,37 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
             ),
           ],
         ),
-        bottomNavigationBar: ClipRRect(
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(detoxRadius),
-          ),
-          child: ValueListenableBuilder<int>(
-            valueListenable: _index,
-            builder: (context, selectedIndex, child) => NavigationBar(
-              height: 74,
-              selectedIndex: selectedIndex,
-              onDestinationSelected: (value) {
-                _index.value = value;
-                _selectPage(value);
-              },
-              destinations: [
-                NavigationDestination(
-                  icon: const Icon(Atlas.home_thin),
-                  selectedIcon: const Icon(Atlas.home),
-                  label: t.home,
-                ),
-                NavigationDestination(
-                  icon: const Icon(Atlas.timer_thin),
-                  selectedIcon: const Icon(Atlas.timer),
-                  label: t.focus,
-                ),
-                NavigationDestination(
-                  icon: const Icon(Atlas.statistics_thin),
-                  selectedIcon: const Icon(Atlas.statistics),
-                  label: t.stats,
-                ),
-                NavigationDestination(
-                  icon: const Icon(Atlas.gear_thin),
-                  selectedIcon: const Icon(Atlas.gear),
-                  label: t.settings,
-                ),
-              ],
-            ),
+        bottomNavigationBar: ValueListenableBuilder<int>(
+          valueListenable: _index,
+          builder: (context, selectedIndex, child) => NavigationBar(
+            height: 74,
+            selectedIndex: selectedIndex,
+            onDestinationSelected: (value) {
+              _index.value = value;
+              _selectPage(value);
+            },
+            destinations: [
+              NavigationDestination(
+                icon: const Icon(Icons.home_outlined),
+                selectedIcon: const Icon(Icons.home_rounded),
+                label: t.home,
+              ),
+              NavigationDestination(
+                icon: const Icon(Icons.timer_outlined),
+                selectedIcon: const Icon(Icons.timer_rounded),
+                label: t.focus,
+              ),
+              NavigationDestination(
+                icon: const Icon(Icons.bar_chart_outlined),
+                selectedIcon: const Icon(Icons.bar_chart_rounded),
+                label: t.stats,
+              ),
+              NavigationDestination(
+                icon: const Icon(Icons.settings_outlined),
+                selectedIcon: const Icon(Icons.settings_rounded),
+                label: t.settings,
+              ),
+            ],
           ),
         ),
       );
@@ -760,7 +759,8 @@ class _TimeAtmosphere extends StatelessWidget {
             right: 32,
             child: Opacity(
               opacity: .27,
-              child: Icon(Atlas.moon, size: 42, color: const Color(0xFFE2E7FF)),
+              child: Icon(Icons.nightlight_round,
+                  size: 42, color: const Color(0xFFE2E7FF)),
             ),
           ),
         if (night)

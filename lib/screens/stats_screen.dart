@@ -126,7 +126,6 @@ class _StatsScreenState extends State<StatsScreen>
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
             children: [
               AppPageHeader(
-                eyebrow: t.isEs ? 'Panel' : 'Overview',
                 title: t.stats,
                 subtitle: t.statsWeeklySubtitle,
               ),
@@ -135,6 +134,25 @@ class _StatsScreenState extends State<StatsScreen>
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 64),
                   child: Center(child: CircularProgressIndicator()),
+                )
+              else if (snapshot.hasError)
+                GlassCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                          t.isEs
+                              ? 'No se pudieron cargar las estadísticas'
+                              : 'Could not load stats',
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        onPressed: _refresh,
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: Text(t.isEs ? 'Reintentar' : 'Retry'),
+                      ),
+                    ],
+                  ),
                 )
               else if (!hasUsage)
                 _EmptyWeeklyState(muted: muted)
@@ -148,28 +166,6 @@ class _StatsScreenState extends State<StatsScreen>
                 SectionTitle(title: t.isEs ? 'Uso por día' : 'Usage by day'),
                 const SizedBox(height: 12),
                 _WeeklyBarChart(weekly: weekly),
-                const SizedBox(height: 16),
-                GlassCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        t.statsWeeklyGoal,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _weeklyGoalMet(weekly, dailyLimit)
-                            ? t.statsGoalMet
-                            : t.statsGoalMiss,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: muted),
-                      ),
-                    ],
-                  ),
-                ),
               ],
             ],
           );
@@ -207,71 +203,30 @@ class _WeeklySummaryCard extends StatelessWidget {
     final goalMet = _weeklyGoalMet(weekly, dailyLimitMinutes);
     final hasTrend = weekly.length > 1;
     final trendDown = weekly.last <= weekly.first;
-    final bestDay = weekly.reduce((a, b) => a < b ? a : b);
 
     return HeroInfoCard(
       title: t.statsWeeklyTitle,
       subtitle: !hasTrend
           ? (t.isEs ? 'La semana comienza hoy.' : 'The week starts today.')
           : (trendDown ? t.statsTrendDown : t.statsTrendUp),
-      badge: StatusPill(
-        label: !hasTrend
-            ? (t.isEs ? 'Semana en curso' : 'Week in progress')
-            : trendDown
-            ? (t.isEs ? 'A la baja' : 'Trending down')
-            : (t.isEs ? 'A la alza' : 'Trending up'),
-        icon: !hasTrend
-            ? Icons.calendar_today_outlined
-            : (trendDown ? Icons.south_east_rounded : Icons.north_east_rounded),
-        color: !hasTrend
-            ? DetoxColors.accent
-            : (trendDown ? DetoxColors.success : DetoxColors.warning),
-      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: FriendlyStatTile(
-                  label: t.isEs ? 'Promedio diario' : 'Daily average',
-                  value: _averageLabel(),
-                  helper: t.isEs ? 'pantalla por día' : 'screen time per day',
-                  icon: Icons.timelapse_rounded,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FriendlyStatTile(
-                  label: t.isEs ? 'Mejor día' : 'Best day',
-                  value: '${bestDay}m',
-                  helper: t.isEs
-                      ? 'menor uso semanal'
-                      : 'lowest screen time this week',
-                  icon: Icons.emoji_events_outlined,
-                  color: DetoxColors.success,
-                ),
-              ),
-            ],
+          Text(
+            _averageLabel(),
+            style: Theme.of(context).textTheme.displayMedium,
           ),
+          const SizedBox(height: 4),
+          Text(t.isEs ? 'promedio diario' : 'daily average',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: muted)),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: StatusPill(
-                  label: goalMet
-                      ? (t.isEs
-                          ? 'Meta semanal bien encaminada'
-                          : 'Weekly goal on track')
-                      : (t.isEs
-                          ? 'Todavía puedes ajustar la semana'
-                          : 'You can still improve this week'),
-                  icon: goalMet
-                      ? Icons.check_circle_rounded
-                      : Icons.flag_outlined,
-                  color: goalMet ? DetoxColors.success : DetoxColors.warning,
-                ),
-              ),
-            ],
+          Text(
+            goalMet ? t.statsGoalMet : t.statsGoalMiss,
+            style:
+                Theme.of(context).textTheme.bodyMedium?.copyWith(color: muted),
           ),
         ],
       ),

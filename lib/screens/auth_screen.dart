@@ -99,7 +99,8 @@ class _AuthScreenState extends State<AuthScreen> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -116,7 +117,8 @@ class _AuthScreenState extends State<AuthScreen> {
             builder: (context, constraints) => SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
               child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight - 52),
+                constraints:
+                    BoxConstraints(minHeight: constraints.maxHeight - 52),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 420),
@@ -125,13 +127,15 @@ class _AuthScreenState extends State<AuthScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         // ── Centered, quiet brand header ──
-                        const Center(child: DetoxLogo(size: 76, showLabel: true)),
+                        const Center(
+                            child: DetoxLogo(size: 76, showLabel: true)),
                         const SizedBox(height: 10),
                         Center(
                           child: Text(
                             t.useEmailFirst,
                             textAlign: TextAlign.center,
-                            style: theme.textTheme.bodyMedium?.copyWith(color: mutedColor),
+                            style: theme.textTheme.bodyMedium
+                                ?.copyWith(color: mutedColor),
                           ),
                         ),
                         const SizedBox(height: 28),
@@ -140,7 +144,9 @@ class _AuthScreenState extends State<AuthScreen> {
                           valueListenable: _tab,
                           builder: (context, value, _) => Container(
                             decoration: BoxDecoration(
-                              color: isDark ? DetoxColors.bgAlt : const Color(0xFFF1F3EF),
+                              color: isDark
+                                  ? DetoxColors.bgAlt
+                                  : const Color(0xFFF1F3EF),
                               borderRadius: BorderRadius.circular(detoxRadius),
                             ),
                             padding: const EdgeInsets.all(4),
@@ -223,19 +229,27 @@ class _AuthScreenState extends State<AuthScreen> {
             const SizedBox(height: 6),
             Text(
               t.signInSubtitle,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: mutedColor),
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: mutedColor),
             ),
             const SizedBox(height: 18),
             TextFormField(
               controller: _signInEmail,
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
-              autofillHints: const [AutofillHints.username, AutofillHints.email],
+              autofillHints: const [
+                AutofillHints.username,
+                AutofillHints.email
+              ],
               decoration: InputDecoration(
                 labelText: t.email,
                 prefixIcon: const Icon(Icons.alternate_email_rounded),
               ),
-              validator: (value) => (value == null || !value.contains('@')) ? t.enterValidEmail : null,
+              validator: (value) => (value == null || !value.contains('@'))
+                  ? t.enterValidEmail
+                  : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
@@ -247,7 +261,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 labelText: t.password,
                 prefixIcon: const Icon(Icons.lock_outline_rounded),
               ),
-              validator: (value) => (value == null || value.length < 6) ? t.useSixChars : null,
+              validator: (value) =>
+                  (value == null || value.length < 6) ? t.useSixChars : null,
               onFieldSubmitted: (_) {
                 if (!_busy) _signIn();
               },
@@ -262,13 +277,6 @@ class _AuthScreenState extends State<AuthScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2.2),
                     )
                   : Text(t.signIn),
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: TextButton(
-                onPressed: _busy ? null : () => _tab.value = 1,
-                child: Text('${t.noAccountYet} ${t.createAccount}'),
-              ),
             ),
           ],
         ),
@@ -285,11 +293,15 @@ class _AuthScreenState extends State<AuthScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(t.createAccountTitle, style: Theme.of(context).textTheme.titleLarge),
+            Text(t.createAccountTitle,
+                style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 6),
             Text(
               t.createAccountSubtitle,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: mutedColor),
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: mutedColor),
             ),
             const SizedBox(height: 18),
             TextFormField(
@@ -300,19 +312,26 @@ class _AuthScreenState extends State<AuthScreen> {
                 labelText: t.name,
                 prefixIcon: const Icon(Icons.person_outline_rounded),
               ),
-              validator: (value) => (value == null || value.trim().length < 2) ? t.enterName : null,
+              validator: (value) => (value == null || value.trim().length < 2)
+                  ? t.enterName
+                  : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _signUpEmail,
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
-              autofillHints: const [AutofillHints.username, AutofillHints.email],
+              autofillHints: const [
+                AutofillHints.username,
+                AutofillHints.email
+              ],
               decoration: InputDecoration(
                 labelText: t.email,
                 prefixIcon: const Icon(Icons.alternate_email_rounded),
               ),
-              validator: (value) => (value == null || !value.contains('@')) ? t.enterValidEmail : null,
+              validator: (value) => (value == null || !value.contains('@'))
+                  ? t.enterValidEmail
+                  : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
@@ -324,7 +343,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 labelText: t.password,
                 prefixIcon: const Icon(Icons.lock_outline_rounded),
               ),
-              validator: (value) => (value == null || value.length < 6) ? t.useSixChars : null,
+              validator: (value) =>
+                  (value == null || value.length < 6) ? t.useSixChars : null,
               onFieldSubmitted: (_) {
                 if (!_busy) _signUp();
               },
@@ -339,13 +359,6 @@ class _AuthScreenState extends State<AuthScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2.2),
                     )
                   : Text(t.createAccount),
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: TextButton(
-                onPressed: _busy ? null : () => _tab.value = 0,
-                child: Text('${t.alreadyHaveAccount} ${t.signIn}'),
-              ),
             ),
           ],
         ),
@@ -362,7 +375,8 @@ class _DividerLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final borderColor = isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder;
+    final borderColor =
+        isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder;
     final mutedColor = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
 
     return Row(
@@ -414,14 +428,16 @@ class _SecondaryAuthButton extends StatelessWidget {
           color: isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder,
         ),
         backgroundColor: isDark ? DetoxColors.card : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(detoxRadius)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(detoxRadius)),
       ),
     );
   }
 }
 
 class _SegmentButton extends StatelessWidget {
-  const _SegmentButton({required this.label, required this.selected, required this.onTap});
+  const _SegmentButton(
+      {required this.label, required this.selected, required this.onTap});
 
   final String label;
   final bool selected;
@@ -444,7 +460,9 @@ class _SegmentButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(detoxRadius),
           border: Border.all(
             color: selected
-                ? (isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder)
+                ? (isDark
+                    ? DetoxColors.cardBorder
+                    : DetoxColors.lightCardBorder)
                 : Colors.transparent,
           ),
         ),
@@ -503,7 +521,8 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
       );
     } on AuthException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -512,12 +531,14 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
   Future<void> _verifyCode() async {
     setState(() => _sending = true);
     try {
-      final user = await AuthService.instance.verifySmsCode(_codeController.text);
+      final user =
+          await AuthService.instance.verifySmsCode(_codeController.text);
       if (!mounted) return;
       Navigator.pop(context, user);
     } on AuthException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -545,7 +566,8 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
                   ),
             ),
             const SizedBox(height: 10),
-            Text(t.phoneInstructions, style: const TextStyle(color: DetoxColors.muted)),
+            Text(t.phoneInstructions,
+                style: const TextStyle(color: DetoxColors.muted)),
             const SizedBox(height: 14),
             TextField(
               controller: _phoneController,
@@ -578,7 +600,9 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: FilledButton(
-                    onPressed: _sending ? null : (_codeSent ? _verifyCode : _requestCode),
+                    onPressed: _sending
+                        ? null
+                        : (_codeSent ? _verifyCode : _requestCode),
                     child: Text(_codeSent ? t.verifyCode : t.sendCode),
                   ),
                 ),

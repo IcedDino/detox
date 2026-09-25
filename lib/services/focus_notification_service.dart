@@ -45,7 +45,7 @@ class FocusNotificationService {
     const settings = InitializationSettings(android: android);
 
     await _plugin.initialize(
-      settings,
+      settings: settings,
       onDidReceiveNotificationResponse: (response) async {
         await _persistResponse(response);
       },
@@ -219,10 +219,10 @@ class FocusNotificationService {
     );
 
     await _plugin.show(
-      _timerNotificationId,
-      'Detox focus active',
-      '$label remaining · ${_format(remainingSeconds)}',
-      details,
+      id: _timerNotificationId,
+      title: 'Detox focus active',
+      body: '$label remaining · ${_format(remainingSeconds)}',
+      notificationDetails: details,
     );
   }
 
@@ -268,10 +268,10 @@ class FocusNotificationService {
     );
 
     await _plugin.show(
-      _smartSuggestionId,
-      title,
-      body,
-      details,
+      id: _smartSuggestionId,
+      title: title,
+      body: body,
+      notificationDetails: details,
       payload: payload,
     );
   }
@@ -298,10 +298,10 @@ class FocusNotificationService {
     );
 
     await _plugin.show(
-      id,
-      title,
-      body,
-      details,
+      id: id,
+      title: title,
+      body: body,
+      notificationDetails: details,
       payload: payload,
     );
   }
@@ -313,19 +313,19 @@ class FocusNotificationService {
   Future<void> cancelTimer() async {
     if (!_isAndroid) return;
     await initialize();
-    await _plugin.cancel(_timerNotificationId);
+    await _plugin.cancel(id: _timerNotificationId);
   }
 
   Future<void> cancelSmartSuggestion() async {
     if (!_isAndroid) return;
     await initialize();
-    await _plugin.cancel(_smartSuggestionId);
+    await _plugin.cancel(id: _smartSuggestionId);
   }
 
   Future<void> cancelSponsorAlert(int id) async {
     if (!_isAndroid) return;
     await initialize();
-    await _plugin.cancel(id);
+    await _plugin.cancel(id: id);
   }
 
   Future<void> cancelAll() async {

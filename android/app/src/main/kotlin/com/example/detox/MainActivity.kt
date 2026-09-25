@@ -6,7 +6,6 @@ import android.app.usage.UsageStatsManager
 import java.util.Calendar
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.Drawable
@@ -307,8 +306,9 @@ class MainActivity : FlutterActivity() {
         val seen = HashSet<String>()
         return activities.mapNotNull { activity ->
             val app = activity.activityInfo?.applicationInfo ?: return@mapNotNull null
-            if ((app.flags and ApplicationInfo.FLAG_SYSTEM) != 0 ||
-                !seen.add(app.packageName)) return@mapNotNull null
+            // Preinstalled apps can still be blockable (Instagram on HONOR,
+            // YouTube, Chrome). The Dart catalog filters critical packages.
+            if (!seen.add(app.packageName)) return@mapNotNull null
             mapOf(
                 "name" to packageManager.getApplicationLabel(app).toString(),
                 "packageName" to app.packageName,

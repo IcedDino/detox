@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:atlas_icons/atlas_icons.dart';
 
 import '../l10n_app_strings.dart';
 import '../models/app_limit.dart';
@@ -68,9 +67,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   List<ConcentrationZone> _zones = const [];
   bool _hasSponsor = false;
   bool _settingsUnlockActive = false;
-  String _mySponsorCode = '';
   SponsorProfile? _sponsorProfile;
-  DateTime? _settingsUnlockUntil;
   ZoneState _zoneState = LocationZoneService.instance.currentState;
   StreamSubscription<ZoneState>? _zoneSubscription;
   bool _deletingAccount = false;
@@ -158,8 +155,6 @@ class _SettingsScreenState extends State<SettingsScreen>
         _hasSponsor = sponsorContext.hasSponsor;
         _sponsorProfile = sponsorContext.sponsorProfile;
         _settingsUnlockActive = sponsorContext.hasActiveSettingsUnlock;
-        _settingsUnlockUntil = sponsorContext.settingsUnlockUntil;
-        _mySponsorCode = sponsorContext.sponsorCode;
         _loading = false;
       });
     } catch (_) {
@@ -488,15 +483,14 @@ class _SettingsScreenState extends State<SettingsScreen>
 
     final sections = <WidgetBuilder>[
       (context) => AppPageHeader(
-            eyebrow: t.isEs ? 'Ajustes' : 'Settings',
             title: t.settings,
             subtitle: t.settingsPageSubtitle,
           ),
       (context) => const SizedBox(height: 18),
       if (widget.currentUser != null) ...[
-        (context) => GestureDetector(
+        (context) => InkWell(
               onTap: _deletingAccount ? null : _openAccountActions,
-              behavior: HitTestBehavior.opaque,
+              borderRadius: BorderRadius.circular(detoxRadius),
               child: GlassCard(
                 padding: const EdgeInsets.all(20),
                 child: Row(
@@ -566,188 +560,142 @@ class _SettingsScreenState extends State<SettingsScreen>
             ),
         (context) => const SizedBox(height: 16),
       ],
-      (context) => HeroInfoCard(
-            icon: Icons.handshake_outlined,
+      (context) => SoftActionTile(
+            icon: Icons.shield_outlined,
             title: t.sponsorCenter,
             subtitle: _hasSponsor
-                ? (_sponsorProfile?.displayName ?? '')
-                : '${t.yourCode}: ${_mySponsorCode.isEmpty ? t.loading : _mySponsorCode}',
-            badge: StatusPill(
-              label: _hasSponsor
-                  ? (t.isEs ? 'Vínculo activo' : 'Linked')
-                  : (t.isEs ? 'Sin padrino' : 'No sponsor'),
-              icon: _hasSponsor
-                  ? Icons.check_circle_rounded
-                  : Icons.link_off_rounded,
-              color: _hasSponsor ? DetoxColors.success : DetoxColors.warning,
-            ),
-            action: TextButton(
-              onPressed: () async {
-                await Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const SponsorScreen(),
-                  ),
-                );
-                await _load();
-              },
-              child: Text(t.open),
-            ),
-            child: Column(
-              children: [
-                if (_settingsUnlockActive && _settingsUnlockUntil != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Row(
-                      children: [
-                        StatusPill(
-                          label: t.settingsUnlockedUntil(
-                            '${_settingsUnlockUntil!.hour.toString().padLeft(2, '0')}:${_settingsUnlockUntil!.minute.toString().padLeft(2, '0')}',
-                          ),
-                          icon: Icons.lock_open_rounded,
-                          color: DetoxColors.success,
-                        ),
-                      ],
-                    ),
-                  ),
-                SoftActionTile(
-                  icon: Icons.shield_outlined,
-                  title:
-                      t.isEs ? 'Protección con padrino' : 'Sponsor protection',
-                  subtitle: _hasSponsor
-                      ? (t.isEs
-                          ? 'Las acciones sensibles piden aprobación o una pausa autorizada.'
-                          : 'Sensitive actions can request approval or an authorized pause.')
-                      : (t.isEs
-                          ? 'Puedes agregar una persona de confianza para aprobar cambios importantes.'
-                          : 'You can add a trusted person to approve important changes.'),
-                  trailing: Icon(Icons.chevron_right_rounded, color: muted),
-                  onTap: () async {
-                    await Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const SponsorScreen(),
-                      ),
-                    );
-                    await _load();
-                  },
-                ),
-              ],
-            ),
+                ? (_sponsorProfile?.displayName ?? t.sponsorCenter)
+                : (t.isEs
+                    ? 'Añade una persona de confianza'
+                    : 'Add a trusted person'),
+            trailing: Icon(Icons.chevron_right_rounded, color: muted),
+            onTap: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SponsorScreen()),
+              );
+              await _load();
+            },
           ),
       (context) => const SizedBox(height: 16),
       (context) => SectionTitle(
             title: t.isEs ? 'Preferencias generales' : 'General preferences',
-            subtitle: t.isEs
-                ? 'Aspecto, idioma y tiempo de pantalla diario.'
-                : 'Appearance, language, and your daily screen-time target.',
           ),
       (context) => const SizedBox(height: 12),
-      (context) => GlassCard(
-            child: Column(
-              children: [
-                SoftActionTile(
-                  icon: widget.darkMode ? Atlas.moon : Atlas.sunny,
-                  title: t.darkMode,
-                  subtitle: t.darkModeSubtitle,
-                  trailing: Switch(
+      (context) => Column(
+            children: [
+              SoftActionTile(
+                icon: widget.darkMode
+                    ? Icons.dark_mode_outlined
+                    : Icons.light_mode_outlined,
+                title: t.darkMode,
+                subtitle: t.darkModeSubtitle,
+                trailing: Semantics(
+                  label: t.darkMode,
+                  child: Switch(
                     value: widget.darkMode,
                     onChanged: widget.onDarkModeChanged,
                   ),
                 ),
-                const SizedBox(height: 12),
-                SoftActionTile(
-                  icon: Atlas.sunrise,
-                  title: t.isEs
+              ),
+              const SizedBox(height: 12),
+              SoftActionTile(
+                icon: Icons.wb_twilight_outlined,
+                title: t.isEs
+                    ? 'Ambiente según la hora'
+                    : 'Time of day atmosphere',
+                subtitle: t.isEs
+                    ? 'Luz cálida al amanecer y estrellas de noche. Solo en modo oscuro.'
+                    : 'Warm light at sunrise and stars at night. Dark mode only.',
+                trailing: Semantics(
+                  label: t.isEs
                       ? 'Ambiente según la hora'
                       : 'Time of day atmosphere',
-                  subtitle: t.isEs
-                      ? 'Luz cálida al amanecer y estrellas de noche. Solo en modo oscuro.'
-                      : 'Warm light at sunrise and stars at night. Dark mode only.',
-                  trailing: Switch(
+                  child: Switch(
                     value: widget.timeAtmosphereEnabled && widget.darkMode,
                     onChanged:
                         widget.darkMode ? widget.onTimeAtmosphereChanged : null,
                   ),
                 ),
-                const SizedBox(height: 12),
-                SoftActionTile(
-                  icon: Icons.language_rounded,
-                  title: t.language,
-                  subtitle: widget.localeCode == 'es' ? 'Español' : 'English',
-                  trailing: DropdownButton<String>(
-                    value: widget.localeCode,
-                    underline: const SizedBox.shrink(),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'en',
-                        child: Text('English'),
+              ),
+              const SizedBox(height: 12),
+              SoftActionTile(
+                icon: Icons.language_rounded,
+                title: t.language,
+                subtitle: widget.localeCode == 'es' ? 'Español' : 'English',
+                trailing: DropdownButton<String>(
+                  value: widget.localeCode,
+                  underline: const SizedBox.shrink(),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'en',
+                      child: Text('English'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'es',
+                      child: Text('Español'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) widget.onLocaleChanged(value);
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+              ValueListenableBuilder<int>(
+                valueListenable: _dailyLimit,
+                builder: (context, dailyLimit, child) => Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(detoxRadius),
+                    color: isDark
+                        ? DetoxColors.cardSubtle
+                        : DetoxColors.lightCardSubtle,
+                    border: Border.all(
+                      color: isDark
+                          ? DetoxColors.cardBorder
+                          : DetoxColors.lightCardBorder,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        t.dailyScreenTimeLimit,
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: detoxWeightEmphasis,
+                                ),
                       ),
-                      DropdownMenuItem(
-                        value: 'es',
-                        child: Text('Español'),
+                      const SizedBox(height: 6),
+                      Text(
+                        t.minutesLabel(dailyLimit),
+                        style: TextStyle(color: muted),
+                      ),
+                      const SizedBox(height: 8),
+                      Slider(
+                        min: 30,
+                        max: 480,
+                        divisions: 15,
+                        label: t.minutesLabel(dailyLimit),
+                        value: dailyLimit.toDouble(),
+                        onChanged: (value) => _dailyLimit.value = value.round(),
+                        onChangeEnd: (value) =>
+                            _storageService.saveDailyLimitMinutes(
+                          value.round(),
+                        ),
                       ),
                     ],
-                    onChanged: (value) {
-                      if (value != null) widget.onLocaleChanged(value);
-                    },
                   ),
                 ),
-                const SizedBox(height: 12),
-                ValueListenableBuilder<int>(
-                  valueListenable: _dailyLimit,
-                  builder: (context, dailyLimit, child) => Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(detoxRadius),
-                      color: isDark
-                          ? DetoxColors.cardSubtle
-                          : DetoxColors.lightCardSubtle,
-                      border: Border.all(
-                        color: isDark
-                            ? DetoxColors.cardBorder
-                            : DetoxColors.lightCardBorder,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          t.dailyScreenTimeLimit,
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: detoxWeightEmphasis,
-                                  ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          t.minutesLabel(dailyLimit),
-                          style: TextStyle(color: muted),
-                        ),
-                        const SizedBox(height: 8),
-                        Slider(
-                          min: 30,
-                          max: 480,
-                          divisions: 15,
-                          label: t.minutesLabel(dailyLimit),
-                          value: dailyLimit.toDouble(),
-                          onChanged: (value) =>
-                              _dailyLimit.value = value.round(),
-                          onChangeEnd: (value) =>
-                              _storageService.saveDailyLimitMinutes(
-                            value.round(),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
       (context) => const SizedBox(height: 16),
       (context) => SectionTitle(
             title: t.perAppLimits,
             subtitle: t.pickAppsBody,
             trailing: IconButton(
+              tooltip: t.isEs ? 'Añadir límite de app' : 'Add app limit',
               onPressed: _addAppLimit,
               icon: const Icon(Icons.add),
             ),
@@ -783,11 +731,19 @@ class _SettingsScreenState extends State<SettingsScreen>
                       ),
                     ),
                   ),
-                  Switch(
-                    value: item.useInFocusMode,
-                    onChanged: (value) => _toggleFocus(item, value),
+                  Semantics(
+                    label: t.isEs
+                        ? 'Bloquear ${item.appName} durante el enfoque'
+                        : 'Block ${item.appName} during focus',
+                    child: Switch(
+                      value: item.useInFocusMode,
+                      onChanged: (value) => _toggleFocus(item, value),
+                    ),
                   ),
                   IconButton(
+                    tooltip: t.isEs
+                        ? 'Quitar ${item.appName}'
+                        : 'Remove ${item.appName}',
                     onPressed: () => _removeAppLimit(item),
                     icon: const Icon(Icons.delete_outline),
                     color: muted,
@@ -798,28 +754,23 @@ class _SettingsScreenState extends State<SettingsScreen>
       (context) => const SizedBox(height: 16),
       (context) => SectionTitle(
             title: t.isEs ? 'Horarios de Detox' : 'Detox schedules',
-            subtitle: t.isEs
-                ? 'Programa bloqueos automáticos y presets de apps para ciertos momentos del día, incluso sin usar zonas.'
-                : 'Schedule automatic blocking and app presets for certain moments of the day, even without using zones.',
           ),
       (context) => const SizedBox(height: 12),
-      (context) => GlassCard(
-            child: SoftActionTile(
-              icon: Icons.schedule_rounded,
-              title: t.isEs ? 'Horarios de Detox' : 'Detox schedules',
-              subtitle: t.isEs
-                  ? 'Crea horarios automáticos y presets de apps para clases, trabajo o descanso.'
-                  : 'Create automatic schedules and app presets for classes, work, or downtime.',
-              trailing: Icon(Icons.chevron_right_rounded, color: muted),
-              onTap: () async {
-                await Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const AutomationSettingsScreen(),
-                  ),
-                );
-                await _load();
-              },
-            ),
+      (context) => SoftActionTile(
+            icon: Icons.schedule_rounded,
+            title: t.isEs ? 'Administrar horarios' : 'Manage schedules',
+            subtitle: t.isEs
+                ? 'Crea o edita bloqueos automáticos.'
+                : 'Create or edit automatic blocks.',
+            trailing: Icon(Icons.chevron_right_rounded, color: muted),
+            onTap: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const AutomationSettingsScreen(),
+                ),
+              );
+              await _load();
+            },
           ),
       (context) => const SizedBox(height: 16),
       (context) => SectionTitle(
@@ -828,6 +779,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                 ? 'Espacios donde el enfoque se puede activar solo.'
                 : 'Places where focus can activate automatically.',
             trailing: IconButton(
+              tooltip: t.isEs ? 'Añadir zona' : 'Add zone',
               onPressed: _addZone,
               icon: const Icon(Icons.add_location_alt_outlined),
             ),
@@ -913,11 +865,17 @@ class _SettingsScreenState extends State<SettingsScreen>
                             ),
                           ),
                           IconButton(
+                            tooltip: t.isEs
+                                ? 'Editar ${zone.name}'
+                                : 'Edit ${zone.name}',
                             onPressed: () => _editZone(zone),
                             icon: const Icon(Icons.edit_outlined),
                             color: muted,
                           ),
                           IconButton(
+                            tooltip: t.isEs
+                                ? 'Eliminar ${zone.name}'
+                                : 'Delete ${zone.name}',
                             onPressed: () => _removeZone(zone),
                             icon: const Icon(Icons.delete_outline),
                             color: muted,
@@ -971,9 +929,14 @@ class _SettingsScreenState extends State<SettingsScreen>
                                 ),
                               ),
                             ),
-                            Switch(
-                              value: zone.enabled,
-                              onChanged: (value) => _toggleZone(zone, value),
+                            Semantics(
+                              label: t.isEs
+                                  ? 'Activar zona ${zone.name}'
+                                  : 'Enable zone ${zone.name}',
+                              child: Switch(
+                                value: zone.enabled,
+                                onChanged: (value) => _toggleZone(zone, value),
+                              ),
                             ),
                           ],
                         ),

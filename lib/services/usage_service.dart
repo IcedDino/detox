@@ -210,13 +210,17 @@ class UsageService {
     );
   }
 
-  Future<void> openUsageAccessSettings() async {
-    if (kIsWeb) return;
+  Future<bool> openUsageAccessSettings() async {
+    if (kIsWeb) return false;
     if (defaultTargetPlatform == TargetPlatform.android) {
       try {
-        await _channel.invokeMethod('openUsageAccessSettings');
-      } catch (_) {}
+        return await _channel.invokeMethod<bool>('openUsageAccessSettings') ??
+            false;
+      } catch (_) {
+        return false;
+      }
     }
+    return false;
   }
 
   Future<bool> _hasAndroidUsageAccess() async {

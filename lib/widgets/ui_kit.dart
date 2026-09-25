@@ -2,44 +2,34 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 
-/// Page header: eyebrow + title + subtitle, left aligned, no icon container.
+/// Page header with one title and optional context.
 class AppPageHeader extends StatelessWidget {
   const AppPageHeader({
     super.key,
-    required this.eyebrow,
     required this.title,
     required this.subtitle,
-    this.icon,
   });
 
-  final String eyebrow;
   final String title;
   final String subtitle;
-  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          eyebrow.toUpperCase(),
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: DetoxColors.accent,
-                letterSpacing: 1.2,
-              ),
-        ),
-        const SizedBox(height: 6),
         Text(title, style: Theme.of(context).textTheme.headlineMedium),
-        const SizedBox(height: 8),
-        Text(
-          subtitle,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? DetoxColors.muted
-                    : DetoxColors.lightMuted,
-              ),
-        ),
+        if (subtitle.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? DetoxColors.muted
+                      : DetoxColors.lightMuted,
+                ),
+          ),
+        ],
       ],
     );
   }
@@ -107,9 +97,17 @@ class StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final effectiveColor =
-        color ?? (isDark ? DetoxColors.accent : DetoxColors.accent);
-    final muted = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
+    final requestedColor = color ?? DetoxColors.accent;
+    final effectiveColor = !isDark &&
+            (requestedColor == DetoxColors.accent ||
+                requestedColor == DetoxColors.accentSoft ||
+                requestedColor == DetoxColors.success)
+        ? DetoxColors.accentDeep
+        : !isDark && requestedColor == DetoxColors.warning
+            ? const Color(0xFF805B19)
+            : !isDark && requestedColor == DetoxColors.danger
+                ? const Color(0xFFB3261E)
+                : requestedColor;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -136,8 +134,6 @@ class StatusPill extends StatelessWidget {
                   ),
             ),
           ),
-          // Muted color referenced for neutral pills.
-          if (effectiveColor == muted) const SizedBox.shrink(),
         ],
       ),
     );
@@ -177,18 +173,6 @@ class HeroInfoCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (icon != null) ...[
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: DetoxColors.accent.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: DetoxColors.accent, size: 20),
-                ),
-                const SizedBox(width: 10),
-              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -326,14 +310,14 @@ class SoftActionTile extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
     final effectiveColor =
-        color ?? (isDark ? DetoxColors.accent : DetoxColors.accent);
+        color ?? (isDark ? DetoxColors.accent : DetoxColors.accentDeep);
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(detoxRadius),
-        child: Container(
+        child: Ink(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(detoxRadius),
