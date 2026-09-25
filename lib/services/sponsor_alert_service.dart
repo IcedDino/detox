@@ -177,6 +177,19 @@ class SponsorAlertService {
     }
   }
 
+  /// Bounds the dedup table so it cannot grow for the whole session. Dart maps
+  /// keep insertion order, so trimming the first keys drops the oldest ids.
+  static const int _maxSeenStates = 200;
+
+  void _rememberSeen(String key, String signature) {
+    _seenStates[key] = signature;
+    if (_seenStates.length <= _maxSeenStates) return;
+    final overflow = _seenStates.length - _maxSeenStates;
+    for (final oldKey in _seenStates.keys.take(overflow).toList()) {
+      _seenStates.remove(oldKey);
+    }
+  }
+
   void _clearSeenByPrefix(String prefix) {
     final keys =
         _seenStates.keys.where((key) => key.startsWith(prefix)).toList();
@@ -190,7 +203,7 @@ class SponsorAlertService {
       final key = 'in_${request.id}';
       final signature = '${request.status}_${request.code ?? ''}';
       if (_seenStates[key] == signature) continue;
-      _seenStates[key] = signature;
+      _rememberSeen(key, signature);
 
       if (request.isPending) {
         final isUnlink = request.requestType == 'unlink_sponsor';
@@ -226,7 +239,7 @@ class SponsorAlertService {
     for (final request in requests) {
       final key = 'lin_${request.id}';
       if (_seenStates[key] == request.status) continue;
-      _seenStates[key] = request.status;
+      _rememberSeen(key, request.status);
 
       unawaited(
         FocusNotificationService.instance.showSponsorAlert(
@@ -296,7 +309,7 @@ class SponsorAlertService {
       final key = 'out_${request.id}';
       final signature = '${request.status}_${request.code ?? ''}';
       if (_seenStates[key] == signature) continue;
-      _seenStates[key] = signature;
+      _rememberSeen(key, signature);
 
       if (request.isRejected) {
         final isUnlink = request.requestType == 'unlink_sponsor';

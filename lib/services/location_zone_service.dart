@@ -15,6 +15,7 @@ class ZoneState {
   const ZoneState({
     required this.enabled,
     required this.insideZone,
+    this.zoneId,
     this.zoneName,
     this.message,
     this.overrideActive = false,
@@ -22,6 +23,7 @@ class ZoneState {
 
   final bool enabled;
   final bool insideZone;
+  final String? zoneId;
   final String? zoneName;
   final String? message;
   final bool overrideActive;
@@ -277,6 +279,7 @@ class LocationZoneService {
           _emit(ZoneState(
             enabled: true,
             insideZone: false,
+            zoneId: matched.id,
             zoneName: matched.name,
             overrideActive: true,
             message: 'Sponsor override active in ${matched.name}.',
@@ -308,6 +311,7 @@ class LocationZoneService {
         _emit(ZoneState(
           enabled: true,
           insideZone: true,
+          zoneId: matched.id,
           zoneName: matched.name,
           message: packages.isEmpty
               ? AppStrings.current.zoneNoAppsSelected(matched.name)
@@ -339,10 +343,13 @@ class LocationZoneService {
       double nearestEdgeDistanceMeters) async {
     if (!_monitoring) return;
 
+    // Battery: keep the fused "medium" accuracy even near a zone instead of
+    // switching to high-accuracy GPS, and space the fixes out. Zone matching
+    // still works because the initial stream already runs at medium accuracy.
     if (nearestEdgeDistanceMeters <= _nearZonePaddingMeters) {
       await _restartPositionStream(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 25,
+        accuracy: LocationAccuracy.medium,
+        distanceFilter: 50,
       );
       return;
     }
@@ -350,7 +357,7 @@ class LocationZoneService {
     if (nearestEdgeDistanceMeters <= _mediumZonePaddingMeters) {
       await _restartPositionStream(
         accuracy: LocationAccuracy.medium,
-        distanceFilter: 60,
+        distanceFilter: 120,
       );
       return;
     }

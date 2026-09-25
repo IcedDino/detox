@@ -108,7 +108,7 @@ service cloud.firestore {
 
     // One current request per user; a pending request cannot be overwritten.
     match /meta/admin/unlink_requests/{requestId} {
-      allow get: if signedIn() && resource.data.requesterUid == request.auth.uid;
+      allow get: if signedIn() && (resource == null || resource.data.requesterUid == request.auth.uid);
       allow list: if false;
       allow create: if validSupportUnlinkSubmission(requestId);
       allow update: if resource.data.requesterUid == request.auth.uid &&

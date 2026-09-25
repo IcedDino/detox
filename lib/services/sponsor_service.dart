@@ -292,7 +292,7 @@ class SponsorService {
       if (request.requestType != 'unlink_sponsor') {
         throw SponsorException(_t.errUnsupportedRequestType);
       }
-      if (request.isApproved) return;
+      if (request.isApproved || request.isConsumed) return;
       if (!request.isPending && !request.isExpired) {
         throw SponsorException(_t.errRequestNotPending);
       }
@@ -307,24 +307,17 @@ class SponsorService {
       final meData = meSnap.data() ?? <String, dynamic>{};
 
       if (requesterData['sponsorUid'] == uid) {
-        tx.set(requesterRef, {
-          'sponsorUid': FieldValue.delete(),
-          'sponsorLinkedAt': FieldValue.delete(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        tx.set(requesterRef, _unlinkLinkedUserFields, SetOptions(merge: true));
       }
       if (meData['sponsorUid'] == request.requesterUid) {
-        tx.set(meDoc, {
-          'sponsorUid': FieldValue.delete(),
-          'sponsorLinkedAt': FieldValue.delete(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        tx.set(meDoc, _unlinkLinkedUserFields, SetOptions(merge: true));
       }
 
       tx.set(ref, {
-        'status': 'approved',
+        'status': 'consumed',
         'approvedAt': FieldValue.serverTimestamp(),
         'appliedAt': FieldValue.serverTimestamp(),
+        'consumedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
         'replyMessage': _cleanMessage(replyMessage),
       }, SetOptions(merge: true));
@@ -690,18 +683,10 @@ class SponsorService {
       final sponsorSnap = await tx.get(sponsorRef);
       final sponsorData = sponsorSnap.data() ?? <String, dynamic>{};
 
-      tx.set(meDoc, {
-        'sponsorUid': FieldValue.delete(),
-        'sponsorLinkedAt': FieldValue.delete(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      tx.set(meDoc, _unlinkLinkedUserFields, SetOptions(merge: true));
 
       if (sponsorData['sponsorUid'] == uid) {
-        tx.set(sponsorRef, {
-          'sponsorUid': FieldValue.delete(),
-          'sponsorLinkedAt': FieldValue.delete(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        tx.set(sponsorRef, _unlinkLinkedUserFields, SetOptions(merge: true));
       }
     });
 
@@ -761,9 +746,14 @@ class SponsorService {
   Stream<SupportUnlinkRequest?> currentSupportUnlink() {
     final uid = _uid;
     if (uid == null) return Stream.value(null);
-    return _supportUnlinkRef(uid).snapshots().map((doc) => doc.data() == null
-        ? null
-        : SupportUnlinkRequest.fromDoc(doc.id, doc.data()!));
+    return _supportUnlinkRef(uid)
+        .snapshots()
+        .map<SupportUnlinkRequest?>((doc) => doc.data() == null
+            ? null
+            : SupportUnlinkRequest.fromDoc(doc.id, doc.data()!))
+        // A missing request document is denied by the "get" rule; treat that
+        // as "there is no request" instead of failing the whole screen.
+        .handleError((_) {});
   }
 
   Stream<List<SupportUnlinkRequest>> supportUnlinkHistory() {
@@ -778,41 +768,108 @@ class SponsorService {
             .toList());
   }
 
+  /// Fields removed from a user document when a sponsor link is dissolved.
+  Map<String, dynamic> get _unlinkLinkedUserFields => <String, dynamic>{
+        'sponsorUid': FieldValue.delete(),
+        'sponsorLinkedAt': FieldValue.delete(),
+        'settingsUnlockUntil': FieldValue.delete(),
+        'zoneOverrideUntil': FieldValue.delete(),
+        'shieldPauseUntil': FieldValue.delete(),
+        'unlinkEmailCode': FieldValue.delete(),
+        'unlinkEmailCodeExpiresAt': FieldValue.delete(),
+        'unlinkEmailRequestId': FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+  /// Terminal state for the pair's unlock requests after an unlink. Deleting
+  /// them is forbidden by the security rules, so they are consumed instead.
+  Map<String, dynamic> get _closedRequestFields => <String, dynamic>{
+        'status': 'consumed',
+        'consumedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+  /// Terminal state for the pair's link requests after an unlink.
+  Map<String, dynamic> get _endedLinkFields => <String, dynamic>{
+        'status': 'ended',
+        'endedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+  /// Closes the requests and links shared by the pair when their sponsor link
+  /// ends. The security rules forbid deleting these documents and forbid
+  /// creating them for the other side of the pair, so only documents that
+  /// already exist and that the current user is allowed to update are touched.
   Future<void> _purgeSponsorPairState({
     required String requesterUid,
     required String sponsorUid,
   }) async {
-    final batch = _firestore.batch();
+    final actorUid = _uid;
+    if (actorUid == null) return;
 
-    for (final requestType in _pairScopedRequestTypes) {
-      batch.delete(_requestsCollectionRef.doc(_unlockRequestId(requesterUid, requestType)));
-      batch.delete(_requestsCollectionRef.doc(_unlockRequestId(sponsorUid, requestType)));
+    try {
+      await _closeSponsorPairDocuments(
+        actorUid: actorUid,
+        requesterUid: requesterUid,
+        sponsorUid: sponsorUid,
+      );
+    } catch (_) {
+      // The unlink already committed; this cleanup is best-effort so a stale
+      // or unwritable document never turns a successful unlink into an error.
+    }
+  }
+
+  Future<void> _closeSponsorPairDocuments({
+    required String actorUid,
+    required String requesterUid,
+    required String sponsorUid,
+  }) async {
+    final targets =
+        <DocumentReference<Map<String, dynamic>>, Map<String, dynamic>>{};
+
+    Future<void> addClosedRequest(
+      DocumentReference<Map<String, dynamic>> ref,
+    ) async {
+      final snap = await ref.get();
+      if (!snap.exists) return;
+      final data = snap.data() ?? const <String, dynamic>{};
+      if (data['requesterUid'] != actorUid &&
+          data['sponsorUid'] != actorUid) {
+        return;
+      }
+      targets[ref] = _closedRequestFields;
     }
 
-    batch.delete(_linkRequestRefForPair(requesterUid, sponsorUid));
-    batch.delete(_linkRequestRefForPair(sponsorUid, requesterUid));
+    Future<void> addEndedLink(
+      DocumentReference<Map<String, dynamic>> ref,
+    ) async {
+      final snap = await ref.get();
+      if (!snap.exists) return;
+      final data = snap.data() ?? const <String, dynamic>{};
+      if (data['requesterUid'] != actorUid && data['targetUid'] != actorUid) {
+        return;
+      }
+      targets[ref] = _endedLinkFields;
+    }
 
-    final clearFields = <String, dynamic>{
-      'settingsUnlockUntil': FieldValue.delete(),
-      'zoneOverrideUntil': FieldValue.delete(),
-      'shieldPauseUntil': FieldValue.delete(),
-      'unlinkEmailCode': FieldValue.delete(),
-      'unlinkEmailCodeExpiresAt': FieldValue.delete(),
-      'unlinkEmailRequestId': FieldValue.delete(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
+    for (final requestType in _pairScopedRequestTypes) {
+      await addClosedRequest(
+        _requestsCollectionRef.doc(_unlockRequestId(requesterUid, requestType)),
+      );
+      await addClosedRequest(
+        _requestsCollectionRef.doc(_unlockRequestId(sponsorUid, requestType)),
+      );
+    }
 
-    batch.set(
-      _firestore.collection('users').doc(requesterUid),
-      clearFields,
-      SetOptions(merge: true),
-    );
-    batch.set(
-      _firestore.collection('users').doc(sponsorUid),
-      clearFields,
-      SetOptions(merge: true),
-    );
+    await addEndedLink(_linkRequestRefForPair(requesterUid, sponsorUid));
+    await addEndedLink(_linkRequestRefForPair(sponsorUid, requesterUid));
 
+    if (targets.isEmpty) return;
+
+    final batch = _firestore.batch();
+    targets.forEach((ref, fields) {
+      batch.set(ref, fields, SetOptions(merge: true));
+    });
     await batch.commit();
   }
 
@@ -943,6 +1000,7 @@ class SponsorService {
 
     return _requestsCollectionRef
         .where('sponsorUid', isEqualTo: uid)
+        .limit(50)
         .snapshots()
         .map((snap) {
       final items = snap.docs
@@ -964,6 +1022,7 @@ class SponsorService {
 
     return _requestsCollectionRef
         .where('requesterUid', isEqualTo: uid)
+        .limit(50)
         .snapshots()
         .map((snap) {
       final items = snap.docs
@@ -1081,11 +1140,7 @@ class SponsorService {
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
-        tx.set(userDoc, {
-          'sponsorUid': FieldValue.delete(),
-          'sponsorLinkedAt': FieldValue.delete(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        tx.set(userDoc, _unlinkLinkedUserFields, SetOptions(merge: true));
 
         if (sponsorUid != null && sponsorUid.isNotEmpty) {
           final sponsorRef = _firestore.collection('users').doc(sponsorUid);
@@ -1093,11 +1148,7 @@ class SponsorService {
           final sponsorData = sponsorSnap.data() ?? <String, dynamic>{};
 
           if (sponsorData['sponsorUid'] == uid) {
-            tx.set(sponsorRef, {
-              'sponsorUid': FieldValue.delete(),
-              'sponsorLinkedAt': FieldValue.delete(),
-              'updatedAt': FieldValue.serverTimestamp(),
-            }, SetOptions(merge: true));
+            tx.set(sponsorRef, _unlinkLinkedUserFields, SetOptions(merge: true));
           }
 
           final forwardRef = _linkRequestRefForPair(uid, sponsorUid);

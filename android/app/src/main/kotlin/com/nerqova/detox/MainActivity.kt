@@ -245,13 +245,14 @@ class MainActivity : FlutterActivity() {
                         }
                         if (!Settings.canDrawOverlays(this) || !hasUsageAccess()) {
                             result.success(false)
+                        } else if (startForegroundBlocker(intent)) {
+                            result.success(true)
                         } else {
-                            try {
-                                startService(intent)
-                                result.success(true)
-                            } catch (e: RuntimeException) {
-                                result.error("START_BLOCKING_ERROR", e.message, null)
-                            }
+                            result.error(
+                                "START_BLOCKING_ERROR",
+                                "Could not start the shield service",
+                                null
+                            )
                         }
                     }
 
@@ -268,7 +269,7 @@ class MainActivity : FlutterActivity() {
                             val intent = Intent(this, FocusBlockerService::class.java).apply {
                                 action = FocusBlockerService.ACTION_STOP
                             }
-                            startService(intent)
+                            startForegroundBlocker(intent)
                             result.success(true)
                         } catch (e: Exception) {
                             result.error("STOP_BLOCKING_ERROR", e.message, null)
@@ -284,7 +285,9 @@ class MainActivity : FlutterActivity() {
                             val syncIntent = Intent(this, FocusBlockerService::class.java).apply {
                                 action = FocusBlockerService.ACTION_SYNC_SPONSOR_STATE
                             }
-                            if (FocusBlockerService.instance != null) startService(syncIntent)
+                            if (FocusBlockerService.instance != null) {
+                                startForegroundBlocker(syncIntent)
+                            }
                             result.success(true)
                         } catch (e: Exception) {
                             result.error("SUSPEND_BLOCKING_ERROR", e.message, null)
@@ -313,7 +316,9 @@ class MainActivity : FlutterActivity() {
                             putExtra(FocusBlockerService.EXTRA_HAS_SPONSOR, hasSponsor)
                             putExtra(FocusBlockerService.EXTRA_STRICT_MODE, strictMode)
                         }
-                        if (FocusBlockerService.instance != null) startService(intent)
+                        if (FocusBlockerService.instance != null) {
+                            startForegroundBlocker(intent)
+                        }
                         result.success(true)
                     }
 
@@ -392,25 +397,39 @@ class MainActivity : FlutterActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (FocusBlockerService.instance != null ||
-            !Settings.canDrawOverlays(this) ||
-            !hasUsageAccess()
-        ) return
+        if (!Settings.canDrawOverlays(this) || !hasUsageAccess()) return
 
         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         ShieldStateStore.activeSources(prefs)
         val packages = prefs.getStringSet("blocked_packages", emptySet()).orEmpty()
         if (packages.isEmpty()) return
 
-        try {
-            ContextCompat.startForegroundService(
-                this,
-                Intent(this, FocusBlockerService::class.java).apply {
-                    action = FocusBlockerService.ACTION_START
-                }
-            )
+        // Nudge the service on every foreground launch: if it is already
+        // running this re-arms the foreground poll, and if it was killed it
+        // comes back without waiting for a Dart-driven sync.
+        startForegroundBlocker(
+            Intent(this, FocusBlockerService::class.java).apply {
+                action = FocusBlockerService.ACTION_START
+            }
+        )
+    }
+
+    /**
+     * Starts the shield as a foreground service. API 26+ forbids plain
+     * `startService` calls from the background, so the service may die when the
+     * app leaves the foreground and never come back. Any failure is swallowed:
+     * the persisted shield is restored on the next foreground launch.
+     */
+    private fun startForegroundBlocker(intent: Intent): Boolean {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ContextCompat.startForegroundService(this, intent)
+            } else {
+                startService(intent)
+            }
+            true
         } catch (_: RuntimeException) {
-            // The persisted shield is retried on the next foreground launch.
+            false
         }
     }
 

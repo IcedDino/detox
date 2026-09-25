@@ -84,7 +84,7 @@ class _SettingsScreenState extends State<SettingsScreen>
         .then<void>((_) {}, onError: (_) {}));
     _zoneSubscription = LocationZoneService.instance.states.listen((state) {
       if (!mounted) return;
-      if (_zoneState.zoneName == state.zoneName &&
+      if (_zoneState.zoneId == state.zoneId &&
           _zoneState.insideZone == state.insideZone) {
         return;
       }
@@ -823,7 +823,7 @@ class _SettingsScreenState extends State<SettingsScreen>
       else
         ..._zones.map<WidgetBuilder>((zone) => (context) {
               final inside =
-                  _zoneState.zoneName == zone.name && _zoneState.insideZone;
+                  _zoneState.zoneId == zone.id && _zoneState.insideZone;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Container(
@@ -1459,6 +1459,17 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
   @override
   Widget build(BuildContext context) {
     final t = AppStrings.of(context);
+    final media = MediaQuery.of(context);
+
+    // Keep the editor inside the space left by the keyboard and the system
+    // bars, and let it scroll so the app chips never spill out of the card.
+    final availableHeight = media.size.height -
+        media.viewInsets.bottom -
+        media.padding.top -
+        media.padding.bottom -
+        32;
+    final sheetHeight = availableHeight.clamp(280.0, 720.0);
+    final mapHeight = (sheetHeight * 0.30).clamp(140.0, 220.0);
 
     final selectableApps = widget.appLimits
         .where((e) => e.packageName?.isNotEmpty ?? false)
@@ -1469,12 +1480,13 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
         left: 16,
         right: 16,
         top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        bottom: media.viewInsets.bottom + 16,
       ),
       child: GlassCard(
-        child: SizedBox(
-          height: 720,
-          child: Column(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: sheetHeight),
+          child: SingleChildScrollView(
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -1502,11 +1514,13 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
               ),
               const SizedBox(height: 12),
               if (_loading)
-                const Expanded(
-                  child: Center(child: CircularProgressIndicator()),
+                SizedBox(
+                  height: mapHeight,
+                  child: const Center(child: CircularProgressIndicator()),
                 )
               else
-                Expanded(
+                SizedBox(
+                  height: mapHeight,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(detoxRadius),
                     child: Stack(
@@ -1657,6 +1671,7 @@ class _ZoneEditorSheetState extends State<_ZoneEditorSheet> {
                 child: Text(t.saveZone),
               ),
             ],
+            ),
           ),
         ),
       ),

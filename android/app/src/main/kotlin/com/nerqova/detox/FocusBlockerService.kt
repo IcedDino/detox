@@ -11,6 +11,7 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -32,6 +33,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -73,7 +75,7 @@ class FocusBlockerService : Service() {
     private var overlayView: View? = null
     private var lastShownPackage: String? = null
     private var lastForegroundPackage: String? = null
-    private var searchedForegroundHistory = false
+    private var lastHistorySearchAt = 0L
     private var userListener: ListenerRegistration? = null
     private var requestListener: ListenerRegistration? = null
     private var requestInFlight = false
@@ -104,7 +106,7 @@ class FocusBlockerService : Service() {
                 if (pollRunning) {
                     val delay = when {
                         overlayView != null || requestInFlight || keepOverlayPinned || waitingAdResult -> 900L
-                        else -> 2200L
+                        else -> 3000L
                     }
                     handler.postDelayed(this, delay)
                 }
@@ -115,11 +117,62 @@ class FocusBlockerService : Service() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    }
+
+    private fun startForegroundSafely(): Boolean {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(NOTIFICATION_ID, buildNotification(), foregroundServiceType())
+            } else {
+                startForeground(NOTIFICATION_ID, buildNotification())
+            }
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Only requests the location foreground type when the permission is
+     * actually granted: on Android 14+ starting a location foreground service
+     * without it throws SecurityException and the shield would never come up,
+     * which is why blocking sometimes failed until the app was reopened.
+     */
+    private fun foregroundServiceType(): Int {
+        var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+        if (hasLocationPermission()) {
+            type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+        }
+        return type
+    }
+
+    private fun hasLocationPermission(): Boolean {
+        val fine = ContextCompat.checkSelfPermission(
+            this,
+            android.Manifest.permission.ACCESS_FINE_LOCATION
+        )
+        val coarse = ContextCompat.checkSelfPermission(
+            this,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+        return fine == PackageManager.PERMISSION_GRANTED ||
+            coarse == PackageManager.PERMISSION_GRANTED
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // A service started with startForegroundService must call startForeground
+        // within a few seconds, whatever action it received. Without this the
+        // system kills the service and the shield never activates.
+        createChannel()
+        if (!startForegroundSafely()) {
+            stopSelfSafely()
+            return START_NOT_STICKY
+        }
+
         return when (intent?.action) {
             ACTION_STOP -> {
                 stopSelfSafely()
@@ -161,16 +214,6 @@ class FocusBlockerService : Service() {
             }
 
             else -> {
-                createChannel()
-                try {
-                    startForeground(NOTIFICATION_ID, buildNotification())
-                } catch (e: Exception) {
-                    stopSelf()
-                    return START_NOT_STICKY
-                }
-
-                windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-                audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
                 intent?.getStringArrayListExtra("blockedPackages")?.let {
                     prefs.edit().putStringSet("blocked_packages", it.toSet()).apply()
                 }
@@ -459,6 +502,10 @@ class FocusBlockerService : Service() {
     }
 
 
+    private fun isForegroundEvent(eventType: Int): Boolean =
+        eventType == UsageEvents.Event.ACTIVITY_RESUMED ||
+            eventType == UsageEvents.Event.MOVE_TO_FOREGROUND
+
     private fun queryForegroundPackage(): String? {
         return try {
             val usageStatsManager =
@@ -469,18 +516,25 @@ class FocusBlockerService : Service() {
             var currentPkg: String? = null
             while (events.hasNextEvent()) {
                 events.getNextEvent(event)
-                if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED) {
+                if (isForegroundEvent(event.eventType)) {
                     currentPkg = event.packageName
                 }
             }
 
-            if (currentPkg == null && lastForegroundPackage == null && !searchedForegroundHistory) {
-                searchedForegroundHistory = true
-                val longEvents = usageStatsManager.queryEvents(endTime - 24 * 60 * 60_000L, endTime)
+            // Some OEMs emit MOVE_TO_FOREGROUND instead of ACTIVITY_RESUMED, or
+            // omit the recent window entirely. Re-read the long history from
+            // time to time so a stale value never pins the shield.
+            if (currentPkg == null &&
+                lastForegroundPackage == null &&
+                System.currentTimeMillis() - lastHistorySearchAt > 600_000L
+            ) {
+                lastHistorySearchAt = System.currentTimeMillis()
+                val longEvents =
+                    usageStatsManager.queryEvents(endTime - 24 * 60 * 60_000L, endTime)
                 val longEvent = UsageEvents.Event()
                 while (longEvents.hasNextEvent()) {
                     longEvents.getNextEvent(longEvent)
-                    if (longEvent.eventType == UsageEvents.Event.ACTIVITY_RESUMED) {
+                    if (isForegroundEvent(longEvent.eventType)) {
                         currentPkg = longEvent.packageName
                     }
                 }
@@ -1299,7 +1353,15 @@ class FocusBlockerService : Service() {
                             .build()
                     )
                     .setWillPauseWhenDucked(true)
-                    .setOnAudioFocusChangeListener { }
+                    .setOnAudioFocusChangeListener { change ->
+                        if (change == AudioManager.AUDIOFOCUS_LOSS ||
+                            change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT ||
+                            change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK
+                        ) {
+                            hasAudioFocus = false
+                            audioFocusRequest = null
+                        }
+                    }
                     .build()
 
                 val result = audioManager.requestAudioFocus(request)
@@ -1308,9 +1370,17 @@ class FocusBlockerService : Service() {
                     hasAudioFocus = true
                 }
             } else {
+                val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
+                    if (change == AudioManager.AUDIOFOCUS_LOSS ||
+                        change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT ||
+                        change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK
+                    ) {
+                        hasAudioFocus = false
+                    }
+                }
                 @Suppress("DEPRECATION")
                 val result = audioManager.requestAudioFocus(
-                    null,
+                    focusListener,
                     AudioManager.STREAM_MUSIC,
                     AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
                 )

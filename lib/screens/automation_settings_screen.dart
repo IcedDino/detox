@@ -350,8 +350,15 @@ class _AutomationRuleEditorState extends State<_AutomationRuleEditor> {
     final isDark = theme.brightness == Brightness.dark;
     final muted = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
     final media = MediaQuery.of(context);
-    final sheetHeight =
-        (media.size.height - media.viewInsets.bottom - 96).clamp(320.0, 680.0);
+    // Reserve the status/navigation areas and the sheet's own vertical padding.
+    // Capping only on the raw screen height pushed the sheet past the top edge
+    // on short screens and clipped the first field label.
+    final availableHeight = media.size.height -
+        media.viewInsets.bottom -
+        media.padding.top -
+        media.padding.bottom -
+        32;
+    final sheetHeight = availableHeight.clamp(240.0, 680.0);
     final selectableApps = _selectableApps;
     final query = _appQuery.trim().toLowerCase();
     final visibleApps = selectableApps
@@ -385,6 +392,9 @@ class _AutomationRuleEditorState extends State<_AutomationRuleEditor> {
               const SizedBox(height: 14),
               Expanded(
                 child: SingleChildScrollView(
+                  // Breathing room so the floating label of the first field is
+                  // not clipped by the top edge of the scroll viewport.
+                  padding: const EdgeInsets.only(top: 10),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
