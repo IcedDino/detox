@@ -31,10 +31,10 @@ void main() {
     expect(find.text('Aviso de Privacidad'), findsWidgets);
     // The date line under the title, and only once: the paragraph the
     // generator repeats in the body has to be dropped.
-    expect(find.textContaining('25 de septiembre de 2026'), findsOneWidget);
+    expect(find.textContaining('27 de septiembre de 2026'), findsOneWidget);
     expect(find.textContaining('Quién es el responsable'), findsOneWidget);
     // A table row: first cell as the heading, the rest as labelled values.
-    expect(find.text('Nombre y correo electrónico'), findsOneWidget);
+    expect(find.text('UID y username (alias)'), findsOneWidget);
 
     // Naming, paragraphs, lists, tables, quotes, rules and headings all render,
     // so the last section of the document is reachable.
@@ -85,7 +85,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
 
-    final switchLink = find.text('Create an account');
+    final switchLink = find.text('Create account');
     await tester.ensureVisible(switchLink);
     await tester.pumpAndSettle();
     await tester.tap(switchLink);

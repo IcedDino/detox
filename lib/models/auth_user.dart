@@ -7,6 +7,8 @@ class AuthUser {
     required this.displayName,
     required this.provider,
     this.phoneNumber,
+    this.isAnonymous = false,
+    this.emailVerified = false,
   });
 
   final String? uid;
@@ -14,14 +16,18 @@ class AuthUser {
   final String displayName;
   final String provider;
   final String? phoneNumber;
+  final bool isAnonymous;
+  final bool emailVerified;
 
   Map<String, dynamic> toMap() => {
-        'uid': uid,
-        'email': email,
-        'displayName': displayName,
-        'provider': provider,
-        'phoneNumber': phoneNumber,
-      };
+    'uid': uid,
+    'email': email,
+    'displayName': displayName,
+    'provider': provider,
+    'phoneNumber': phoneNumber,
+        'isAnonymous': isAnonymous,
+        'emailVerified': emailVerified,
+  };
 
   String toJson() => jsonEncode(toMap());
 
@@ -33,6 +39,8 @@ class AuthUser {
       displayName: map['displayName'] as String? ?? '',
       provider: map['provider'] as String? ?? 'email',
       phoneNumber: map['phoneNumber'] as String?,
+      isAnonymous: map['isAnonymous'] as bool? ?? false,
+      emailVerified: map['emailVerified'] as bool? ?? false,
     );
   }
 }

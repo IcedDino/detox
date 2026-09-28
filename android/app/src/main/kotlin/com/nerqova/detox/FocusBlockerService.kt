@@ -25,6 +25,7 @@ import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 import android.util.TypedValue
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -102,12 +103,19 @@ class FocusBlockerService : Service() {
             if (!pollRunning) return
             try {
                 inspectForegroundApp()
+            } catch (_: Exception) {
+                // A transient UsageStats/WindowManager failure must not kill the
+                // main thread and permanently stop the polling loop.
+                if (BuildConfig.DEBUG) {
+                    Log.e("DetoxShield", "Foreground inspection failed")
+                }
             } finally {
                 if (pollRunning) {
-                    val delay = when {
-                        overlayView != null || requestInFlight || keepOverlayPinned || waitingAdResult -> 900L
-                        else -> 3000L
-                    }
+                    // Poll more frequently so the shield reacts promptly when
+                    // Android reports an app transition or resumes the service.
+                    val delay = if (
+                        overlayView != null || requestInFlight || keepOverlayPinned || waitingAdResult
+                    ) 500L else 750L
                     handler.postDelayed(this, delay)
                 }
             }
@@ -247,8 +255,33 @@ class FocusBlockerService : Service() {
                 handler.removeCallbacksAndMessages(null)
                 pollRunning = true
                 handler.post(pollTask)
-                START_STICKY
+                // Ask Android to recreate the active shield with its original
+                // start request if it reclaims this service's process.
+                START_REDELIVER_INTENT
             }
+        }
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        refreshCachedPrefsState()
+        if (blockedPackagesCache.isEmpty()) return
+
+        // Keep the user-enabled shield alive when Detox is dismissed from
+        // Recents. The persisted package set is also used if Android recreates
+        // the service without this request.
+        val restart = Intent(applicationContext, FocusBlockerService::class.java).apply {
+            action = ACTION_START
+            putStringArrayListExtra("blockedPackages", ArrayList(blockedPackagesCache))
+            putExtra("reason", currentReason)
+            putExtra(EXTRA_HAS_SPONSOR, hasSponsorCache)
+            putExtra(EXTRA_STRICT_MODE, strictModeCache)
+        }
+        try {
+            ContextCompat.startForegroundService(applicationContext, restart)
+        } catch (_: RuntimeException) {
+            // Android can refuse a background foreground-service start; its
+            // sticky/redelivered service path or the next app launch can recover.
         }
     }
 
@@ -511,13 +544,23 @@ class FocusBlockerService : Service() {
             val usageStatsManager =
                 getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             val endTime = System.currentTimeMillis()
-            val events = usageStatsManager.queryEvents(endTime - 10_000L, endTime)
+            // Keep enough recent history to recover the active package if the
+            // service is briefly delayed by Android or the device vendor.
+            val events = usageStatsManager.queryEvents(endTime - 60_000L, endTime)
             val event = UsageEvents.Event()
             var currentPkg: String? = null
+            var latestForegroundTimestamp = 0L
             while (events.hasNextEvent()) {
                 events.getNextEvent(event)
-                if (isForegroundEvent(event.eventType)) {
+                // Some device vendors return usage events in batches whose
+                // iteration order is not chronological. Select by timestamp,
+                // otherwise an older launcher event can override the app that
+                // was resumed most recently.
+                if (isForegroundEvent(event.eventType) &&
+                    event.timeStamp >= latestForegroundTimestamp
+                ) {
                     currentPkg = event.packageName
+                    latestForegroundTimestamp = event.timeStamp
                 }
             }
 
@@ -532,10 +575,14 @@ class FocusBlockerService : Service() {
                 val longEvents =
                     usageStatsManager.queryEvents(endTime - 24 * 60 * 60_000L, endTime)
                 val longEvent = UsageEvents.Event()
+                var latestLongForegroundTimestamp = 0L
                 while (longEvents.hasNextEvent()) {
                     longEvents.getNextEvent(longEvent)
-                    if (isForegroundEvent(longEvent.eventType)) {
+                    if (isForegroundEvent(longEvent.eventType) &&
+                        longEvent.timeStamp >= latestLongForegroundTimestamp
+                    ) {
                         currentPkg = longEvent.packageName
+                        latestLongForegroundTimestamp = longEvent.timeStamp
                     }
                 }
             }
@@ -893,6 +940,9 @@ class FocusBlockerService : Service() {
             windowManager.addView(outer, params)
         } catch (e: Exception) {
             overlayView = null
+            if (BuildConfig.DEBUG) {
+                Log.e("DetoxShield", "Could not add blocker overlay", e)
+            }
         }
     }
 

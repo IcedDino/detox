@@ -6,6 +6,8 @@ import '../screens/legal_document_screen.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/detox_logo.dart';
+import '../services/username_policy.dart';
+import 'anonymous_username_screen.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key, required this.onAuthenticated});
@@ -27,6 +29,75 @@ class _AuthScreenState extends State<AuthScreen> {
   final _tab = ValueNotifier<int>(0);
   bool _busy = false;
   bool _obscurePassword = true;
+  bool _entryChosen = false;
+
+  Future<void> _anonymous() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            AnonymousUsernameScreen(onAuthenticated: widget.onAuthenticated),
+      ),
+    );
+  }
+
+  Widget _buildEntry() {
+    final t = AppStrings.of(context);
+    final theme = Theme.of(context);
+    final muted = theme.brightness == Brightness.dark
+        ? DetoxColors.muted
+        : DetoxColors.lightMuted;
+    void openAccount(int panel) => setState(() {
+      _tab.value = panel;
+      _entryChosen = true;
+    });
+    return Scaffold(
+      body: DetoxBackground(
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Center(child: DetoxLogo(size: 72, showLabel: true)),
+                    const SizedBox(height: 28),
+                    Text(
+                      t.ownYourAttention,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.displayMedium,
+                    ),
+                    const SizedBox(height: 40),
+                    FilledButton(
+                      onPressed: () => openAccount(0),
+                      child: Text(t.signIn),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton(
+                      onPressed: () => openAccount(1),
+                      child: Text(t.createAccount),
+                    ),
+                    const SizedBox(height: 28),
+                    const Divider(),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: _anonymous,
+                      child: Text(
+                        t.isEs ? 'Iniciar como anónimo' : 'Start anonymously',
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    _LegalAcceptance(mutedColor: muted),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -107,112 +178,129 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_entryChosen) return _buildEntry();
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final t = AppStrings.of(context);
     final mutedColor = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
 
-    return Scaffold(
-      body: DetoxBackground(
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) => SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(
-                DetoxSpace.section,
-                28,
-                DetoxSpace.section,
-                28,
-              ),
-              child: ConstrainedBox(
-                constraints:
-                    BoxConstraints(minHeight: constraints.maxHeight - 56),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 420),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // ── Brand statement, quiet and centered ──
-                        const Center(
-                          child: DetoxLogo(size: 64, showLabel: true),
-                        ),
-                        const SizedBox(height: 26),
-                        Text(
-                          t.ownYourAttention,
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.displayMedium,
-                        ),
-                        const SizedBox(height: 30),
-                        // ── One surface holds the whole sign-in flow ──
-                        GlassCard(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              ValueListenableBuilder<int>(
-                                valueListenable: _tab,
-                                builder: (context, value, _) =>
-                                    AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 200),
-                                  switchInCurve: Curves.easeOut,
-                                  switchOutCurve: Curves.easeIn,
-                                  child: KeyedSubtree(
-                                    key: ValueKey<int>(value),
-                                    child: value == 0
-                                        ? _buildSignInPanel(mutedColor)
-                                        : _buildSignUpPanel(mutedColor),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-                              // Short on purpose: the label sits between two
-                              // rules and must survive narrow screens.
-                              _DividerLabel(label: t.orContinueWith),
-                              const SizedBox(height: 16),
-                              // Stacked, not side by side: at 320 dp two buttons
-                              // in a row cannot hold "Continuar con teléfono".
-                              _SecondaryAuthButton(
-                                icon: Icons.g_mobiledata_rounded,
-                                label: t.continueWithGoogle,
-                                onTap: _busy ? null : _signInWithGoogle,
-                              ),
-                              const SizedBox(height: 10),
-                              _SecondaryAuthButton(
-                                icon: Icons.phone_iphone_rounded,
-                                label: t.continueWithPhone,
-                                onTap: _busy ? null : _showPhoneSheet,
-                              ),
-                              const SizedBox(height: 18),
-                              _LegalAcceptance(mutedColor: mutedColor),
-                            ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !_busy) setState(() => _entryChosen = false);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: BackButton(
+            onPressed: _busy
+                ? null
+                : () => setState(() => _entryChosen = false),
+          ),
+        ),
+        body: DetoxBackground(
+          child: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(
+                  DetoxSpace.section,
+                  28,
+                  DetoxSpace.section,
+                  28,
+                ),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: constraints.maxHeight - 56,
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 420),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // ── Brand statement, quiet and centered ──
+                          const Center(
+                            child: DetoxLogo(size: 64, showLabel: true),
                           ),
-                        ),
-                        const SizedBox(height: 20),
-                        ValueListenableBuilder<int>(
-                          valueListenable: _tab,
-                          builder: (context, value, _) => _AuthSwitchLink(
-                            prompt: value == 0
-                                ? t.noAccountYet
-                                : t.alreadyHaveAccount,
-                            action: value == 0
-                                ? t.switchToSignUp
-                                : t.switchToSignIn,
-                            onTap: () => _tab.value = value == 0 ? 1 : 0,
-                          ),
-                        ),
-                        const SizedBox(height: 28),
-                        Center(
-                          child: Text(
-                            t.developedBy,
+                          const SizedBox(height: 26),
+                          Text(
+                            t.ownYourAttention,
                             textAlign: TextAlign.center,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: mutedColor,
-                              letterSpacing: 0.2,
+                            style: theme.textTheme.displayMedium,
+                          ),
+                          const SizedBox(height: 30),
+                          // ── One surface holds the whole sign-in flow ──
+                          GlassCard(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                ValueListenableBuilder<int>(
+                                  valueListenable: _tab,
+                                  builder: (context, value, _) =>
+                                      AnimatedSwitcher(
+                                        duration: const Duration(
+                                          milliseconds: 200,
+                                        ),
+                                        switchInCurve: Curves.easeOut,
+                                        switchOutCurve: Curves.easeIn,
+                                        child: KeyedSubtree(
+                                          key: ValueKey<int>(value),
+                                          child: value == 0
+                                              ? _buildSignInPanel(mutedColor)
+                                              : _buildSignUpPanel(mutedColor),
+                                        ),
+                                      ),
+                                ),
+                                const SizedBox(height: 20),
+                                // Short on purpose: the label sits between two
+                                // rules and must survive narrow screens.
+                                _DividerLabel(label: t.orContinueWith),
+                                const SizedBox(height: 16),
+                                // Stacked, not side by side: at 320 dp two buttons
+                                // in a row cannot hold "Continuar con teléfono".
+                                _SecondaryAuthButton(
+                                  icon: Icons.g_mobiledata_rounded,
+                                  label: t.continueWithGoogle,
+                                  onTap: _busy ? null : _signInWithGoogle,
+                                ),
+                                const SizedBox(height: 10),
+                                _SecondaryAuthButton(
+                                  icon: Icons.phone_iphone_rounded,
+                                  label: t.continueWithPhone,
+                                  onTap: _busy ? null : _showPhoneSheet,
+                                ),
+                                const SizedBox(height: 18),
+                                _LegalAcceptance(mutedColor: mutedColor),
+                              ],
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 20),
+                          ValueListenableBuilder<int>(
+                            valueListenable: _tab,
+                            builder: (context, value, _) => _AuthSwitchLink(
+                              prompt: value == 0
+                                  ? t.noAccountYet
+                                  : t.alreadyHaveAccount,
+                              action: value == 0
+                                  ? t.switchToSignUp
+                                  : t.switchToSignIn,
+                              onTap: () => _tab.value = value == 0 ? 1 : 0,
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+                          Center(
+                            child: Text(
+                              t.developedBy,
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: mutedColor,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -246,7 +334,7 @@ class _AuthScreenState extends State<AuthScreen> {
               textInputAction: TextInputAction.next,
               autofillHints: const [
                 AutofillHints.username,
-                AutofillHints.email
+                AutofillHints.email,
               ],
               decoration: InputDecoration(
                 labelText: t.email,
@@ -278,6 +366,33 @@ class _AuthScreenState extends State<AuthScreen> {
               onPressed: _busy ? null : _signIn,
               child: _busy ? const _ButtonSpinner() : Text(t.signIn),
             ),
+            TextButton(
+              onPressed: _busy
+                  ? null
+                  : () async {
+                      if (!_signInEmail.text.contains('@')) {
+                        _showMessage(t.enterValidEmail);
+                        return;
+                      }
+                      setState(() => _busy = true);
+                      try {
+                        await AuthService.instance.resetPassword(
+                          _signInEmail.text,
+                        );
+                        if (mounted)
+                          _showMessage(
+                            t.isEs
+                                ? 'Si el correo tiene una cuenta, recibirás instrucciones para recuperar tu contraseña.'
+                                : 'If this email has an account, you will receive password reset instructions.',
+                          );
+                      } on AuthException catch (e) {
+                        if (mounted) _showMessage(e.message);
+                      } finally {
+                        if (mounted) setState(() => _busy = false);
+                      }
+                    },
+              child: Text(t.isEs ? 'Olvidé mi contraseña' : 'Forgot password'),
+            ),
           ],
         ),
       ),
@@ -303,14 +418,13 @@ class _AuthScreenState extends State<AuthScreen> {
             TextFormField(
               controller: _signUpName,
               textInputAction: TextInputAction.next,
-              autofillHints: const [AutofillHints.name],
+              maxLength: 30,
               decoration: InputDecoration(
-                labelText: t.name,
+                labelText: 'Username',
                 prefixIcon: const Icon(Icons.person_outline_rounded),
               ),
-              validator: (value) => (value == null || value.trim().length < 2)
-                  ? t.enterName
-                  : null,
+              validator: (value) =>
+                  UsernamePolicy.validate(value, isEs: t.isEs),
             ),
             const SizedBox(height: DetoxSpace.item),
             TextFormField(
@@ -319,7 +433,7 @@ class _AuthScreenState extends State<AuthScreen> {
               textInputAction: TextInputAction.next,
               autofillHints: const [
                 AutofillHints.username,
-                AutofillHints.email
+                AutofillHints.email,
               ],
               decoration: InputDecoration(
                 labelText: t.email,
@@ -394,8 +508,9 @@ class _DividerLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final borderColor =
-        isDark ? DetoxColors.cardBorder : DetoxColors.lightCardBorder;
+    final borderColor = isDark
+        ? DetoxColors.cardBorder
+        : DetoxColors.lightCardBorder;
     final mutedColor = isDark ? DetoxColors.muted : DetoxColors.lightMuted;
 
     return Row(
@@ -434,14 +549,8 @@ class _SecondaryAuthButton extends StatelessWidget {
     return OutlinedButton.icon(
       onPressed: onTap,
       icon: Icon(icon, size: 20),
-      label: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size.fromHeight(52),
-      ),
+      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
     );
   }
 }
@@ -598,8 +707,9 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
   Future<void> _verifyCode() async {
     setState(() => _sending = true);
     try {
-      final user =
-          await AuthService.instance.verifySmsCode(_codeController.text);
+      final user = await AuthService.instance.verifySmsCode(
+        _codeController.text,
+      );
       if (!mounted) return;
       Navigator.pop(context, user);
     } on AuthException catch (e) {
@@ -659,8 +769,9 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
             ],
             const SizedBox(height: 18),
             FilledButton(
-              onPressed:
-                  _sending ? null : (_codeSent ? _verifyCode : _requestCode),
+              onPressed: _sending
+                  ? null
+                  : (_codeSent ? _verifyCode : _requestCode),
               child: Text(_codeSent ? t.verifyCode : t.sendCode),
             ),
             const SizedBox(height: DetoxSpace.item),

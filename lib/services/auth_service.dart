@@ -7,6 +7,7 @@ import '../l10n_app_strings.dart';
 import '../models/auth_user.dart';
 import 'cloud_sync_service.dart';
 import 'storage_service.dart';
+import 'username_policy.dart';
 
 class AuthException implements Exception {
   AuthException(this.message);
@@ -24,6 +25,11 @@ class AuthService {
   AppStrings get _t => AppStrings.current;
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  bool get hasGoogleProvider =>
+      _auth.currentUser?.providerData.any(
+        (provider) => provider.providerId == 'google.com',
+      ) ??
+      false;
   final GoogleSignIn _google = GoogleSignIn.instance;
   late final Future<void> _googleReady = _google.initialize();
 
@@ -41,19 +47,79 @@ class AuthService {
     return user == null ? null : _mapUser(user);
   }
 
-  Stream<AuthUser?> authChanges() =>
-      _auth.authStateChanges().map((u) => u == null ? null : _mapUser(u));
+  Completer<void>? _pendingAuth;
+
+  Stream<AuthUser?> authChanges() => _auth.userChanges().asyncMap((_) async {
+    // Publish only the final alias/profile, not the intermediate provider name.
+    await _pendingAuth?.future;
+    return getCurrentUser();
+  });
+
+  Future<AuthUser> continueAnonymously(String username) async {
+    final error = UsernamePolicy.validate(username, isEs: _t.isEs);
+    if (error != null) throw AuthException(error);
+    _pendingAuth = Completer<void>();
+    try {
+      final user = _auth.currentUser ?? (await _auth.signInAnonymously()).user!;
+      await user.updateDisplayName(username.trim());
+      final mapped = _mapUser(_auth.currentUser!);
+      await CloudSyncService.instance.saveUserProfile(mapped);
+      return mapped;
+    } on FirebaseAuthException catch (e) {
+      throw AuthException(_friendlyAuthMessage(e));
+    } finally {
+      _pendingAuth?.complete();
+      _pendingAuth = null;
+    }
+  }
+
+  Future<void> updateUsername(String username) async {
+    final value = username.trim();
+    final error = UsernamePolicy.validate(value, isEs: _t.isEs);
+    if (error != null) throw AuthException(error);
+    await _auth.currentUser!.updateDisplayName(value);
+    await CloudSyncService.instance.saveUserProfile(
+      _mapUser(_auth.currentUser!),
+    );
+  }
+
+  Future<void> resetPassword(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email.trim());
+    } on FirebaseAuthException catch (e) {
+      throw AuthException(_friendlyAuthMessage(e));
+    }
+  }
+
+  Future<void> resendEmailVerification() async {
+    try {
+      await _auth.currentUser?.sendEmailVerification();
+    } on FirebaseAuthException catch (e) {
+      throw AuthException(_friendlyAuthMessage(e));
+    }
+  }
 
   Future<AuthUser> signUpWithEmail({
     required String displayName,
     required String email,
     required String password,
   }) async {
+    final error = UsernamePolicy.validate(displayName, isEs: _t.isEs);
+    if (error != null) throw AuthException(error);
+    _pendingAuth = Completer<void>();
     try {
-      final cred = await _auth.createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: password,
-      );
+      final existing = _auth.currentUser;
+      final cred = existing != null
+          ? await existing.linkWithCredential(
+              EmailAuthProvider.credential(
+                email: email.trim(),
+                password: password,
+              ),
+            )
+          : await _auth.createUserWithEmailAndPassword(
+              email: email.trim(),
+              password: password,
+            );
       if (displayName.trim().isNotEmpty) {
         await cred.user?.updateDisplayName(displayName.trim());
         await cred.user?.reload();
@@ -64,9 +130,13 @@ class AuthService {
       }
       final mapped = _mapUser(current);
       await CloudSyncService.instance.saveUserProfile(mapped);
+      if (!current.emailVerified) await current.sendEmailVerification();
       return mapped;
     } on FirebaseAuthException catch (e) {
       throw AuthException(_friendlyAuthMessage(e));
+    } finally {
+      _pendingAuth?.complete();
+      _pendingAuth = null;
     }
   }
 
@@ -89,7 +159,12 @@ class AuthService {
     }
   }
 
-  Future<AuthUser> signInWithGoogle() async {
+  Future<AuthUser> signInWithGoogle({bool linkToCurrentUser = false}) async {
+    final existing = _auth.currentUser;
+    final existingAlias = existing?.displayName;
+    if (linkToCurrentUser && existing == null)
+      throw AuthException(_t.authNoActiveSession);
+    _pendingAuth = Completer<void>();
     try {
       await _googleReady;
       await _signOutGoogle();
@@ -99,21 +174,39 @@ class AuthService {
       final credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
       );
-      final userCredential = await _auth.signInWithCredential(credential);
+      if (linkToCurrentUser && _auth.currentUser?.uid != existing!.uid) {
+        throw AuthException(_t.authSessionNotRestored);
+      }
+      final userCredential = linkToCurrentUser
+          ? await existing!.linkWithCredential(credential)
+          : await _auth.signInWithCredential(credential);
       final user = userCredential.user;
       if (user == null) throw AuthException(_t.authGoogleFailed);
-      final mapped = _mapUser(user);
+      final snapshot = await CloudSyncService.instance.loadSnapshot(
+        force: true,
+      );
+      final alias = linkToCurrentUser
+          ? existingAlias
+          : snapshot?['profile']?['displayName'] as String?;
+      await user.updateDisplayName(alias ?? 'Detox user');
+      await user.updatePhotoURL(null);
+      final mapped = _mapUser(_auth.currentUser!);
       await CloudSyncService.instance.saveUserProfile(mapped);
       return mapped;
     } on FirebaseAuthException catch (e) {
       throw AuthException(_friendlyAuthMessage(e));
     } on GoogleSignInException catch (e) {
-      throw AuthException(e.code == GoogleSignInExceptionCode.canceled
-          ? _t.authGoogleCancelled
-          : _t.authGoogleBuildSetup);
+      throw AuthException(
+        e.code == GoogleSignInExceptionCode.canceled
+            ? _t.authGoogleCancelled
+            : _t.authGoogleBuildSetup,
+      );
     } catch (e) {
       if (e is AuthException) rethrow;
       throw AuthException(_t.authGoogleBuildSetup);
+    } finally {
+      _pendingAuth?.complete();
+      _pendingAuth = null;
     }
   }
 
@@ -124,6 +217,7 @@ class AuthService {
   }) async {
     final completer = Completer<void>();
     final requestNonce = ++_activeVerificationNonce;
+    _phoneLinkUser = _auth.currentUser;
     _verificationId = null;
     try {
       await _auth.verifyPhoneNumber(
@@ -134,13 +228,16 @@ class AuthService {
             return;
           }
           try {
-            final result = await _auth.signInWithCredential(credential);
+            final result = await _completePhoneCredential(credential);
             final user = result.user;
             if (user != null) {
               final mapped = _mapUser(user);
               await CloudSyncService.instance.saveUserProfile(mapped);
               onVerified(mapped);
             }
+          } on FirebaseAuthException catch (e) {
+            if (!completer.isCompleted)
+              completer.completeError(AuthException(_friendlyAuthMessage(e)));
           } finally {
             if (!completer.isCompleted) completer.complete();
           }
@@ -175,6 +272,19 @@ class AuthService {
 
   String? _verificationId;
   int _activeVerificationNonce = 0;
+  User? _phoneLinkUser;
+
+  Future<UserCredential> _completePhoneCredential(
+    PhoneAuthCredential credential,
+  ) {
+    final user = _phoneLinkUser;
+    if (user != null) {
+      if (_auth.currentUser?.uid != user.uid)
+        throw AuthException(_t.authSessionNotRestored);
+      return user.linkWithCredential(credential);
+    }
+    return _auth.signInWithCredential(credential);
+  }
 
   Future<AuthUser> verifySmsCode(String code) async {
     final verificationId = _verificationId;
@@ -186,7 +296,7 @@ class AuthService {
         verificationId: verificationId,
         smsCode: code.trim(),
       );
-      final result = await _auth.signInWithCredential(credential);
+      final result = await _completePhoneCredential(credential);
       final user = result.user;
       if (user == null) {
         throw AuthException(_t.authSmsVerifyFailed);
@@ -199,7 +309,6 @@ class AuthService {
       throw AuthException(_friendlyAuthMessage(e));
     }
   }
-
 
   Future<void> deleteAccount() async {
     final user = _auth.currentUser;
@@ -246,31 +355,33 @@ class AuthService {
       CloudSyncService.instance.cancelPendingWrites();
     }
 
-    await Future.wait([
-      _auth.signOut(),
-      _signOutGoogle(),
-    ]);
+    await Future.wait([_auth.signOut(), _signOutGoogle()]);
   }
 
   AuthUser _mapUser(User user) {
     final provider = user.providerData.isNotEmpty
         ? user.providerData.first.providerId
-        : 'firebase';
+        : (user.isAnonymous ? 'Anónimo' : 'firebase');
     return AuthUser(
       uid: user.uid,
       email: user.email ?? '',
       displayName: user.displayName?.trim().isNotEmpty == true
           ? user.displayName!.trim()
-          : (user.phoneNumber?.trim().isNotEmpty == true
-              ? user.phoneNumber!.trim()
-              : (user.email?.split('@').first ?? 'Detox user')),
+          : 'Detox user',
       provider: provider,
       phoneNumber: user.phoneNumber,
+      isAnonymous: user.isAnonymous,
+      emailVerified: user.emailVerified,
     );
   }
 
   String _friendlyAuthMessage(FirebaseAuthException e) {
     switch (e.code) {
+      case 'credential-already-in-use':
+      case 'account-exists-with-different-credential':
+        return _t.isEs
+            ? 'Ese acceso pertenece a otro perfil. Tu perfil actual se conserva; inicia sesión en el otro perfil para recuperarlo.'
+            : 'That credential belongs to another profile. Your current profile is unchanged; sign in to the other profile to recover it.';
       case 'email-already-in-use':
         return _t.authEmailInUse;
       case 'invalid-email':

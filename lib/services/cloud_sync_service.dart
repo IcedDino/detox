@@ -41,7 +41,6 @@ class CloudSyncService {
   String? get currentUid => _uid;
   bool get isSignedIn => _uid != null;
 
-
   void _handleAuthStateChanged(User? user) {
     final nextUid = user?.uid;
     final previousUid = _observedAuthUid;
@@ -73,11 +72,24 @@ class CloudSyncService {
       'profile': user.toMap(),
       'updatedAt': FieldValue.serverTimestamp(),
       'lastSignInAt': FieldValue.serverTimestamp(),
+      'anonymousLastSeenAt': user.isAnonymous
+          ? FieldValue.serverTimestamp()
+          : FieldValue.delete(),
     }, SetOptions(merge: true));
     _mergeIntoSnapshotCache(<String, dynamic>{
       'profile': user.toMap(),
       'lastSignInAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  Future<void> recordForegroundActivity() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    await _userDoc?.set({
+      'anonymousLastSeenAt': user.isAnonymous
+          ? FieldValue.serverTimestamp()
+          : FieldValue.delete(),
+    }, SetOptions(merge: true));
   }
 
   Future<Map<String, dynamic>?> loadSnapshot({bool force = false}) async {
@@ -202,10 +214,21 @@ class CloudSyncService {
     _queuedUid = null;
   }
 
-
   Future<void> deleteUserDocument(String uid) async {
     cancelPendingWrites();
+    await _deleteUsageDays(uid);
     await _firestore.collection('users').doc(uid).delete();
+  }
+
+  Future<void> _deleteUsageDays(String uid) async {
+    final days = await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('usage_days')
+        .get();
+    for (final day in days.docs) {
+      await day.reference.delete();
+    }
   }
 
   void _queueFieldWrite(String field, dynamic value) {
@@ -237,9 +260,7 @@ class CloudSyncService {
   Future<void> _enqueueFlush() {
     _retryTimer?.cancel();
     _retryTimer = null;
-    final operation = _flushChain
-        .catchError((_) {})
-        .then((_) => _flushNow());
+    final operation = _flushChain.catchError((_) {}).then((_) => _flushNow());
     _flushChain = operation.catchError((_) {});
     return operation;
   }
@@ -282,6 +303,8 @@ class CloudSyncService {
     final doc = _userDoc;
     if (uid == null || doc == null) return;
 
+    await _deleteUsageDays(uid);
+
     cancelPendingWrites();
     _invalidateSnapshotCache(uid: uid);
 
@@ -290,56 +313,48 @@ class CloudSyncService {
     final sponsorUid = (userData['sponsorUid'] as String?)?.trim();
 
     final batch = _firestore.batch();
-    batch.set(
-      doc,
-      {
-        'accountDeleted': true,
-        'accountDeletedAt': FieldValue.serverTimestamp(),
-        'deletionSource': 'self_service_mobile',
-        'profile': {
-          'uid': uid,
-          'email': '',
-          'displayName': user.displayName,
-          'provider': 'deleted',
-          'phoneNumber': null,
-        },
-        'habits': FieldValue.delete(),
-        'appLimits': FieldValue.delete(),
-        'concentrationZones': FieldValue.delete(),
-        'dailyLimitMinutes': FieldValue.delete(),
-        'onboardingDone': FieldValue.delete(),
-        'sponsorUid': FieldValue.delete(),
-        'sponsorLinkedAt': FieldValue.delete(),
-        'settingsUnlockUntil': FieldValue.delete(),
-        'zoneOverrideUntil': FieldValue.delete(),
-        'shieldPauseUntil': FieldValue.delete(),
-        'unlinkEmailCode': FieldValue.delete(),
-        'unlinkEmailCodeExpiresAt': FieldValue.delete(),
-        'unlinkEmailRequestId': FieldValue.delete(),
-        'pushToken': FieldValue.delete(),
-        'pushTokenUpdatedAt': FieldValue.delete(),
-        'updatedAt': FieldValue.serverTimestamp(),
+    batch.set(doc, {
+      'accountDeleted': true,
+      'accountDeletedAt': FieldValue.serverTimestamp(),
+      'deletionSource': 'self_service_mobile',
+      'profile': {
+        'uid': uid,
+        'email': '',
+        'displayName': user.displayName,
+        'provider': 'deleted',
+        'phoneNumber': null,
       },
-      SetOptions(merge: true),
-    );
+      'habits': FieldValue.delete(),
+      'appLimits': FieldValue.delete(),
+      'concentrationZones': FieldValue.delete(),
+      'dailyLimitMinutes': FieldValue.delete(),
+      'onboardingDone': FieldValue.delete(),
+      'sponsorUid': FieldValue.delete(),
+      'sponsorLinkedAt': FieldValue.delete(),
+      'settingsUnlockUntil': FieldValue.delete(),
+      'zoneOverrideUntil': FieldValue.delete(),
+      'shieldPauseUntil': FieldValue.delete(),
+      'unlinkEmailCode': FieldValue.delete(),
+      'unlinkEmailCodeExpiresAt': FieldValue.delete(),
+      'unlinkEmailRequestId': FieldValue.delete(),
+      'pushToken': FieldValue.delete(),
+      'pushTokenUpdatedAt': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
 
     if (sponsorUid != null && sponsorUid.isNotEmpty) {
       final sponsorRef = _firestore.collection('users').doc(sponsorUid);
       final sponsorSnapshot = await sponsorRef.get();
       final sponsorData = sponsorSnapshot.data() ?? <String, dynamic>{};
       if (sponsorData['sponsorUid'] == uid) {
-        batch.set(
-          sponsorRef,
-          {
-            'sponsorUid': FieldValue.delete(),
-            'sponsorLinkedAt': FieldValue.delete(),
-            'settingsUnlockUntil': FieldValue.delete(),
-            'zoneOverrideUntil': FieldValue.delete(),
-            'shieldPauseUntil': FieldValue.delete(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
+        batch.set(sponsorRef, {
+          'sponsorUid': FieldValue.delete(),
+          'sponsorLinkedAt': FieldValue.delete(),
+          'settingsUnlockUntil': FieldValue.delete(),
+          'zoneOverrideUntil': FieldValue.delete(),
+          'shieldPauseUntil': FieldValue.delete(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
       }
     }
 
@@ -400,16 +415,12 @@ class CloudSyncService {
 
       final batch = _firestore.batch();
       for (final doc in snapshot.docs) {
-        batch.set(
-          doc.reference,
-          {
-            'status': closedStatus,
-            'closedBecause': 'account_deleted',
-            'closedAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
+        batch.set(doc.reference, {
+          'status': closedStatus,
+          'closedBecause': 'account_deleted',
+          'closedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
       }
       await batch.commit();
 
@@ -462,7 +473,9 @@ class CloudSyncService {
       _snapshotUid = effectiveUid;
       _snapshotCache = <String, dynamic>{};
     }
-    final cache = Map<String, dynamic>.from(_snapshotCache ?? const <String, dynamic>{});
+    final cache = Map<String, dynamic>.from(
+      _snapshotCache ?? const <String, dynamic>{},
+    );
     for (final entry in patch.entries) {
       cache[entry.key] = entry.value;
     }
@@ -477,9 +490,7 @@ class CloudSyncService {
   dynamic _canonicalize(dynamic value) {
     if (value is Map) {
       final keys = value.keys.map((e) => e.toString()).toList()..sort();
-      return {
-        for (final key in keys) key: _canonicalize(value[key]),
-      };
+      return {for (final key in keys) key: _canonicalize(value[key])};
     }
     if (value is Iterable) {
       return value.map(_canonicalize).toList();

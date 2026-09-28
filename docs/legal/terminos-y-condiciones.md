@@ -81,6 +81,12 @@ Android.
 
 ## 6. Tu cuenta
 
+Puedes empezar con un perfil anónimo y un username elegido por ti. El correo y el teléfono
+son opcionales; vincularlos permite recuperar el mismo UID, ajustes y vínculo con tu padrino.
+Si pierdes la instalación sin vincular un acceso, no podremos recuperar el perfil solo por su alias.
+Tras 7 días sin abrir la app con conexión, el vínculo de un perfil anónimo se corta en la siguiente
+revisión del servidor (aproximadamente cada cinco minutos). No se aplica a perfiles con acceso vinculado.
+
 - Eres responsable de mantener la confidencialidad de tus credenciales.
 - Debes avisarnos si detectas un uso no autorizado de tu cuenta.
 - La cuenta es personal. No la compartas ni la cedas.

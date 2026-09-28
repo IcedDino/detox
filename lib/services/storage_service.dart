@@ -74,6 +74,9 @@ class StorageService {
 
     final remoteDaily = CloudSyncService.instance.dailyLimitMinutesFromSnapshot(remote);
     final remoteLimits = CloudSyncService.instance.appLimitsFromSnapshot(remote);
+    final protectedApps = remoteLimits == null
+        ? null
+        : _withoutPerAppTimeLimits(remoteLimits);
     final remoteZones = CloudSyncService.instance.concentrationZonesFromSnapshot(remote);
     final remoteOnboarding = CloudSyncService.instance.onboardingDoneFromSnapshot(remote);
     final hasAnyRemoteData =
@@ -87,11 +90,14 @@ class StorageService {
         await prefs.setInt(_dailyLimitKey, remoteDaily);
       }
 
-      if (remoteLimits != null) {
+      if (protectedApps != null) {
         await prefs.setStringList(
           _limitsKey,
-          remoteLimits.map((e) => e.toJson()).toList(),
+          protectedApps.map((e) => e.toJson()).toList(),
         );
+        if (remoteLimits?.any((e) => e.minutes != 0) == true) {
+          await CloudSyncService.instance.saveAppLimits(protectedApps);
+        }
       }
 
       if (remoteZones != null) {
@@ -145,6 +151,9 @@ class StorageService {
     final remote = await CloudSyncService.instance.loadSnapshot();
     final remoteDaily = CloudSyncService.instance.dailyLimitMinutesFromSnapshot(remote);
     final remoteLimits = CloudSyncService.instance.appLimitsFromSnapshot(remote);
+    final protectedApps = remoteLimits == null
+        ? null
+        : _withoutPerAppTimeLimits(remoteLimits);
     final remoteZones = CloudSyncService.instance.concentrationZonesFromSnapshot(remote);
     final remoteOnboarding = CloudSyncService.instance.onboardingDoneFromSnapshot(remote);
 
@@ -155,8 +164,11 @@ class StorageService {
     if (remoteLimits != null) {
       await prefs.setStringList(
         _limitsKey,
-        remoteLimits.map((e) => e.toJson()).toList(),
+        protectedApps!.map((e) => e.toJson()).toList(),
       );
+      if (remoteLimits.any((e) => e.minutes != 0)) {
+        await CloudSyncService.instance.saveAppLimits(protectedApps);
+      }
     }
 
     if (remoteZones != null) {
@@ -188,8 +200,23 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getStringList(_limitsKey);
     if (raw == null || raw.isEmpty) return const [];
-    return raw.map(AppLimit.fromJson).toList();
+    final existing = raw.map(AppLimit.fromJson).toList();
+    final protectedApps = _withoutPerAppTimeLimits(existing);
+    if (existing.any((e) => e.minutes != 0)) {
+      await prefs.setStringList(
+        _limitsKey,
+        protectedApps.map((e) => e.toJson()).toList(),
+      );
+      try {
+        await CloudSyncService.instance.saveAppLimits(protectedApps);
+      } catch (_) {}
+    }
+    return protectedApps;
   }
+
+  List<AppLimit> _withoutPerAppTimeLimits(List<AppLimit> apps) => apps
+      .map((app) => app.minutes == 0 ? app : app.copyWith(minutes: 0))
+      .toList();
 
   Future<void> saveAppLimits(List<AppLimit> limits) async {
     final prefs = await SharedPreferences.getInstance();

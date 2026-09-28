@@ -96,7 +96,7 @@ tbody tr:last-child td { border-bottom: 0; }
 <body>
 <main>
 <h1>Aviso de Privacidad</h1>
-<p><strong>Última actualización:</strong> 25 de septiembre de 2026</p>
+<p><strong>Última actualización:</strong> 27 de septiembre de 2026</p>
 <p>En México, el documento que informa cómo se tratan los datos personales se llama <strong>Aviso de Privacidad</strong>. Este aviso cumple esa función y también sirve como política de privacidad para las tiendas de aplicaciones.</p>
 <hr>
 <h2>1. Quién es el responsable</h2>
@@ -115,9 +115,15 @@ tbody tr:last-child td { border-bottom: 0; }
 <th>Dónde se guarda</th>
 </tr></thead><tbody>
 <tr>
-<td>Nombre y correo electrónico</td>
-<td>Lo escribes al crear la cuenta</td>
-<td>Identificarte y darte acceso</td>
+<td>UID y username (alias)</td>
+<td>Firebase genera el UID; tú eliges el alias</td>
+<td>Mantener tu perfil y el vínculo con el padrino</td>
+<td>Firebase Authentication y Firestore</td>
+</tr>
+<tr>
+<td>Correo electrónico opcional</td>
+<td>Lo añades o lo proporciona el acceso con Google</td>
+<td>Recuperar el mismo perfil en otro dispositivo</td>
 <td>Firebase Authentication y Firestore</td>
 </tr>
 <tr>
@@ -128,9 +134,15 @@ tbody tr:last-child td { border-bottom: 0; }
 </tr>
 <tr>
 <td>Proveedor de acceso</td>
-<td>Google o correo</td>
+<td>Anónimo, Google, correo o teléfono</td>
 <td>Mantener tu sesión</td>
 <td>Firebase Authentication</td>
+</tr>
+<tr>
+<td>Última apertura de un perfil anónimo</td>
+<td>Al abrir o volver a la app con conexión</td>
+<td>Desvincular padrinos después de 7 días sin actividad registrada</td>
+<td>Firestore</td>
 </tr>
 <tr>
 <td>Apps bloqueadas, límites diarios y horarios</td>
@@ -151,6 +163,12 @@ tbody tr:last-child td { border-bottom: 0; }
 <td>Firestore</td>
 </tr>
 <tr>
+<td>Totales diarios de tiempo de pantalla y límite de ese día (solo si activas la comparación)</td>
+<td>Los calcula el dispositivo</td>
+<td>Comparar el uso total con tu padrino</td>
+<td>Firestore hasta que desactives la comparación o elimines tu cuenta</td>
+</tr>
+<tr>
 <td>Identificador de publicidad del dispositivo</td>
 <td>Lo asigna el sistema operativo</td>
 <td>Mostrar el anuncio que da la pausa extra</td>
@@ -159,9 +177,10 @@ tbody tr:last-child td { border-bottom: 0; }
 </tbody></table>
 <p>Firebase es un servicio de Google. Los datos de tu cuenta se alojan en la infraestructura de Google Cloud, que puede estar fuera de México.</p>
 <h3>2.1 Qué NO recogemos</h3>
+<p>Puedes usar Detox sin proporcionar correo ni teléfono. Tu username puede ser un alias. Vincular un acceso es opcional y conserva el UID y los datos de ese perfil. Si desinstalas o borras los datos sin vincularlo, podrías perder el acceso al perfil. El servidor revisa los perfiles anónimos cada cinco minutos y corta su vínculo con el padrino después de 7 días sin abrir la app con conexión. Esta regla también se aplica si dejas de usarla; no detecta la desinstalación. Los perfiles con acceso vinculado no caducan por esta regla. El corte del vínculo no equivale a eliminar todos los datos: puedes solicitar la eliminación desde Ajustes mientras conserves acceso. El UID o el username por sí solos no prueban la titularidad de un perfil perdido.</p>
 <p>Queremos que esto quede muy claro, porque es la parte que más nos preguntan:</p>
 <ul>
-<li><strong>Tu tiempo de pantalla y el detalle de uso de tus apps nunca salen de tu dispositivo.</strong> No se sincronizan, no se envían a nuestros servidores y no los podemos ver. El historial de uso se lee localmente y se queda localmente. Lo único que se sincroniza son los ajustes que tú configuras.</li>
+<li><strong>El detalle de uso de tus apps nunca sale de tu dispositivo.</strong> La racha se calcula localmente. Solo si activas la comparación con tu padrino, se sincronizan el total de minutos y el límite de cada día completo; no se sincronizan nombres de apps ni un desglose por aplicación.</li>
 <li><strong>No hacemos un historial de tu ubicación.</strong> Solo guardamos las coordenadas de las zonas de concentración que tú creas a propósito, para saber cuándo entras y sales de ellas.</li>
 <li>No accedemos a tus contactos, tus mensajes, tus fotos, tus archivos ni a lo que escribes.</li>
 <li>No leemos el contenido de las apps que bloqueas ni lo que haces dentro de ellas.</li>
@@ -259,7 +278,7 @@ tbody tr:last-child td { border-bottom: 0; }
 <li>El mensaje que tú escribas en esa solicitud.</li>
 <li>Su propia decisión y el historial de esas decisiones.</li>
 </ul>
-<p>Tu padrino <strong>no ve</strong> tus apps bloqueadas, tus límites, tus zonas, tus hábitos ni tu tiempo de pantalla. La vinculación es voluntaria y puedes pedir la desvinculación en cualquier momento.</p>
+<p>Si activas la comparación, tu padrino también puede ver los totales diarios de tiempo de pantalla que compartas. Puedes desactivarla desde Estadísticas; al hacerlo se eliminan esos totales de Firestore. Tu padrino <strong>no ve</strong> tus apps bloqueadas, el detalle de uso por app, tus zonas ni tus hábitos. La vinculación es voluntaria y puedes pedir la desvinculación en cualquier momento.</p>
 <hr>
 <h2>8. Menores de edad</h2>
 <p>Detox es para personas de <strong>16 años o más</strong>. No recogemos conscientemente datos de menores de esa edad. Si detectamos una cuenta de una persona menor de 16 años, la eliminaremos.</p>
@@ -273,6 +292,10 @@ tbody tr:last-child td { border-bottom: 0; }
 <tr>
 <td>Datos de tu cuenta y tus ajustes</td>
 <td>Mientras mantengas la cuenta activa</td>
+</tr>
+<tr>
+<td>Totales diarios para comparación</td>
+<td>Hasta que desactives la comparación o elimines la cuenta</td>
 </tr>
 <tr>
 <td>Solicitudes, mensajes y decisiones del padrino</td>
@@ -293,7 +316,7 @@ tbody tr:last-child td { border-bottom: 0; }
 <p>Aplicamos medidas técnicas y administrativas razonables para proteger tus datos:</p>
 <ul>
 <li>El tráfico viaja cifrado mediante TLS.</li>
-<li>El acceso a la base de datos está restringido por reglas de seguridad: cada cuenta solo puede leer y escribir sus propios documentos.</li>
+<li>El acceso a los totales diarios compartidos está restringido por reglas de seguridad: solo la cuenta titular y su padrino vinculado pueden leerlos; solo la cuenta titular puede escribirlos.</li>
 <li>Las credenciales de la cuenta se gestionan a través de Firebase Authentication; nunca almacenamos tu contraseña.</li>
 <li>Las decisiones de desvinculación con soporte se hacen mediante enlaces de un solo uso con caducidad de siete días.</li>
 </ul>

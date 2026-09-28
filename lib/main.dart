@@ -20,6 +20,7 @@ import 'services/app_blocking_service.dart';
 import 'services/anti_bypass_service.dart';
 import 'services/automation_service.dart';
 import 'services/auth_service.dart';
+import 'services/cloud_sync_service.dart';
 import 'services/focus_notification_service.dart';
 import 'services/focus_session_service.dart';
 import 'services/location_zone_service.dart';
@@ -30,7 +31,25 @@ import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const DetoxBootstrapApp());
+  runApp(kIsWeb ? const DetoxWebPreviewApp() : const DetoxBootstrapApp());
+}
+
+/// Read-only preview for collaborators; no sign-in or Android permissions.
+class DetoxWebPreviewApp extends StatelessWidget {
+  const DetoxWebPreviewApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: DetoxTheme.light,
+      darkTheme: DetoxTheme.dark,
+      themeMode: ThemeMode.dark,
+      home: const Scaffold(
+        body: DetoxBackground(child: SafeArea(child: StatsScreen())),
+      ),
+    );
+  }
 }
 
 class _BootstrapState {
@@ -246,6 +265,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      unawaited(CloudSyncService.instance.recordForegroundActivity().catchError((Object _) {}));
       unawaited(_verifyUsageAccess());
       unawaited(_drainPendingLaunchActions());
       if (_protectedServicesRunning) {
@@ -326,6 +346,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   }
 
   Future<void> _syncSignedInUserInternal(AuthUser user) async {
+    await CloudSyncService.instance.recordForegroundActivity();
     await StorageService().bootstrapForSignedInUser();
 
     await SponsorService.instance.ensureCurrentUserInitialized(user);

@@ -1,7 +1,7 @@
 {
   "id": "aviso-de-privacidad",
   "title": "Aviso de Privacidad",
-  "updated": "25 de septiembre de 2026",
+  "updated": "27 de septiembre de 2026",
   "blocks": [
     {
       "type": "heading",
@@ -10,7 +10,7 @@
     },
     {
       "type": "paragraph",
-      "text": "**Última actualización:** 25 de septiembre de 2026"
+      "text": "**Última actualización:** 27 de septiembre de 2026"
     },
     {
       "type": "paragraph",
@@ -58,9 +58,15 @@
       ],
       "rows": [
         [
-          "Nombre y correo electrónico",
-          "Lo escribes al crear la cuenta",
-          "Identificarte y darte acceso",
+          "UID y username (alias)",
+          "Firebase genera el UID; tú eliges el alias",
+          "Mantener tu perfil y el vínculo con el padrino",
+          "Firebase Authentication y Firestore"
+        ],
+        [
+          "Correo electrónico opcional",
+          "Lo añades o lo proporciona el acceso con Google",
+          "Recuperar el mismo perfil en otro dispositivo",
           "Firebase Authentication y Firestore"
         ],
         [
@@ -71,9 +77,15 @@
         ],
         [
           "Proveedor de acceso",
-          "Google o correo",
+          "Anónimo, Google, correo o teléfono",
           "Mantener tu sesión",
           "Firebase Authentication"
+        ],
+        [
+          "Última apertura de un perfil anónimo",
+          "Al abrir o volver a la app con conexión",
+          "Desvincular padrinos después de 7 días sin actividad registrada",
+          "Firestore"
         ],
         [
           "Apps bloqueadas, límites diarios y horarios",
@@ -94,6 +106,12 @@
           "Firestore"
         ],
         [
+          "Totales diarios de tiempo de pantalla y límite de ese día (solo si activas la comparación)",
+          "Los calcula el dispositivo",
+          "Comparar el uso total con tu padrino",
+          "Firestore hasta que desactives la comparación o elimines tu cuenta"
+        ],
+        [
           "Identificador de publicidad del dispositivo",
           "Lo asigna el sistema operativo",
           "Mostrar el anuncio que da la pausa extra",
@@ -112,13 +130,17 @@
     },
     {
       "type": "paragraph",
+      "text": "Puedes usar Detox sin proporcionar correo ni teléfono. Tu username puede ser un alias. Vincular un acceso es opcional y conserva el UID y los datos de ese perfil. Si desinstalas o borras los datos sin vincularlo, podrías perder el acceso al perfil. El servidor revisa los perfiles anónimos cada cinco minutos y corta su vínculo con el padrino después de 7 días sin abrir la app con conexión. Esta regla también se aplica si dejas de usarla; no detecta la desinstalación. Los perfiles con acceso vinculado no caducan por esta regla. El corte del vínculo no equivale a eliminar todos los datos: puedes solicitar la eliminación desde Ajustes mientras conserves acceso. El UID o el username por sí solos no prueban la titularidad de un perfil perdido."
+    },
+    {
+      "type": "paragraph",
       "text": "Queremos que esto quede muy claro, porque es la parte que más nos preguntan:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "**Tu tiempo de pantalla y el detalle de uso de tus apps nunca salen de tu dispositivo.** No se sincronizan, no se envían a nuestros servidores y no los podemos ver. El historial de uso se lee localmente y se queda localmente. Lo único que se sincroniza son los ajustes que tú configuras.",
+        "**El detalle de uso de tus apps nunca sale de tu dispositivo.** La racha se calcula localmente. Solo si activas la comparación con tu padrino, se sincronizan el total de minutos y el límite de cada día completo; no se sincronizan nombres de apps ni un desglose por aplicación.",
         "**No hacemos un historial de tu ubicación.** Solo guardamos las coordenadas de las zonas de concentración que tú creas a propósito, para saber cuándo entras y sales de ellas.",
         "No accedemos a tus contactos, tus mensajes, tus fotos, tus archivos ni a lo que escribes.",
         "No leemos el contenido de las apps que bloqueas ni lo que haces dentro de ellas."
@@ -301,7 +323,7 @@
     },
     {
       "type": "paragraph",
-      "text": "Tu padrino **no ve** tus apps bloqueadas, tus límites, tus zonas, tus hábitos ni tu tiempo de pantalla. La vinculación es voluntaria y puedes pedir la desvinculación en cualquier momento."
+      "text": "Si activas la comparación, tu padrino también puede ver los totales diarios de tiempo de pantalla que compartas. Puedes desactivarla desde Estadísticas; al hacerlo se eliminan esos totales de Firestore. Tu padrino **no ve** tus apps bloqueadas, el detalle de uso por app, tus zonas ni tus hábitos. La vinculación es voluntaria y puedes pedir la desvinculación en cualquier momento."
     },
     {
       "type": "rule"
@@ -339,6 +361,10 @@
           "Mientras mantengas la cuenta activa"
         ],
         [
+          "Totales diarios para comparación",
+          "Hasta que desactives la comparación o elimines la cuenta"
+        ],
+        [
           "Solicitudes, mensajes y decisiones del padrino",
           "Mientras exista el vínculo y hasta 12 meses después, para poder resolver reclamaciones"
         ],
@@ -373,7 +399,7 @@
       "ordered": false,
       "items": [
         "El tráfico viaja cifrado mediante TLS.",
-        "El acceso a la base de datos está restringido por reglas de seguridad: cada cuenta solo puede leer y escribir sus propios documentos.",
+        "El acceso a los totales diarios compartidos está restringido por reglas de seguridad: solo la cuenta titular y su padrino vinculado pueden leerlos; solo la cuenta titular puede escribirlos.",
         "Las credenciales de la cuenta se gestionan a través de Firebase Authentication; nunca almacenamos tu contraseña.",
         "Las decisiones de desvinculación con soporte se hacen mediante enlaces de un solo uso con caducidad de siete días."
       ]

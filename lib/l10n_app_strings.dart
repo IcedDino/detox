@@ -119,12 +119,12 @@ class AppStrings {
   String get overlayReadyShield => isEs
       ? 'La superposición está lista para cubrir apps bloqueadas.'
       : 'Overlay is ready to shield blocked apps.';
-  String get perAppLimits => isEs ? 'Límites por app' : 'Per-app limits';
+  String get protectedApps => isEs ? 'Apps protegidas' : 'Protected apps';
   String get pickAppsBody => isEs
-      ? 'Elige apps instaladas y marca cuáles participan en el bloqueo de enfoque.'
-      : 'Pick apps from your installed list and mark which ones join focus blocking.';
-  String get noPerAppLimits =>
-      isEs ? 'Aún no hay límites por app.' : 'No per-app limits yet.';
+      ? 'Elige apps para incluirlas en el enfoque y en tus zonas de concentración.'
+      : 'Choose apps to include in focus sessions and concentration zones.';
+  String get noProtectedApps =>
+      isEs ? 'Aún no hay apps protegidas.' : 'No protected apps yet.';
   String get blockInFocusMode =>
       isEs ? 'Bloquear en modo enfoque' : 'Block in focus mode';
   String get focusModeBlockSubtitle => isEs
@@ -191,8 +191,9 @@ class AppStrings {
   String get legalOpenFailed => isEs
       ? 'No se pudo abrir el documento. Reintenta.'
       : 'Could not open the document. Try again.';
-  String get legalReadTerms =>
-      isEs ? 'Leer los Términos y Condiciones' : 'Read the Terms and Conditions';
+  String get legalReadTerms => isEs
+      ? 'Leer los Términos y Condiciones'
+      : 'Read the Terms and Conditions';
   String get legalReadPrivacy =>
       isEs ? 'Leer el Aviso de Privacidad' : 'Read the Privacy Notice';
   String get legalAcceptance =>
@@ -201,12 +202,9 @@ class AppStrings {
 
   // ── Sign-in screen ──
   String get orContinueWith => isEs ? 'o continúa con' : 'or continue with';
-  String get showPassword =>
-      isEs ? 'Mostrar contraseña' : 'Show password';
-  String get hidePassword =>
-      isEs ? 'Ocultar contraseña' : 'Hide password';
-  String get switchToSignUp =>
-      isEs ? 'Crear una cuenta' : 'Create an account';
+  String get showPassword => isEs ? 'Mostrar contraseña' : 'Show password';
+  String get hidePassword => isEs ? 'Ocultar contraseña' : 'Hide password';
+  String get switchToSignUp => isEs ? 'Crear una cuenta' : 'Create an account';
   String get switchToSignIn => isEs ? 'Iniciar sesión' : 'Sign in';
   String get noAccountYet =>
       isEs ? '¿No tienes cuenta aún?' : "Don't have an account yet?";
@@ -353,8 +351,8 @@ class AppStrings {
   String get appsBlockedInThisZone =>
       isEs ? 'Apps bloqueadas en esta zona' : 'Apps blocked in this zone';
   String get zoneAppsHelp => isEs
-      ? 'Primero agrega apps en la sección de límites por app. Si dejas esto vacío, la zona usará todas las apps marcadas para enfoque.'
-      : 'Add apps in the Per-app limits section first. If you leave this empty, the zone will use all apps marked for focus mode.';
+      ? 'Primero agrega apps en la sección de apps protegidas.'
+      : 'Add apps in the protected apps section first.';
   String get studyZoneDefaultName => isEs ? 'Zona de estudio' : 'Study Zone';
   String get saveZone => isEs ? 'Guardar zona' : 'Save zone';
 

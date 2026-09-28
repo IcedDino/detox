@@ -927,7 +927,7 @@ class _SponsorScreenState extends State<SponsorScreen>
 
     return HeroInfoCard(
       title: sponsor.displayName,
-      subtitle: sponsor.email,
+      subtitle: sponsor.code,
       badge: StatusPill(
         label: t.protectionActive,
         icon: Icons.verified_user_outlined,

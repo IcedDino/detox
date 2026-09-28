@@ -27,6 +27,8 @@ function processSupportUnlinkRequests_() {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(1000)) return;
   try {
+    try { expireAnonymousSponsorLinks_(); }
+    catch (error) { console.error(`Anonymous cleanup unavailable: ${error}`); }
     for (const doc of pendingRequests_()) {
       try {
         sendReviewEmail_(doc, WEB_APP_URL);
@@ -37,6 +39,81 @@ function processSupportUnlinkRequests_() {
   } finally {
     lock.releaseLock();
   }
+}
+
+// Runs on the existing five-minute trigger. A conditional commit prevents a
+// foreground heartbeat or a changed sponsor from being overwritten.
+function expireAnonymousSponsorLinks_() {
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const response = firestore_('post', `${DOCUMENTS}:runQuery`, {
+    structuredQuery: {
+      from: [{ collectionId: 'users' }],
+      where: { fieldFilter: {
+        field: { fieldPath: 'anonymousLastSeenAt' }, op: 'LESS_THAN_OR_EQUAL',
+        value: timestampValue_(cutoff),
+      } },
+      limit: 100,
+    },
+  });
+  for (const item of response) {
+    if (!item.document) continue;
+    try { expireAnonymousSponsorLink_(item.document); }
+    catch (error) { console.error(`Anonymous expiry deferred: ${error}`); }
+  }
+}
+
+function expireAnonymousSponsorLink_(doc) {
+  const uid = doc.name.split('/').pop();
+  if (!validUid_(uid)) return false;
+  // Auth is authoritative: a recently linked account must never expire based
+  // on an old Firestore profile, even if its last profile write failed.
+  const lookup = UrlFetchApp.fetch(
+    `https://identitytoolkit.googleapis.com/v1/projects/${PROJECT_ID}/accounts:lookup`, {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { Authorization: `Bearer ${ScriptApp.getOAuthToken()}` },
+      payload: JSON.stringify({ localId: [uid] }),
+    });
+  if (lookup.getResponseCode() !== 200) throw new Error('Auth lookup unavailable');
+  const user = (JSON.parse(lookup.getContentText()).users || [])[0];
+  const linked = user && (user.email || user.phoneNumber || (user.providerUserInfo || []).length);
+  const now = new Date().toISOString();
+  if (linked) {
+    commit_([updateWrite_(doc.name, {}, ['anonymousLastSeenAt'], doc.updateTime)]);
+    return false;
+  }
+  const data = decodeDocument_(doc);
+  const sponsorUid = data.sponsorUid;
+  const removed = ['sponsorUid', 'sponsorLinkedAt', 'settingsUnlockUntil',
+    'zoneOverrideUntil', 'shieldPauseUntil', 'unlinkEmailCode',
+    'unlinkEmailCodeExpiresAt', 'unlinkEmailRequestId'];
+  const writes = [updateWrite_(doc.name, {
+    updatedAt: timestampValue_(now),
+  }, [...removed, 'anonymousLastSeenAt'], doc.updateTime)];
+  const support = getDocument_(`meta/admin/unlink_requests/${uid}_admin_unlink`);
+  if (support) {
+    const request = decodeDocument_(support);
+    if (request.status === 'pending' && request.sponsorUid === sponsorUid) {
+      const reason = 'El vínculo terminó tras 7 días sin actividad del perfil anónimo.';
+      writes.push(decisionWrite_(support, 'denied', reason, now));
+      writes.push(historyWrite_(support, 'denied', reason, now));
+    }
+  }
+  if (validUid_(sponsorUid) && sponsorUid !== uid) {
+    const sponsor = getDocument_(`users/${sponsorUid}`);
+    if (sponsor && decodeDocument_(sponsor).sponsorUid === uid) {
+      writes.push(updateWrite_(sponsor.name, { updatedAt: timestampValue_(now) }, removed, sponsor.updateTime));
+      for (const type of PAIR_REQUEST_TYPES) {
+        writes.push({ delete: documentName_(`meta/sponsor/unlock_requests/${sponsorUid}_${type}`) });
+      }
+    }
+    for (const type of PAIR_REQUEST_TYPES) {
+      writes.push({ delete: documentName_(`meta/sponsor/unlock_requests/${uid}_${type}`) });
+    }
+    writes.push({ delete: documentName_(`meta/sponsor/link_requests/${uid}_${sponsorUid}_sponsor`) });
+    writes.push({ delete: documentName_(`meta/sponsor/link_requests/${sponsorUid}_${uid}_sponsor`) });
+  }
+  commit_(writes);
+  return true;
 }
 
 function sendReviewEmail_(doc, webAppUrl) {

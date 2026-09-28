@@ -65,6 +65,25 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create, update: if isSelf(userId) || canWriteLinkedUser(userId) || canApplyDirectSponsorApproval(userId);
       allow delete: if false;
+
+      match /usage_days/{day} {
+        allow read: if isSelf(userId) || (
+          signedIn() &&
+          get(/databases/$(database)/documents/users/$(userId)).data.sponsorUid == request.auth.uid &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.sponsorUid == userId
+        );
+        allow create, update: if isSelf(userId) &&
+          day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+          request.resource.data.keys().hasOnly(['minutes', 'goalMinutes']) &&
+          request.resource.data.keys().hasAll(['minutes', 'goalMinutes']) &&
+          request.resource.data.minutes is int &&
+          request.resource.data.minutes >= 0 &&
+          request.resource.data.minutes <= 1440 &&
+          request.resource.data.goalMinutes is int &&
+          request.resource.data.goalMinutes > 0 &&
+          request.resource.data.goalMinutes <= 1440;
+        allow delete: if isSelf(userId);
+      }
     }
 
     match /meta/sponsor/link_requests/{requestId} {

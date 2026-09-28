@@ -1,6 +1,6 @@
 # Aviso de Privacidad
 
-**Última actualización:** 25 de septiembre de 2026
+**Última actualización:** 27 de septiembre de 2026
 
 En México, el documento que informa cómo se tratan los datos personales se llama **Aviso de
 Privacidad**. Este aviso cumple esa función y también sirve como política de privacidad para las
@@ -25,12 +25,15 @@ aviso se actualizará con la razón social y el registro federal de contribuyent
 
 | Dato | De dónde sale | Para qué | Dónde se guarda |
 | --- | --- | --- | --- |
-| Nombre y correo electrónico | Lo escribes al crear la cuenta | Identificarte y darte acceso | Firebase Authentication y Firestore |
+| UID y username (alias) | Firebase genera el UID; tú eliges el alias | Mantener tu perfil y el vínculo con el padrino | Firebase Authentication y Firestore |
+| Correo electrónico opcional | Lo añades o lo proporciona el acceso con Google | Recuperar el mismo perfil en otro dispositivo | Firebase Authentication y Firestore |
 | Número de teléfono | Solo si entras con teléfono | Verificar tu identidad por SMS | Firebase Authentication |
-| Proveedor de acceso | Google o correo | Mantener tu sesión | Firebase Authentication |
+| Proveedor de acceso | Anónimo, Google, correo o teléfono | Mantener tu sesión | Firebase Authentication |
+| Última apertura de un perfil anónimo | Al abrir o volver a la app con conexión | Desvincular padrinos después de 7 días sin actividad registrada | Firestore |
 | Apps bloqueadas, límites diarios y horarios | Los eliges tú | Prestar el servicio que pediste | Firestore |
 | Zonas de concentración (nombre, coordenadas y radio) | Las creas tú | Activar el bloqueo cuando llegas a ese lugar | Firestore |
 | Vínculo con tu padrino: identificador, fechas, tipo de solicitud, el mensaje que escribes y la decisión | Lo genera el uso de la función de padrino | Que tu padrino pueda aprobar o denegar | Firestore |
+| Totales diarios de tiempo de pantalla y límite de ese día (solo si activas la comparación) | Los calcula el dispositivo | Comparar el uso total con tu padrino | Firestore hasta que desactives la comparación o elimines tu cuenta |
 | Identificador de publicidad del dispositivo | Lo asigna el sistema operativo | Mostrar el anuncio que da la pausa extra | Google AdMob |
 
 Firebase es un servicio de Google. Los datos de tu cuenta se alojan en la infraestructura de Google
@@ -38,11 +41,21 @@ Cloud, que puede estar fuera de México.
 
 ### 2.1 Qué NO recogemos
 
+Puedes usar Detox sin proporcionar correo ni teléfono. Tu username puede ser un alias.
+Vincular un acceso es opcional y conserva el UID y los datos de ese perfil. Si desinstalas
+o borras los datos sin vincularlo, podrías perder el acceso al perfil. El servidor revisa
+los perfiles anónimos cada cinco minutos y corta su vínculo con el padrino después de
+7 días sin abrir la app con conexión. Esta regla también se aplica si dejas de usarla;
+no detecta la desinstalación. Los perfiles con acceso vinculado no caducan por esta regla.
+El corte del vínculo no equivale a eliminar todos los datos: puedes solicitar la eliminación
+desde Ajustes mientras conserves acceso. El UID o el username por sí solos no prueban
+la titularidad de un perfil perdido.
+
 Queremos que esto quede muy claro, porque es la parte que más nos preguntan:
 
-- **Tu tiempo de pantalla y el detalle de uso de tus apps nunca salen de tu dispositivo.** No se
-  sincronizan, no se envían a nuestros servidores y no los podemos ver. El historial de uso se lee
-  localmente y se queda localmente. Lo único que se sincroniza son los ajustes que tú configuras.
+- **El detalle de uso de tus apps nunca sale de tu dispositivo.** La racha se calcula localmente.
+  Solo si activas la comparación con tu padrino, se sincronizan el total de minutos y el límite
+  de cada día completo; no se sincronizan nombres de apps ni un desglose por aplicación.
 - **No hacemos un historial de tu ubicación.** Solo guardamos las coordenadas de las zonas de
   concentración que tú creas a propósito, para saber cuándo entras y sales de ellas.
 - No accedemos a tus contactos, tus mensajes, tus fotos, tus archivos ni a lo que escribes.
@@ -131,8 +144,10 @@ Si vinculas un padrino, esa persona verá **únicamente**:
 - El mensaje que tú escribas en esa solicitud.
 - Su propia decisión y el historial de esas decisiones.
 
-Tu padrino **no ve** tus apps bloqueadas, tus límites, tus zonas, tus hábitos ni tu tiempo de
-pantalla. La vinculación es voluntaria y puedes pedir la desvinculación en cualquier momento.
+Si activas la comparación, tu padrino también puede ver los totales diarios de tiempo de pantalla
+que compartas. Puedes desactivarla desde Estadísticas; al hacerlo se eliminan esos totales de
+Firestore. Tu padrino **no ve** tus apps bloqueadas, el detalle de uso por app, tus zonas ni tus
+hábitos. La vinculación es voluntaria y puedes pedir la desvinculación en cualquier momento.
 
 ---
 
@@ -151,6 +166,7 @@ nerqovaassist@gmail.com y la eliminaremos.
 | Dato | Plazo |
 | --- | --- |
 | Datos de tu cuenta y tus ajustes | Mientras mantengas la cuenta activa |
+| Totales diarios para comparación | Hasta que desactives la comparación o elimines la cuenta |
 | Solicitudes, mensajes y decisiones del padrino | Mientras exista el vínculo y hasta 12 meses después, para poder resolver reclamaciones |
 | Registro de la eliminación de la cuenta | Se conserva un registro mínimo (fecha de eliminación y nombre visible) como evidencia de que la eliminación se atendió y para impedir usos abusivos |
 | Códigos de desvinculación por correo | Caducan a los 10 minutos y se borran al usarse |
@@ -165,8 +181,8 @@ asociarse contigo.
 Aplicamos medidas técnicas y administrativas razonables para proteger tus datos:
 
 - El tráfico viaja cifrado mediante TLS.
-- El acceso a la base de datos está restringido por reglas de seguridad: cada cuenta solo puede
-  leer y escribir sus propios documentos.
+- El acceso a los totales diarios compartidos está restringido por reglas de seguridad: solo
+  la cuenta titular y su padrino vinculado pueden leerlos; solo la cuenta titular puede escribirlos.
 - Las credenciales de la cuenta se gestionan a través de Firebase Authentication; nunca
   almacenamos tu contraseña.
 - Las decisiones de desvinculación con soporte se hacen mediante enlaces de un solo uso con

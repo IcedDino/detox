@@ -136,6 +136,16 @@ class FocusNotificationService {
     return await hasPermission();
   }
 
+  Future<void> openNotificationSettings() async {
+    if (!_isAndroid) return;
+    await initialize();
+    final androidPlugin = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    await androidPlugin?.openAppNotificationSettings();
+  }
+
   Future<void> _persistResponse(NotificationResponse response) async {
     final actionId = response.actionId;
     final payload = response.payload;

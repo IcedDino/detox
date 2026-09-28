@@ -10,7 +10,7 @@ const vm = require("node:vm");
 const source = fs.readFileSync(path.join(__dirname, "..", "apps_script", "Code.gs"), "utf8");
 const prefix = "projects/detox-c0790/databases/(default)/documents/";
 
-function harness(initial) {
+function harness(initial, authUsers = {}) {
   const documents = new Map();
   let version = 0;
   for (const [key, fields] of Object.entries(initial)) {
@@ -26,6 +26,10 @@ function harness(initial) {
     getContentText: () => JSON.stringify(body),
   });
   const fetch = (url, options) => {
+    if (url.includes('identitytoolkit.googleapis.com')) {
+      const uid = JSON.parse(options.payload).localId[0];
+      return response(200, { users: [authUsers[uid] || { localId: uid }] });
+    }
     const name = url.replace("https://firestore.googleapis.com/v1/", "");
     if (options.method === "get") {
       const doc = documents.get(name);
@@ -33,6 +37,11 @@ function harness(initial) {
     }
     const payload = JSON.parse(options.payload);
     if (name.endsWith(":runQuery")) {
+      if (payload.structuredQuery.from[0].collectionId === 'users') {
+        const cutoff = payload.structuredQuery.where.fieldFilter.value.timestampValue;
+        return response(200, [...documents.values()].filter(doc =>
+          doc.fields.anonymousLastSeenAt?.timestampValue <= cutoff).map(document => ({ document })));
+      }
       return response(200, [...documents.values()]
         .filter((doc) => doc.name.includes("/meta/admin/unlink_requests/") &&
           doc.fields.status?.stringValue === "pending")
@@ -99,6 +108,37 @@ function harness(initial) {
     doc: (key) => documents.get(prefix + key),
   };
 }
+
+test('Seven-day expiry removes both links only for inactive anonymous users', () => {
+  const old = { timestampValue: new Date(Date.now() - 8 * 86400000).toISOString() };
+  const recent = { timestampValue: new Date().toISOString() };
+  const setup = {
+    'users/anonymous': { sponsorUid: { stringValue: 'sponsor' }, anonymousLastSeenAt: old },
+    'users/sponsor': { sponsorUid: { stringValue: 'anonymous' } },
+    'users/recovered': { sponsorUid: { stringValue: 'other' }, anonymousLastSeenAt: old },
+    'users/active': { sponsorUid: { stringValue: 'other' }, anonymousLastSeenAt: recent },
+    'meta/sponsor/unlock_requests/anonymous_settings_unlock': { status: { stringValue: 'pending' } },
+  };
+  const h = harness(setup, { recovered: { email: 'linked@example.com' } });
+  h.context.expireAnonymousSponsorLinks_();
+  assert.equal(h.doc('users/anonymous').fields.sponsorUid, undefined);
+  assert.equal(h.doc('users/sponsor').fields.sponsorUid, undefined);
+  assert.equal(h.doc('users/recovered').fields.sponsorUid.stringValue, 'other');
+  assert.equal(h.doc('users/active').fields.sponsorUid.stringValue, 'other');
+  assert.equal(h.doc('meta/sponsor/unlock_requests/anonymous_settings_unlock'), undefined);
+});
+
+test('A concurrent foreground heartbeat prevents expiry of either side', () => {
+  const h = harness({
+    'users/anonymous': { sponsorUid: { stringValue: 'sponsor' } },
+    'users/sponsor': { sponsorUid: { stringValue: 'anonymous' } },
+  });
+  const stale = structuredClone(h.doc('users/anonymous'));
+  h.doc('users/anonymous').updateTime = new Date().toISOString();
+  assert.throws(() => h.context.expireAnonymousSponsorLink_(stale));
+  assert.equal(h.doc('users/anonymous').fields.sponsorUid.stringValue, 'sponsor');
+  assert.equal(h.doc('users/sponsor').fields.sponsorUid.stringValue, 'anonymous');
+});
 
 function pending() {
   return {

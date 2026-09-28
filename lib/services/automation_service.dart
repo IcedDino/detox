@@ -1,34 +1,29 @@
 import 'dart:async';
 
-import '../models/app_limit.dart';
 import '../models/automation_rule.dart';
 import 'app_blocking_service.dart';
 import 'location_zone_service.dart';
 import 'sponsor_service.dart';
 import 'storage_service.dart';
-import 'usage_service.dart';
 
 class AutomationSnapshot {
   const AutomationSnapshot({
     required this.activeRules,
-    required this.overLimitPackages,
     required this.strictMode,
   });
 
   final List<AutomationRule> activeRules;
-  final List<String> overLimitPackages;
   final bool strictMode;
 
-  bool get hasAnythingActive =>
-      activeRules.isNotEmpty || overLimitPackages.isNotEmpty;
+  bool get hasAnythingActive => activeRules.isNotEmpty;
 }
 
 class AutomationService {
   AutomationService._();
   static final AutomationService instance = AutomationService._();
+  static const String _inactiveKey = '__inactive__';
 
   final StorageService _storage = StorageService();
-  final UsageService _usage = UsageService();
 
   Timer? _timer;
   Timer? _midnightTimer;
@@ -36,6 +31,7 @@ class AutomationService {
 
   Future<void> start() async {
     _timer?.cancel();
+    _activeKey = null;
     await refresh();
     _timer = Timer.periodic(const Duration(minutes: 1), (_) {
       unawaited(refresh());
@@ -63,12 +59,10 @@ class AutomationService {
   Future<AutomationSnapshot> buildSnapshot() async {
     final results = await Future.wait<dynamic>([
       _storage.loadAutomationRules(),
-      _storage.loadAppLimits(),
       _storage.loadStrictModeEnabled(),
     ]);
     final rules = results[0] as List<AutomationRule>;
-    final appLimits = results[1] as List<AppLimit>;
-    final strictMode = results[2] as bool;
+    final strictMode = results[1] as bool;
     final insideZone = LocationZoneService.instance.currentState.insideZone;
     final now = DateTime.now();
 
@@ -76,27 +70,6 @@ class AutomationService {
         .where((rule) => rule.appliesAt(now, insideZone: insideZone))
         .where((rule) => rule.blockedPackages.isNotEmpty)
         .toList();
-
-    final limitMap = <String, AppLimit>{
-      for (final item in appLimits)
-        if ((item.packageName ?? '').isNotEmpty && item.minutes > 0)
-          item.packageName!: item,
-    };
-
-    List<String> overLimitPackages = const [];
-    if (limitMap.isNotEmpty) {
-      final usageEntries = await _usage.getTodayAppUsageEntries();
-      overLimitPackages = usageEntries
-          .where((entry) => (entry.packageName ?? '').isNotEmpty)
-          .where((entry) {
-            final limit = limitMap[entry.packageName!];
-            return limit != null && entry.minutes >= limit.minutes;
-          })
-          .map((e) => e.packageName!)
-          .toSet()
-          .toList()
-        ..sort();
-    }
 
     final completedAt = DateTime.now();
     if (completedAt.year != now.year ||
@@ -107,7 +80,6 @@ class AutomationService {
 
     return AutomationSnapshot(
       activeRules: activeRules,
-      overLimitPackages: overLimitPackages,
       strictMode: strictMode || activeRules.any((e) => e.strictMode),
     );
   }
@@ -115,9 +87,11 @@ class AutomationService {
   Future<void> refresh() async {
     final snapshot = await buildSnapshot();
     if (!snapshot.hasAnythingActive) {
-      if (_activeKey != null) {
+      // Clear saved automatic limits left by earlier builds that generated a
+      // 30-minute limit as a side effect of adding an app.
+      if (_activeKey != _inactiveKey) {
         await AppBlockingService.instance.stopShield(source: 'automation');
-        _activeKey = null;
+        _activeKey = _inactiveKey;
       }
       return;
     }
@@ -126,7 +100,6 @@ class AutomationService {
     for (final rule in snapshot.activeRules) {
       packages.addAll(rule.blockedPackages.where((e) => e.isNotEmpty));
     }
-    packages.addAll(snapshot.overLimitPackages.where((e) => e.isNotEmpty));
     final sortedPackages = packages.toList()..sort();
     if (sortedPackages.isEmpty) return;
 
@@ -134,7 +107,6 @@ class AutomationService {
       sortedPackages.join(','),
       snapshot.strictMode ? 'strict' : 'soft',
       snapshot.activeRules.map((e) => e.id).join(','),
-      snapshot.overLimitPackages.join(','),
     ].join('|');
 
     if (key == _activeKey) return;
