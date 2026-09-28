@@ -669,17 +669,15 @@ class _SettingsScreenState extends State<SettingsScreen>
             icon: Icons.wb_twilight_outlined,
             title: t.isEs ? 'Ambiente según la hora' : 'Time of day atmosphere',
             subtitle: t.isEs
-                ? 'Luz cálida al amanecer y estrellas de noche. Solo en modo oscuro.'
-                : 'Warm light at sunrise and stars at night. Dark mode only.',
+                ? 'Cielo suave de día y luna de noche, según el tema.'
+                : 'Soft sky by day and moon at night, matched to the theme.',
             trailing: Semantics(
               label: t.isEs
                   ? 'Ambiente según la hora'
                   : 'Time of day atmosphere',
               child: Switch(
-                value: widget.timeAtmosphereEnabled && widget.darkMode,
-                onChanged: widget.darkMode
-                    ? widget.onTimeAtmosphereChanged
-                    : null,
+                value: widget.timeAtmosphereEnabled,
+                onChanged: widget.onTimeAtmosphereChanged,
               ),
             ),
           ),

@@ -219,7 +219,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
         );
     });
     _timeRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (mounted && _darkMode && _timeAtmosphereEnabled) setState(() {});
+      if (mounted && _timeAtmosphereEnabled) setState(() {});
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -714,8 +714,8 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
           fit: StackFit.expand,
           children: [
             DetoxBackground(child: const SizedBox.expand()),
-            if (_darkMode && _timeAtmosphereEnabled)
-              _TimeAtmosphere(now: DateTime.now()),
+            if (_timeAtmosphereEnabled)
+              _TimeAtmosphere(now: DateTime.now(), isDark: _darkMode),
             SafeArea(
               child: PageView.builder(
                 controller: _pageController,
@@ -843,8 +843,9 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
 }
 
 class _TimeAtmosphere extends StatelessWidget {
-  const _TimeAtmosphere({required this.now});
+  const _TimeAtmosphere({required this.now, required this.isDark});
   final DateTime now;
+  final bool isDark;
 
   @override
   Widget build(BuildContext context) {
@@ -853,6 +854,41 @@ class _TimeAtmosphere extends StatelessWidget {
     final morning = hour >= 8 && hour < 17;
     final sunset = hour >= 17 && hour < 20;
     final night = !sunrise && !morning && !sunset && (hour >= 20 || hour < 5);
+    if (!isDark) {
+      return IgnorePointer(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: night
+                      ? const [Color(0xFFDCE5F2), Color(0xFFF4F7F3)]
+                      : const [Color(0xFFD8EFFA), Color(0xFFF4F7F3)],
+                  stops: const [0, .72],
+                ),
+              ),
+            ),
+            if (night)
+              const Positioned(
+                top: 44,
+                right: 32,
+                child: Icon(
+                  Icons.nightlight_round,
+                  size: 42,
+                  color: Color(0xFFF4DB92),
+                ),
+              )
+            else
+              const Positioned.fill(
+                child: CustomPaint(painter: _CloudPainter()),
+              ),
+          ],
+        ),
+      );
+    }
     final tint = sunrise
         ? const Color(0xFFFFA66B)
         : morning
@@ -902,6 +938,43 @@ class _TimeAtmosphere extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CloudPainter extends CustomPainter {
+  const _CloudPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = const Color(0xCCFFFFFF);
+    for (final cloud in const [
+      (Offset(.16, .14), 38.0),
+      (Offset(.78, .26), 29.0),
+      (Offset(.37, .43), 23.0),
+    ]) {
+      final center = Offset(
+        size.width * cloud.$1.dx,
+        size.height * cloud.$1.dy,
+      );
+      final radius = cloud.$2;
+      canvas.drawOval(
+        Rect.fromCenter(center: center, width: radius * 2.8, height: radius),
+        paint,
+      );
+      canvas.drawCircle(
+        center.translate(-radius * .45, -radius * .2),
+        radius * .55,
+        paint,
+      );
+      canvas.drawCircle(
+        center.translate(radius * .2, -radius * .38),
+        radius * .7,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CloudPainter oldDelegate) => false;
 }
 
 class _StarPainter extends CustomPainter {
