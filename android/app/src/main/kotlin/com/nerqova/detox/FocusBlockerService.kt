@@ -46,6 +46,7 @@ class FocusBlockerService : Service() {
         const val ACTION_START = "com.nerqova.detox.START_BLOCKING"
         const val ACTION_STOP = "com.nerqova.detox.STOP_BLOCKING"
         const val ACTION_SYNC_SPONSOR_STATE = "com.nerqova.detox.SYNC_SPONSOR_STATE"
+        const val ACTION_SYNC_ZONE_CONFIG = "com.nerqova.detox.SYNC_ZONE_CONFIG"
         const val EXTRA_HAS_SPONSOR = "has_sponsor"
         const val EXTRA_STRICT_MODE = "strict_mode"
 
@@ -94,14 +95,21 @@ class FocusBlockerService : Service() {
     private var hasSponsorCache = false
     private var strictModeCache = false
     private var suspendUntilMillisCache: Long = 0L
+    private lateinit var nativeZoneMonitor: NativeZoneMonitor
 
     @Volatile
     private var pollRunning = false
+    private var lastWatcherAttemptAt = 0L
 
     private val pollTask = object : Runnable {
         override fun run() {
             if (!pollRunning) return
             try {
+                val now = System.currentTimeMillis()
+                if (userListener == null && now - lastWatcherAttemptAt > 5_000L) {
+                    startShieldPauseWatcher()
+                }
+                nativeZoneMonitor.refreshIfDue()
                 inspectForegroundApp()
             } catch (_: Exception) {
                 // A transient UsageStats/WindowManager failure must not kill the
@@ -127,6 +135,10 @@ class FocusBlockerService : Service() {
         instance = this
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        nativeZoneMonitor = NativeZoneMonitor(this) {
+            refreshCachedPrefsState()
+            if (blockedPackagesCache.isEmpty()) hideOverlay(force = true)
+        }
     }
 
     private fun startForegroundSafely(): Boolean {
@@ -183,8 +195,29 @@ class FocusBlockerService : Service() {
 
         return when (intent?.action) {
             ACTION_STOP -> {
-                stopSelfSafely()
-                START_NOT_STICKY
+                if (nativeZoneMonitor.hasEnabledZones()) {
+                    nativeZoneMonitor.start()
+                    refreshCachedPrefsState()
+                    startShieldPauseWatcher()
+                    startPolling()
+                    START_STICKY
+                } else {
+                    stopSelfSafely()
+                    START_NOT_STICKY
+                }
+            }
+
+            ACTION_SYNC_ZONE_CONFIG -> {
+                nativeZoneMonitor.start()
+                refreshCachedPrefsState()
+                if (blockedPackagesCache.isEmpty() && !nativeZoneMonitor.hasEnabledZones()) {
+                    stopSelfSafely()
+                    START_NOT_STICKY
+                } else {
+                    startShieldPauseWatcher()
+                    startPolling()
+                    START_STICKY
+                }
             }
 
             ACTION_SYNC_SPONSOR_STATE -> {
@@ -222,6 +255,7 @@ class FocusBlockerService : Service() {
             }
 
             else -> {
+                nativeZoneMonitor.start()
                 intent?.getStringArrayListExtra("blockedPackages")?.let {
                     prefs.edit().putStringSet("blocked_packages", it.toSet()).apply()
                 }
@@ -245,16 +279,15 @@ class FocusBlockerService : Service() {
                 refreshCachedPrefsState()
                 val blockedPackages = blockedPackagesCache
 
-                if (!Settings.canDrawOverlays(this) || blockedPackages.isEmpty()) {
+                if (!Settings.canDrawOverlays(this) ||
+                    (blockedPackages.isEmpty() && !nativeZoneMonitor.hasEnabledZones())) {
                     stopSelfSafely()
                     return START_NOT_STICKY
                 }
 
                 startShieldPauseWatcher()
 
-                handler.removeCallbacksAndMessages(null)
-                pollRunning = true
-                handler.post(pollTask)
+                startPolling()
                 // Ask Android to recreate the active shield with its original
                 // start request if it reclaims this service's process.
                 START_REDELIVER_INTENT
@@ -265,7 +298,7 @@ class FocusBlockerService : Service() {
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
         refreshCachedPrefsState()
-        if (blockedPackagesCache.isEmpty()) return
+        if (blockedPackagesCache.isEmpty() && !nativeZoneMonitor.hasEnabledZones()) return
 
         // Keep the user-enabled shield alive when Detox is dismissed from
         // Recents. The persisted package set is also used if Android recreates
@@ -286,6 +319,7 @@ class FocusBlockerService : Service() {
     }
 
     override fun onDestroy() {
+        nativeZoneMonitor.stop()
         pollRunning = false
         handler.removeCallbacksAndMessages(null)
         userListener?.remove()
@@ -311,8 +345,12 @@ class FocusBlockerService : Service() {
             .setContentTitle(tr("Detox protection", "Protección de Detox"))
             .setContentText(
                 tr(
-                    "Selected apps stay covered.",
-                    "Las apps seleccionadas siguen cubiertas."
+                    if (nativeZoneMonitor.hasEnabledZones())
+                        "Concentration zones are being monitored."
+                    else "Selected apps stay covered.",
+                    if (nativeZoneMonitor.hasEnabledZones())
+                        "Se vigilan las zonas de concentración."
+                    else "Las apps seleccionadas siguen cubiertas."
                 )
             )
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
@@ -398,6 +436,7 @@ class FocusBlockerService : Service() {
     }
 
     private fun startShieldPauseWatcher() {
+        lastWatcherAttemptAt = System.currentTimeMillis()
         userListener?.remove()
         userListener = null
 
@@ -409,11 +448,16 @@ class FocusBlockerService : Service() {
             .document(uid)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    handler.postDelayed({ startShieldPauseWatcher() }, 5_000)
+                    userListener?.remove()
+                    userListener = null
                     return@addSnapshotListener
                 }
 
                 val ts = snapshot?.getTimestamp("shieldPauseUntil")
+                val zoneOverride = snapshot?.getTimestamp("zoneOverrideUntil")
+                    ?.toDate()?.time ?: 0L
+                prefs.edit().putLong(NativeZoneMonitor.KEY_OVERRIDE_UNTIL, zoneOverride).apply()
+                nativeZoneMonitor.onOverrideChanged()
                 val remoteMillis = ts?.toDate()?.time ?: 0L
                 val effectiveMillis = updateSuspendUntilMillis(remoteMillis, allowShorten = false)
 
@@ -444,7 +488,7 @@ class FocusBlockerService : Service() {
 
         if (blockedPackages.isEmpty()) {
             hideOverlay(force = true)
-            stopSelfSafely()
+            if (!nativeZoneMonitor.hasEnabledZones()) stopSelfSafely()
             return
         }
 
@@ -619,6 +663,9 @@ class FocusBlockerService : Service() {
 
     private fun showOverlay(reason: String) {
         ensureDailyPauseReset(prefs)
+        val lightMode = !getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            .getBoolean("flutter.dark_mode", true)
+        fun shade(dark: String, light: String) = Color.parseColor(if (lightMode) light else dark)
         val hasSponsor = hasSponsorCache
         val strictMode = strictModeCache
         requestAudioFocus()
@@ -633,7 +680,7 @@ class FocusBlockerService : Service() {
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#CC08111F"))
+            setBackgroundColor(shade("#CC08111F", "#B8EAF0EA"))
             setPadding(dp(24), dp(24), dp(24), dp(24))
             isClickable = true
             isFocusable = true
@@ -647,11 +694,11 @@ class FocusBlockerService : Service() {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dpF(28)
                 colors = intArrayOf(
-                    Color.parseColor("#111827"),
-                    Color.parseColor("#0F172A")
+                    shade("#111827", "#FFFFFF"),
+                    shade("#0F172A", "#F4F7F3")
                 )
                 orientation = GradientDrawable.Orientation.TOP_BOTTOM
-                setStroke(dp(1), Color.parseColor("#223047"))
+                setStroke(dp(1), shade("#223047", "#D7E1D8"))
             }
             elevation = dpF(10)
         }
@@ -659,16 +706,16 @@ class FocusBlockerService : Service() {
         val iconCircle = TextView(this).apply {
             text = "\uD83D\uDD12"
             gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
+            setTextColor(shade("#FFFFFF", "#202B26"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 colors = intArrayOf(
-                    Color.parseColor("#1E3A5F"),
-                    Color.parseColor("#13304D")
+                    shade("#1E3A5F", "#EAF0EA"),
+                    shade("#13304D", "#DDEBDD")
                 )
                 orientation = GradientDrawable.Orientation.TOP_BOTTOM
-                setStroke(dp(1), Color.parseColor("#34506D"))
+                setStroke(dp(1), shade("#34506D", "#C7D8CA"))
             }
             val size = dp(64)
             layoutParams = LinearLayout.LayoutParams(size, size).apply {
@@ -678,14 +725,14 @@ class FocusBlockerService : Service() {
 
         val badge = TextView(this).apply {
             text = tr("Focus Shield Active", "Escudo de enfoque activo")
-            setTextColor(Color.parseColor("#8FD3FF"))
+            setTextColor(shade("#8FD3FF", "#215B53"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
             setTypeface(typeface, Typeface.BOLD)
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dpF(999)
-                setColor(Color.parseColor("#142334"))
-                setStroke(dp(1), Color.parseColor("#27415D"))
+                setColor(shade("#142334", "#EAF0EA"))
+                setStroke(dp(1), shade("#27415D", "#C7D8CA"))
             }
             setPadding(dp(12), dp(6), dp(12), dp(6))
             layoutParams = LinearLayout.LayoutParams(
@@ -699,7 +746,7 @@ class FocusBlockerService : Service() {
         val title = TextView(this).apply {
             text = tr("Stay focused", "Mantente enfocado")
             gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
+            setTextColor(shade("#FFFFFF", "#202B26"))
             setTypeface(typeface, Typeface.BOLD)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 25f)
             layoutParams = LinearLayout.LayoutParams(
@@ -714,7 +761,7 @@ class FocusBlockerService : Service() {
             tag = "appLabelText"
             text = buildBlockedAppTitle()
             gravity = Gravity.CENTER
-            setTextColor(Color.parseColor("#E6EEF8"))
+            setTextColor(shade("#E6EEF8", "#202B26"))
             setTypeface(typeface, Typeface.BOLD)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
             layoutParams = LinearLayout.LayoutParams(
@@ -729,7 +776,7 @@ class FocusBlockerService : Service() {
             text = buildBodyText(reason)
             tag = "reasonText"
             gravity = Gravity.CENTER
-            setTextColor(Color.parseColor("#B7C8D9"))
+            setTextColor(shade("#B7C8D9", "#68746C"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
             setLineSpacing(0f, 1.12f)
             layoutParams = LinearLayout.LayoutParams(
@@ -746,8 +793,8 @@ class FocusBlockerService : Service() {
                 "Why do you need it? (optional)",
                 "¿Por qué lo necesitas? (opcional)"
             )
-            setHintTextColor(Color.parseColor("#7E8EA1"))
-            setTextColor(Color.WHITE)
+            setHintTextColor(shade("#7E8EA1", "#68746C"))
+            setTextColor(shade("#FFFFFF", "#202B26"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
             maxLines = 2
             inputType = android.text.InputType.TYPE_CLASS_TEXT or
@@ -755,8 +802,8 @@ class FocusBlockerService : Service() {
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dpF(14)
-                setColor(Color.parseColor("#16233A"))
-                setStroke(dp(1), Color.parseColor("#2A4363"))
+                setColor(shade("#16233A", "#F8FAFF"))
+                setStroke(dp(1), shade("#2A4363", "#D7E1D8"))
             }
             setPadding(dp(14), dp(12), dp(14), dp(12))
             visibility = if (canAskSponsor()) View.VISIBLE else View.GONE
@@ -857,12 +904,12 @@ class FocusBlockerService : Service() {
             text = tr("Back to focus", "Volver al enfoque")
             isAllCaps = false
             textSize = 15f
-            setTextColor(Color.parseColor("#D7E3F0"))
+            setTextColor(shade("#D7E3F0", "#202B26"))
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dpF(18)
                 setColor(Color.TRANSPARENT)
-                setStroke(dp(1), Color.parseColor("#38506A"))
+                setStroke(dp(1), shade("#38506A", "#B7C7BA"))
             }
             minHeight = dp(52)
             setPadding(dp(18), dp(14), dp(18), dp(14))
@@ -894,7 +941,7 @@ class FocusBlockerService : Service() {
         val footer = TextView(this).apply {
             text = tr("Protected by Detox", "Protegido por Detox")
             gravity = Gravity.CENTER
-            setTextColor(Color.parseColor("#70839A"))
+            setTextColor(shade("#70839A", "#68746C"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -1467,6 +1514,7 @@ class FocusBlockerService : Service() {
     }
 
     private fun stopSelfSafely() {
+        nativeZoneMonitor.stop()
         pollRunning = false
         keepOverlayPinned = false
         requestInFlight = false
@@ -1480,6 +1528,12 @@ class FocusBlockerService : Service() {
         hideOverlay(force = true)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    private fun startPolling() {
+        handler.removeCallbacksAndMessages(null)
+        pollRunning = true
+        handler.post(pollTask)
     }
 
     private fun dp(value: Int): Int {

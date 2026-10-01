@@ -3,12 +3,28 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../models/app_limit.dart';
+import '../models/concentration_zone.dart';
 import 'cloud_sync_service.dart';
 import 'storage_service.dart';
 
 class NativeBlockAction {
   static const String requestShieldPause = 'request_shield_pause';
   static const String suspendShield15 = 'suspend_shield_15';
+}
+
+class ActiveBlockingSource {
+  const ActiveBlockingSource({
+    required this.source,
+    required this.blockedPackages,
+    required this.reason,
+    this.expiresAt,
+  });
+
+  final String source;
+  final List<String> blockedPackages;
+  final String reason;
+  final DateTime? expiresAt;
 }
 
 class _ShieldRequest {
@@ -106,6 +122,7 @@ class AppBlockingService {
     if (!_isAndroid) return false;
     await _restoreRequests();
     await _resetForNewUser();
+    await _adoptNativeZoneSource();
     final normalized =
         blockedPackages.toSet().where((e) => e.isNotEmpty).toList()..sort();
     if (normalized.isEmpty) return false;
@@ -125,12 +142,76 @@ class AppBlockingService {
     if (!_isAndroid) return;
     await _restoreRequests();
     await _resetForNewUser();
+    await _adoptNativeZoneSource();
     if (source == null) {
       _requests.clear();
     } else {
       _requests.remove(source);
     }
     await _syncMergedState();
+  }
+
+  Future<List<ActiveBlockingSource>> getActiveSources() async {
+    if (!_isAndroid) return const [];
+    final raw = await _channel.invokeMethod<String>('getBlockingSources');
+    if (raw == null || raw.isEmpty) return const [];
+    final state = jsonDecode(raw) as Map<String, dynamic>;
+    if (state['uid'] != CloudSyncService.instance.currentUid) return const [];
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return (state['requests'] as List<dynamic>? ?? const [])
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .where((request) =>
+            request['expiresAtMillis'] == null ||
+            (request['expiresAtMillis'] as int) > now)
+        .map((request) => ActiveBlockingSource(
+              source: request['source'] as String? ?? '',
+              blockedPackages:
+                  List.unmodifiable(List<String>.from(request['blockedPackages'] as List)),
+              reason: request['reason'] as String? ?? '',
+              expiresAt: request['expiresAtMillis'] == null
+                  ? null
+                  : DateTime.fromMillisecondsSinceEpoch(
+                      request['expiresAtMillis'] as int,
+                    ),
+            ))
+        .toList(growable: false);
+  }
+
+  Future<void> syncZoneMonitorConfig({
+    required List<ConcentrationZone> zones,
+    required List<AppLimit> appLimits,
+    String? ownerUid,
+  }) async {
+    if (!_isAndroid) return;
+    final focusPackages = appLimits
+        .where((limit) =>
+            limit.useInFocusMode && (limit.packageName?.isNotEmpty ?? false))
+        .map((limit) => limit.packageName!)
+        .toSet()
+        .toList()
+      ..sort();
+    final enabled = zones.where((zone) => zone.enabled).map((zone) {
+      final packages = zone.blockedPackages.isEmpty
+          ? focusPackages
+          : (zone.blockedPackages.toSet().toList()..sort());
+      return {
+        'id': zone.id,
+        'name': zone.name,
+        'latitude': zone.latitude,
+        'longitude': zone.longitude,
+        'radiusMeters': zone.radiusMeters,
+        'blockedPackages': packages,
+      };
+    }).toList();
+    await _channel.invokeMethod('syncZoneConfig', {
+      'zonesJson': jsonEncode(enabled),
+      'uid': ownerUid ?? CloudSyncService.instance.currentUid,
+    });
+  }
+
+  Future<void> zoneMonitorHeartbeat() async {
+    if (!_isAndroid) return;
+    await _channel.invokeMethod('zoneMonitorHeartbeat');
   }
 
   Future<bool> _syncMergedState() async {
@@ -202,6 +283,7 @@ class AppBlockingService {
     if (!_isAndroid) return;
     await _restoreRequests();
     await _resetForNewUser();
+    await _adoptNativeZoneSource();
     if (_requests.isEmpty) return;
     final strictMode = await _storage.getStrictMode();
     final updated = <String, _ShieldRequest>{};
@@ -226,6 +308,7 @@ class AppBlockingService {
     if (CloudSyncService.instance.currentUid == null) return;
     await _restoreRequests();
     await _resetForNewUser();
+    await _adoptNativeZoneSource();
     final strictMode = await _storage.getStrictMode();
     try {
       await _channel.invokeMethod('syncSponsorState', {
@@ -258,6 +341,31 @@ class AppBlockingService {
     final future = _restoreRequestsInternal();
     _restoreFuture = future;
     await future;
+  }
+
+  Future<void> _adoptNativeZoneSource() async {
+    final raw = await _channel.invokeMethod<String>('getBlockingSources');
+    if (raw == null || raw.isEmpty) {
+      _requests.remove('zone');
+      return;
+    }
+    final state = jsonDecode(raw) as Map<String, dynamic>;
+    if (state['uid'] != CloudSyncService.instance.currentUid) return;
+    final rows = state['requests'] as List<dynamic>? ?? const [];
+    for (final row in rows) {
+      final data = Map<String, dynamic>.from(row as Map);
+      if (data['source'] != 'zone') continue;
+      _requests['zone'] = _ShieldRequest(
+        source: 'zone',
+        blockedPackages: List<String>.from(data['blockedPackages'] as List),
+        reason: data['reason'] as String? ?? '',
+        hasSponsor: data['hasSponsor'] == true,
+        strictMode: data['strictMode'] == true,
+        expiresAtMillis: data['expiresAtMillis'] as int?,
+      );
+      return;
+    }
+    _requests.remove('zone');
   }
 
   Future<void> _restoreRequestsInternal() async {

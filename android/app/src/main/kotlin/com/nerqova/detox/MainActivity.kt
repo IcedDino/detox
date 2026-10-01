@@ -256,6 +256,34 @@ class MainActivity : FlutterActivity() {
                         }
                     }
 
+                    "syncZoneConfig" -> {
+                        val zonesJson = call.argument<String>("zonesJson") ?: "[]"
+                        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                        prefs.edit()
+                            .putString(NativeZoneMonitor.KEY_ZONES, zonesJson)
+                            .putString("zone_monitor_uid", call.argument<String>("uid"))
+                            .apply()
+                        val hasZones = try {
+                            org.json.JSONArray(zonesJson).length() > 0
+                        } catch (_: Exception) {
+                            false
+                        }
+                        if (hasZones || FocusBlockerService.instance != null) {
+                            val intent = Intent(this, FocusBlockerService::class.java).apply {
+                                action = FocusBlockerService.ACTION_SYNC_ZONE_CONFIG
+                            }
+                            startForegroundBlocker(intent)
+                        }
+                        result.success(true)
+                    }
+
+                    "zoneMonitorHeartbeat" -> {
+                        getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                            .putLong(NativeZoneMonitor.KEY_FLUTTER_HEARTBEAT, System.currentTimeMillis())
+                            .apply()
+                        result.success(true)
+                    }
+
                     "stopBlocking" -> {
                         try {
                             val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)

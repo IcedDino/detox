@@ -57,9 +57,11 @@ class LocationZoneService {
       StreamController<ZoneState>.broadcast();
 
   StreamSubscription<Position>? _positionSub;
+  Future<void> _pendingEvaluation = Future<void>.value();
   ZoneState _currentState = const ZoneState(enabled: false, insideZone: false);
   bool _monitoring = false;
   Timer? _overrideTimer;
+  Timer? _nativeHeartbeatTimer;
 
   _ZoneConfigCache? _configCache;
   Position? _lastPosition;
@@ -113,8 +115,7 @@ class LocationZoneService {
     // Automatic monitoring must never trigger a system prompt. The zone
     // editor requests location when the user chooses to configure a zone.
     final permission = await _checkPermissions();
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
+    if (permission != LocationPermission.always) {
       _emit(const ZoneState(
         enabled: false,
         insideZone: false,
@@ -124,6 +125,13 @@ class LocationZoneService {
     }
 
     _monitoring = true;
+    _nativeHeartbeatTimer?.cancel();
+    _nativeHeartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      unawaited(AppBlockingService.instance.zoneMonitorHeartbeat().catchError(
+        (Object error) => debugPrint('Zone heartbeat unavailable: $error'),
+      ));
+    });
+    await AppBlockingService.instance.zoneMonitorHeartbeat();
     await _restartPositionStream(
       accuracy: LocationAccuracy.medium,
       distanceFilter: 120,
@@ -140,10 +148,13 @@ class LocationZoneService {
 
   Future<void> stopMonitoring() async {
     _monitoring = false;
+    _nativeHeartbeatTimer?.cancel();
+    _nativeHeartbeatTimer = null;
     _overrideTimer?.cancel();
     _overrideTimer = null;
     await _positionSub?.cancel();
     _positionSub = null;
+    await _pendingEvaluation;
     if (_activeShieldKey != null) {
       _activeShieldKey = null;
       await AppBlockingService.instance.stopShield(source: 'zone');
@@ -158,9 +169,23 @@ class LocationZoneService {
   Future<void> refresh() async {
     try {
       final config = await _loadConfig(force: true);
+      await AppBlockingService.instance.syncZoneMonitorConfig(
+        zones: config.zones,
+        appLimits: config.appLimits,
+      );
       if (config.zones.where((e) => e.enabled).isEmpty) {
         await stopMonitoring();
         await AppBlockingService.instance.stopShield(source: 'zone');
+        return;
+      }
+
+      if (await _checkPermissions() != LocationPermission.always) {
+        await stopMonitoring();
+        _emit(const ZoneState(
+          enabled: false,
+          insideZone: false,
+          message: 'Allow location all the time for concentration zones.',
+        ));
         return;
       }
 
@@ -250,6 +275,18 @@ class LocationZoneService {
   }
 
   Future<void> _handlePosition(
+    Position position, {
+    _ZoneConfigCache? cachedConfig,
+  }) {
+    final evaluation = _pendingEvaluation.then((_) async {
+      if (!_monitoring) return;
+      await _evaluatePosition(position, cachedConfig: cachedConfig);
+    });
+    _pendingEvaluation = evaluation.catchError((Object _) {});
+    return evaluation;
+  }
+
+  Future<void> _evaluatePosition(
     Position position, {
     _ZoneConfigCache? cachedConfig,
   }) async {

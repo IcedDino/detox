@@ -96,6 +96,15 @@ class SponsorService {
     return _firestore.collection('users').doc(uid);
   }
 
+  Stream<String?> watchCurrentSponsorUid() {
+    final doc = _userDoc;
+    if (doc == null) return const Stream.empty();
+    return doc.snapshots().map((snapshot) {
+      final uid = (snapshot.data()?['sponsorUid'] as String?)?.trim();
+      return uid == null || uid.isEmpty ? null : uid;
+    }).distinct();
+  }
+
   String _linkRequestId(String requesterUid, String targetUid) =>
       '${requesterUid}_${targetUid}_sponsor';
 
@@ -399,9 +408,10 @@ class SponsorService {
 
   Future<SponsorUserContext> loadCurrentUserContext({
     bool includeSponsorProfile = true,
+    bool forceRefresh = false,
   }) async {
     await ensureCurrentUserInitialized();
-    final data = await _loadCurrentUserData();
+    final data = await _loadCurrentUserData(force: forceRefresh);
     final sponsorUid = (data?['sponsorUid'] as String?)?.trim();
     final settingsUnlockUntil = _timestampFromData(data, 'settingsUnlockUntil');
     final zoneOverrideUntil = _timestampFromData(data, 'zoneOverrideUntil');

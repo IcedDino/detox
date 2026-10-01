@@ -8,6 +8,25 @@ import org.json.JSONObject
 object ShieldStateStore {
     const val KEY_SOURCES = "shield_sources_v1"
 
+    fun replaceZoneSource(prefs: SharedPreferences, zone: JSONObject?) {
+        val state = try {
+            JSONObject(prefs.getString(KEY_SOURCES, null) ?: "{}")
+        } catch (_: Exception) {
+            JSONObject()
+        }
+        state.put("uid", prefs.getString("zone_monitor_uid", null))
+        val old = state.optJSONArray("requests") ?: JSONArray()
+        val next = JSONArray()
+        for (index in 0 until old.length()) {
+            val source = old.optJSONObject(index) ?: continue
+            if (source.optString("source") != "zone") next.put(source)
+        }
+        if (zone != null) next.put(zone)
+        state.put("requests", next)
+        prefs.edit().putString(KEY_SOURCES, state.toString()).apply()
+        activeSources(prefs)
+    }
+
     fun activeSources(prefs: SharedPreferences): String? {
         val raw = prefs.getString(KEY_SOURCES, null) ?: return null
         return try {
@@ -38,11 +57,17 @@ object ShieldStateStore {
 
             state.put("requests", active)
             val normalized = state.toString()
-            if (normalized != raw) {
+            val mergedReason = reasons.joinToString(", ")
+            if (normalized != raw ||
+                prefs.getStringSet("blocked_packages", emptySet()) != packages ||
+                prefs.getString("block_reason", "") != mergedReason ||
+                prefs.getBoolean("has_sponsor", false) != hasSponsor ||
+                prefs.getBoolean("strict_mode", false) != strictMode
+            ) {
                 prefs.edit()
                     .putString(KEY_SOURCES, normalized)
                     .putStringSet("blocked_packages", packages)
-                    .putString("block_reason", reasons.joinToString(", "))
+                    .putString("block_reason", mergedReason)
                     .putBoolean("has_sponsor", hasSponsor)
                     .putBoolean("strict_mode", strictMode)
                     .apply()

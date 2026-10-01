@@ -10,6 +10,56 @@ const vm = require("node:vm");
 const source = fs.readFileSync(path.join(__dirname, "..", "apps_script", "Code.gs"), "utf8");
 const prefix = "projects/detox-c0790/databases/(default)/documents/";
 
+test('Sponsor push routes a new link to the target and its answer to the requester', () => {
+  const { context } = harness({});
+  const request = {
+    requesterUid: 'requester', targetUid: 'target', requesterName: 'Ana',
+    targetName: 'Luis', status: 'pending',
+  };
+  const incoming = context.sponsorPushEvent_('link', request);
+  assert.equal(incoming.uid, 'target');
+  assert.equal(incoming.kind, 'link_pending');
+  const accepted = context.sponsorPushEvent_('link', { ...request, status: 'accepted' });
+  assert.equal(accepted.uid, 'requester');
+  assert.equal(accepted.kind, 'link_accepted');
+});
+
+test('Sponsor push routes an unlock decision back to its requester', () => {
+  const { context } = harness({});
+  const request = {
+    requesterUid: 'requester', sponsorUid: 'sponsor', requesterName: 'Ana',
+    requestType: 'shield_pause', status: 'approved',
+  };
+  const event = context.sponsorPushEvent_('unlock', request);
+  assert.equal(event.uid, 'requester');
+  assert.equal(event.kind, 'unlock_approved');
+  assert.equal(context.sponsorPushEvent_('unlock', { ...request, status: 'consumed' }), null);
+});
+
+test('Sponsor push sends a closed-app notification once per request revision', () => {
+  const now = new Date().toISOString();
+  const h = harness({
+    'meta/sponsor/link_requests/requester_target_sponsor': {
+      requesterUid: { stringValue: 'requester' },
+      targetUid: { stringValue: 'target' },
+      requesterName: { stringValue: 'Ana' },
+      status: { stringValue: 'pending' },
+      updatedAt: { timestampValue: now },
+    },
+    'users/target/push_tokens/device': {
+      token: { stringValue: 'device-token' },
+      locale: { stringValue: 'es' },
+      foreground: { booleanValue: false },
+      updatedAt: { timestampValue: now },
+    },
+  });
+  h.context.processSponsorPush_();
+  h.context.processSponsorPush_();
+  assert.equal(h.pushes.length, 1);
+  assert.equal(h.pushes[0].message.token, 'device-token');
+  assert.equal(h.pushes[0].message.data.kind, 'link_pending');
+});
+
 function harness(initial, authUsers = {}) {
   const documents = new Map();
   let version = 0;
@@ -21,22 +71,40 @@ function harness(initial, authUsers = {}) {
     });
   }
   const sent = [];
+  const pushes = [];
   const response = (code, body) => ({
     getResponseCode: () => code,
     getContentText: () => JSON.stringify(body),
   });
   const fetch = (url, options) => {
+    if (url.includes('fcm.googleapis.com')) {
+      pushes.push(JSON.parse(options.payload));
+      return response(200, { name: 'sent' });
+    }
     if (url.includes('identitytoolkit.googleapis.com')) {
       const uid = JSON.parse(options.payload).localId[0];
       return response(200, { users: [authUsers[uid] || { localId: uid }] });
     }
     const name = url.replace("https://firestore.googleapis.com/v1/", "");
     if (options.method === "get") {
+      if (name.includes('/push_tokens?')) {
+        const parent = name.split('?')[0] + '/';
+        return response(200, { documents: [...documents.values()]
+          .filter(doc => doc.name.startsWith(parent)) });
+      }
       const doc = documents.get(name);
       return doc ? response(200, doc) : response(404, { error: "missing" });
     }
     const payload = JSON.parse(options.payload);
     if (name.endsWith(":runQuery")) {
+      if (name.includes('/meta/sponsor:runQuery')) {
+        const collection = payload.structuredQuery.from[0].collectionId;
+        const cutoff = payload.structuredQuery.where.fieldFilter.value.timestampValue;
+        return response(200, [...documents.values()].filter(doc =>
+          doc.name.includes(`/meta/sponsor/${collection}/`) &&
+          doc.fields.updatedAt?.timestampValue >= cutoff)
+          .map(document => ({ document })));
+      }
       if (payload.structuredQuery.from[0].collectionId === 'users') {
         const cutoff = payload.structuredQuery.where.fieldFilter.value.timestampValue;
         return response(200, [...documents.values()].filter(doc =>
@@ -104,7 +172,7 @@ function harness(initial, authUsers = {}) {
   });
   vm.runInContext(source, context, { filename: "Code.gs" });
   return {
-    context, documents, sent,
+    context, documents, sent, pushes,
     doc: (key) => documents.get(prefix + key),
   };
 }

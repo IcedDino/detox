@@ -6,11 +6,8 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 
 /**
- * Temporary local-architecture receiver.
- *
- * Restores only the real blocking shield after reboot/update when there is an
- * active block configuration. Sponsor background monitoring is intentionally not
- * restarted here until the project migrates to FCM.
+ * Restores the saved app shield and enabled concentration zones after reboot
+ * or an app update. Sponsor alerts are delivered separately by FCM.
  */
 class BootReceiver : BroadcastReceiver() {
 
@@ -26,7 +23,13 @@ class BootReceiver : BroadcastReceiver() {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         ShieldStateStore.activeSources(prefs)
         val blockedPackages = prefs.getStringSet(KEY_BLOCKED_PACKAGES, emptySet()) ?: emptySet()
-        if (blockedPackages.isEmpty()) {
+        val hasZones = try {
+            org.json.JSONArray(prefs.getString(NativeZoneMonitor.KEY_ZONES, "[]") ?: "[]")
+                .length() > 0
+        } catch (_: Exception) {
+            false
+        }
+        if (blockedPackages.isEmpty() && !hasZones) {
             return
         }
 

@@ -84,6 +84,22 @@ service cloud.firestore {
           request.resource.data.goalMinutes <= 1440;
         allow delete: if isSelf(userId);
       }
+
+      match /push_tokens/{deviceId} {
+        allow read, delete: if isSelf(userId) &&
+          deviceId.matches('^[0-9a-f]{32}$');
+        allow create, update: if isSelf(userId) &&
+          deviceId.matches('^[0-9a-f]{32}$') &&
+          request.resource.data.keys().hasOnly([
+            'token', 'locale', 'foreground', 'updatedAt'
+          ]) &&
+          request.resource.data.token is string &&
+          request.resource.data.token.size() > 0 &&
+          request.resource.data.token.size() <= 4096 &&
+          request.resource.data.locale in ['es', 'en'] &&
+          request.resource.data.foreground is bool &&
+          request.resource.data.updatedAt == request.time;
+      }
     }
 
     match /meta/sponsor/link_requests/{requestId} {

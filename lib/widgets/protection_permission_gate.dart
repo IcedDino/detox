@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -37,6 +39,20 @@ Future<bool> ensureProtectionPermissions(
               permission != LocationPermission.deniedForever &&
               await Geolocator.isLocationServiceEnabled();
         },
+      );
+      if (!granted) return false;
+    }
+    if (!context.mounted) return false;
+    if (await Geolocator.checkPermission() != LocationPermission.always) {
+      final granted = await _showPermissionDialog(
+        context,
+        title: es ? 'Ubicación todo el tiempo' : 'Allow location all the time',
+        detail: es
+            ? 'Detox usa tu ubicación aun cuando la app está cerrada para activar y desactivar las zonas que configuraste. La comparación ocurre en este dispositivo; no guardamos un historial ni enviamos tu posición al servidor. Permite «Todo el tiempo» en los ajustes de la app.'
+            : 'Detox uses your location even when the app is closed to turn your zones on and off. The comparison happens on this device; we do not store a location history or send your position to the server. Allow “All the time” in app settings.',
+        openSettings: Geolocator.openAppSettings,
+        isGranted: () async =>
+            await Geolocator.checkPermission() == LocationPermission.always,
       );
       if (!granted) return false;
     }
@@ -123,6 +139,9 @@ class _PermissionDialogState extends State<_PermissionDialog>
     with WidgetsBindingObserver {
   bool _busy = false;
   bool _completed = false;
+  bool _checking = false;
+  Timer? _retryTimer;
+  int _retries = 0;
 
   @override
   void initState() {
@@ -133,19 +152,37 @@ class _PermissionDialogState extends State<_PermissionDialog>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _retryTimer?.cancel();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _check();
+    if (state == AppLifecycleState.resumed) {
+      _retries = 0;
+      _check();
+    }
   }
 
   Future<void> _check() async {
-    final granted = await widget.isGranted();
-    if (granted && mounted && !_completed) {
+    if (_checking || _completed || !mounted) return;
+    _checking = true;
+    bool granted;
+    try {
+      granted = await widget.isGranted();
+    } catch (_) {
+      granted = false;
+    } finally {
+      _checking = false;
+    }
+    if (!mounted || _completed) return;
+    if (granted) {
       _completed = true;
+      _retryTimer?.cancel();
       Navigator.of(context).pop(true);
+    } else if (_retries++ < 20) {
+      _retryTimer?.cancel();
+      _retryTimer = Timer(const Duration(milliseconds: 500), _check);
     }
   }
 
@@ -153,7 +190,10 @@ class _PermissionDialogState extends State<_PermissionDialog>
     setState(() => _busy = true);
     try {
       await widget.openSettings();
-      if (mounted) await _check();
+      if (mounted) {
+        _retries = 0;
+        await _check();
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

@@ -25,6 +25,7 @@ import 'services/focus_notification_service.dart';
 import 'services/focus_session_service.dart';
 import 'services/location_zone_service.dart';
 import 'services/sponsor_alert_service.dart';
+import 'services/sponsor_push_service.dart';
 import 'services/sponsor_service.dart';
 import 'services/storage_service.dart';
 import 'theme/app_theme.dart';
@@ -203,6 +204,10 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     FocusNotificationService.instance.setResponseHandler(
       _drainPendingLaunchActions,
     );
+    SponsorPushService.instance.setOpenHandler(() {
+      _sponsorCenterQueued = true;
+      _tryOpenQueuedSponsorCenter();
+    });
     WidgetsBinding.instance.addObserver(this);
     _pageController = PageController(initialPage: _index.value);
     _darkMode = widget.initialDarkMode;
@@ -232,7 +237,13 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
 
       if (user == null) {
         SponsorAlertService.instance.stop();
+        await SponsorPushService.instance.stopAndRemove();
         await _stopProtectedServices();
+        await LocationZoneService.instance.stopMonitoring();
+        await AppBlockingService.instance.syncZoneMonitorConfig(
+          zones: const [],
+          appLimits: const [],
+        );
 
         if (!mounted) return;
         setState(() {
@@ -254,6 +265,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     FocusNotificationService.instance.setResponseHandler(null);
+    SponsorPushService.instance.setOpenHandler(null);
     WidgetsBinding.instance.removeObserver(this);
     _timeRefreshTimer?.cancel();
     _authSubscription?.cancel();
@@ -265,11 +277,20 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      unawaited(CloudSyncService.instance.recordForegroundActivity().catchError((Object _) {}));
+      unawaited(SponsorPushService.instance.setForeground(true));
+      unawaited(
+        CloudSyncService.instance.recordForegroundActivity().catchError(
+          (Object _) {},
+        ),
+      );
       unawaited(_verifyUsageAccess());
       unawaited(_drainPendingLaunchActions());
       if (_protectedServicesRunning) {
         unawaited(AutomationService.instance.refresh());
+      }
+    } else {
+      if (state == AppLifecycleState.paused) {
+        unawaited(SponsorPushService.instance.setForeground(false));
       }
     }
   }
@@ -319,6 +340,11 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
       await StorageService().bootstrapForSignedInUser();
       await SponsorService.instance.ensureCurrentUserInitialized(_currentUser);
       SponsorAlertService.instance.start();
+      unawaited(
+        SponsorPushService.instance.start(
+          locale: _locale?.languageCode ?? 'es',
+        ),
+      );
       await _consumePendingBlockAction();
     }
 
@@ -351,6 +377,9 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
 
     await SponsorService.instance.ensureCurrentUserInitialized(user);
     SponsorAlertService.instance.start();
+    unawaited(
+      SponsorPushService.instance.start(locale: _locale?.languageCode ?? 'es'),
+    );
     await _consumePendingNotificationAction();
     await _consumePendingBlockAction();
 
@@ -548,6 +577,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
     AppLocale.setLanguageCode(code);
     if (!mounted) return;
     setState(() => _locale = Locale(code));
+    unawaited(SponsorPushService.instance.start(locale: code));
   }
 
   Future<void> _maybeOfferTutorial() async {
@@ -677,6 +707,7 @@ class _DetoxAppState extends State<DetoxApp> with WidgetsBindingObserver {
 
   Future<void> _signOut() async {
     SponsorAlertService.instance.stop();
+    await SponsorPushService.instance.stopAndRemove();
     await _stopProtectedServices();
     await AuthService.instance.signOut();
 

@@ -44,12 +44,13 @@ class _SponsorScreenState extends State<SponsorScreen>
 
   String _myCode = '';
   SponsorProfile? _sponsor;
+  StreamSubscription<String?>? _sponsorLinkSub;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _refresh();
+    unawaited(_refresh().whenComplete(_watchSponsorLink));
     // The user came here on purpose, so this is the right moment to ask for the
     // notification permission that makes request alerts appear.
     unawaited(SponsorAlertService.instance.requestNotificationPermission());
@@ -58,6 +59,7 @@ class _SponsorScreenState extends State<SponsorScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _sponsorLinkSub?.cancel();
     _codeController.dispose();
     super.dispose();
   }
@@ -69,11 +71,20 @@ class _SponsorScreenState extends State<SponsorScreen>
     }
   }
 
-  Future<void> _refresh() async {
+  void _watchSponsorLink() {
+    if (!mounted || _sponsorLinkSub != null) return;
+    _sponsorLinkSub = _sponsorService.watchCurrentSponsorUid().listen((uid) {
+      if (uid != _sponsor?.uid) unawaited(_refresh(forceRefresh: true));
+    });
+  }
+
+  Future<void> _refresh({bool forceRefresh = false}) async {
     setState(() => _loading = true);
     try {
       await _sponsorService.ensureCurrentUserInitialized();
-      final sponsorContext = await _sponsorService.loadCurrentUserContext();
+      final sponsorContext = await _sponsorService.loadCurrentUserContext(
+        forceRefresh: forceRefresh,
+      );
       final sponsor = sponsorContext.sponsorProfile;
 
       await AppBlockingService.instance.syncSponsorState(sponsor != null);

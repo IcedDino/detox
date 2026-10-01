@@ -71,30 +71,23 @@ Aquí está el verdadero peligro del proyecto, no en el código.
 
 **Uso real confirmado:** el único uso de ubicación es verificar si el usuario se encuentra
 dentro de una zona de concentración que él mismo definió (obtener coordenadas + comparar con el
-radio de la zona). No hay rastreo continuo, ni historial, ni envío a servidor.
+radio de la zona). Hay comprobaciones periódicas mientras las zonas estén habilitadas;
+no se guarda historial de posiciones ni se envía la posición actual al servidor.
 
-**Diagnóstico:** dado que `FocusBlockerService` es ya un servicio en primer plano (`specialUse`),
-la lectura de ubicación ocurre mientras ese servicio está activo, lo que equivale a primer plano
-desde la perspectiva del SO. Por lo tanto, `ACCESS_BACKGROUND_LOCATION` **no es necesario**.
+**Diagnóstico actualizado:** el usuario pidió que las zonas funcionen con Detox cerrada y después
+de reiniciar. La app pide `ACCESS_BACKGROUND_LOCATION` y ejecuta un monitor nativo dentro del
+servicio visible. Google Play puede clasificar el acceso de un servicio en primer plano como
+ubicación en segundo plano si la función opera con la app cerrada. Por ello, hay que presentar la
+declaración de ubicación en segundo plano, el vídeo demostrativo y la divulgación visible al
+usuario antes del diálogo de permiso. La aprobación de Play no se puede garantizar mediante el
+tipo de servicio.
 
-**Cambio a hacer en `AndroidManifest.xml`:**
-```xml
-<!-- QUITAR -->
-<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+El monitor compara la posición en el dispositivo con las zonas habilitadas, sin guardar historial
+de ubicaciones ni enviarlas al servidor. También requiere declarar el tipo de servicio de
+ubicación en primer plano y probar el arranque tras reinicio en Android recientes.
 
-<!-- AÑADIR -->
-<uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
-
-<!-- En FocusBlockerService, cambiar foregroundServiceType -->
-android:foregroundServiceType="location|specialUse"
-```
-
-En el código Dart/Kotlin, pedir `ACCESS_FINE_LOCATION` (o `COARSE`) **antes** de arrancar el
-servicio (Android 14+ lo exige).
-
-**Resultado:** se elimina la Declaración de permisos de ubicación, el vídeo obligatorio y el
-riesgo de rechazo. El revisor verá un permiso perfectamente justificado por las zonas de
-concentración.
+Fuentes: [Política de ubicación de Google Play](https://support.google.com/googleplay/android-developer/answer/9799150?hl=es),
+[restricciones de servicios en primer plano de Android](https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start).
 
 ### 2.5 Ficha de Play — assets
 

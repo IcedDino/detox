@@ -13,6 +13,7 @@ import '../models/installed_app_entry.dart';
 import '../models/sponsor_profile.dart';
 import '../screens/automation_settings_screen.dart';
 import '../screens/legal_document_screen.dart';
+import '../screens/protection_status_screen.dart';
 import '../screens/sponsor_screen.dart';
 import '../services/auth_service.dart';
 import '../services/app_catalog_service.dart';
@@ -628,6 +629,18 @@ class _SettingsScreenState extends State<SettingsScreen>
         ),
         (context) => const SizedBox(height: 12),
       ],
+      (context) => SoftActionTile(
+        icon: Icons.shield_moon_outlined,
+        title: t.isEs ? 'Protección activa' : 'Active protection',
+        subtitle: t.isEs
+            ? 'Comprueba qué reglas bloquean cada app'
+            : 'See which rules are blocking each app',
+        trailing: Icon(Icons.chevron_right_rounded, color: muted),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const ProtectionStatusScreen()),
+        ),
+      ),
+      (context) => const SizedBox(height: 12),
       (context) => SoftActionTile(
         icon: Icons.shield_outlined,
         title: t.sponsorCenter,
