@@ -17,7 +17,9 @@ import '../widgets/message_prompt_dialog.dart';
 import '../widgets/ui_kit.dart';
 
 class SponsorScreen extends StatefulWidget {
-  const SponsorScreen({super.key});
+  const SponsorScreen({super.key, this.preview = false});
+
+  final bool preview;
 
   @override
   State<SponsorScreen> createState() => _SponsorScreenState();
@@ -35,7 +37,7 @@ class _RequestState {
 class _SponsorScreenState extends State<SponsorScreen>
     with WidgetsBindingObserver {
   AppStrings get t => AppStrings.of(context);
-  final SponsorService _sponsorService = SponsorService.instance;
+  SponsorService get _sponsorService => SponsorService.instance;
   final TextEditingController _codeController = TextEditingController();
 
   bool _loading = true;
@@ -50,6 +52,11 @@ class _SponsorScreenState extends State<SponsorScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    if (widget.preview) {
+      _loading = false;
+      _myCode = 'DEMO123';
+      return;
+    }
     unawaited(_refresh().whenComplete(_watchSponsorLink));
     // The user came here on purpose, so this is the right moment to ask for the
     // notification permission that makes request alerts appear.
@@ -79,6 +86,7 @@ class _SponsorScreenState extends State<SponsorScreen>
   }
 
   Future<void> _refresh({bool forceRefresh = false}) async {
+    if (widget.preview) return;
     setState(() => _loading = true);
     try {
       await _sponsorService.ensureCurrentUserInitialized();
@@ -601,6 +609,19 @@ class _SponsorScreenState extends State<SponsorScreen>
   /// Incoming link requests and approval requests, which are the only items
   /// that need an answer right now.
   Widget _buildPendingSection() {
+    if (widget.preview) {
+      return GlassCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(t.incomingRequestsTitle,
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(t.noPendingRequests),
+          ],
+        ),
+      );
+    }
     return StreamBuilder<List<LinkRequest>>(
       stream: _sponsorService.incomingLinkRequests(),
       builder: (context, linkSnapshot) {
@@ -927,7 +948,7 @@ class _SponsorScreenState extends State<SponsorScreen>
             ),
             const SizedBox(height: 12),
             FilledButton.icon(
-              onPressed: _linkSponsor,
+              onPressed: widget.preview ? null : _linkSponsor,
               icon: const Icon(Icons.handshake_outlined),
               label: Text(t.linkSponsor),
             ),
@@ -970,6 +991,9 @@ class _SponsorScreenState extends State<SponsorScreen>
 
   /// One single list of the requests the user sent, with their live state.
   Widget _buildRequestsList() {
+    if (widget.preview) {
+      return GlassCard(child: Text(t.noPendingRequests));
+    }
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return StreamBuilder<SupportUnlinkRequest?>(
       stream: _sponsorService.currentSupportUnlink(),

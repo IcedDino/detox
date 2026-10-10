@@ -133,6 +133,22 @@ Run locally:
 
 flutter run
 
+## Frontend preview on macOS
+
+Run the desktop preview without an Android simulator:
+
+```bash
+flutter run -d macos
+```
+
+The macOS app shows the four main tabs. Use the grid button in the title bar
+to open the other screens, including account setup, sponsor, protection,
+schedules, and legal pages. It uses preview data where device or cloud state
+would normally be required. Android-only blocking, usage access, and phone
+features still need an Android device for functional testing.
+
+The same screen gallery is available with `flutter run -d chrome`.
+
 ---
 
 # License

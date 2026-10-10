@@ -10,8 +10,13 @@ import 'firebase_options.dart';
 import 'l10n_app_strings.dart';
 import 'models/auth_user.dart';
 import 'screens/auth_screen.dart';
+import 'screens/anonymous_username_screen.dart';
+import 'screens/automation_settings_screen.dart';
+import 'screens/create_account_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/focus_screen.dart';
+import 'screens/legal_document_screen.dart';
+import 'screens/protection_status_screen.dart';
 import 'screens/usage_access_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/sponsor_screen.dart';
@@ -32,12 +37,88 @@ import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(kIsWeb ? const DetoxWebPreviewApp() : const DetoxBootstrapApp());
+  runApp(
+    kIsWeb || defaultTargetPlatform == TargetPlatform.macOS
+        ? const DetoxWebPreviewApp()
+        : const DetoxBootstrapApp(),
+  );
 }
 
-/// Read-only preview for collaborators; no sign-in or Android permissions.
-class DetoxWebPreviewApp extends StatelessWidget {
+/// Web and macOS gallery of the real screens, without app bootstrap or sign-in.
+class DetoxWebPreviewApp extends StatefulWidget {
   const DetoxWebPreviewApp({super.key});
+
+  @override
+  State<DetoxWebPreviewApp> createState() => _DetoxWebPreviewAppState();
+}
+
+class _DetoxWebPreviewAppState extends State<DetoxWebPreviewApp> {
+  static const _screens = [
+    'Inicio',
+    'Enfoque',
+    'Estadísticas',
+    'Configuración',
+    'Centro de padrino',
+    'Protección activa',
+    'Horarios de Detox',
+    'Acceso al tiempo de uso',
+    'Bienvenida / acceso',
+    'Nombre anónimo',
+    'Crear cuenta',
+    'Términos y condiciones',
+    'Aviso de privacidad',
+  ];
+
+  int _screen = 0;
+  bool _darkMode = true;
+  String _localeCode = 'es';
+
+  Widget _selectedScreen() {
+    switch (_screen) {
+      case 0:
+        return DashboardScreen(
+          onStartFocus: () => setState(() => _screen = 1),
+          onOpenSettings: () => setState(() => _screen = 3),
+        );
+      case 1:
+        return const FocusScreen(isCurrentPage: true);
+      case 2:
+        return const StatsScreen(demo: true);
+      case 3:
+        return SettingsScreen(
+          preview: true,
+          darkMode: _darkMode,
+          onDarkModeChanged: (value) => setState(() => _darkMode = value),
+          currentUser: const AuthUser(
+            email: 'preview@example.com',
+            displayName: 'Demo',
+            provider: 'preview',
+          ),
+          onSignOut: () async {},
+          onOpenSponsor: () => setState(() => _screen = 4),
+          localeCode: _localeCode,
+          onLocaleChanged: (value) => setState(() => _localeCode = value),
+        );
+      case 4:
+        return const SponsorScreen(preview: true);
+      case 5:
+        return const ProtectionStatusScreen();
+      case 6:
+        return const AutomationSettingsScreen();
+      case 7:
+        return UsageAccessScreen(onGranted: () async {});
+      case 8:
+        return AuthScreen(onAuthenticated: (_) async {});
+      case 9:
+        return AnonymousUsernameScreen(onAuthenticated: (_) async {});
+      case 10:
+        return const CreateAccountScreen();
+      case 11:
+        return const LegalDocumentScreen(document: LegalDocument.terms);
+      default:
+        return const LegalDocumentScreen(document: LegalDocument.privacy);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,9 +126,78 @@ class DetoxWebPreviewApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: DetoxTheme.light,
       darkTheme: DetoxTheme.dark,
-      themeMode: ThemeMode.dark,
-      home: const Scaffold(
-        body: DetoxBackground(child: SafeArea(child: StatsScreen())),
+      themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
+      locale: Locale(_localeCode),
+      supportedLocales: const [Locale('es'), Locale('en')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      home: LayoutBuilder(
+        builder: (context, constraints) => Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 430,
+              maxHeight: constraints.maxHeight > 860
+                  ? 860
+                  : constraints.maxHeight,
+            ),
+            child: Scaffold(
+              appBar: AppBar(
+                leading: _screen > 3
+                    ? IconButton(
+                        icon: const Icon(Icons.arrow_back_rounded),
+                        onPressed: () => setState(() => _screen = 3),
+                      )
+                    : null,
+                title: Text(_screens[_screen]),
+                actions: [
+                  PopupMenuButton<int>(
+                    tooltip: 'Todas las pantallas',
+                    icon: const Icon(Icons.grid_view_rounded),
+                    onSelected: (index) => setState(() => _screen = index),
+                    itemBuilder: (_) => [
+                      for (var i = 0; i < _screens.length; i++)
+                        PopupMenuItem(value: i, child: Text(_screens[i])),
+                    ],
+                  ),
+                ],
+              ),
+              body: KeyedSubtree(
+                key: ValueKey(_screen),
+                child: DetoxBackground(
+                  child: SafeArea(child: _selectedScreen()),
+                ),
+              ),
+              bottomNavigationBar: _screen < 4
+                  ? NavigationBar(
+                      selectedIndex: _screen,
+                      onDestinationSelected: (index) =>
+                          setState(() => _screen = index),
+                      destinations: const [
+                        NavigationDestination(
+                          icon: Icon(Icons.home_outlined),
+                          label: 'Inicio',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.timer_outlined),
+                          label: 'Enfoque',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.bar_chart_outlined),
+                          label: 'Estadísticas',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.settings_outlined),
+                          label: 'Configuración',
+                        ),
+                      ],
+                    )
+                  : null,
+            ),
+          ),
+        ),
       ),
     );
   }

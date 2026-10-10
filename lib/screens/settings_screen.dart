@@ -36,9 +36,11 @@ class SettingsScreen extends StatefulWidget {
     this.onTimeAtmosphereChanged,
     required this.currentUser,
     required this.onSignOut,
+    this.onOpenSponsor,
     required this.localeCode,
     required this.onLocaleChanged,
     this.isCurrentPage = true,
+    this.preview = false,
   });
 
   final bool darkMode;
@@ -47,9 +49,11 @@ class SettingsScreen extends StatefulWidget {
   final ValueChanged<bool>? onTimeAtmosphereChanged;
   final AuthUser? currentUser;
   final Future<void> Function() onSignOut;
+  final VoidCallback? onOpenSponsor;
   final String localeCode;
   final ValueChanged<String> onLocaleChanged;
   final bool isCurrentPage;
+  final bool preview;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -80,7 +84,12 @@ class _SettingsScreenState extends State<SettingsScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _load();
+    if (widget.preview) {
+      _loading = false;
+    } else {
+      _load();
+    }
+    if (widget.preview) return;
     unawaited(
       _catalogService.loadInstalledApps().then<void>((_) {}, onError: (_) {}),
     );
@@ -127,6 +136,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   Future<void> _load() async {
+    if (widget.preview) return;
     final inFlight = _loadFuture;
     if (inFlight != null) return inFlight;
     final future = _loadSettings();
@@ -564,7 +574,7 @@ class _SettingsScreenState extends State<SettingsScreen>
       (context) => const SizedBox(height: 12),
       if (widget.currentUser != null) ...[
         (context) => InkWell(
-          onTap: _deletingAccount || _linkingGoogle
+          onTap: widget.preview || _deletingAccount || _linkingGoogle
               ? null
               : _openAccountActions,
           borderRadius: BorderRadius.circular(detoxRadius),
@@ -651,6 +661,10 @@ class _SettingsScreenState extends State<SettingsScreen>
                   : 'Add a trusted person'),
         trailing: Icon(Icons.chevron_right_rounded, color: muted),
         onTap: () async {
+          if (widget.onOpenSponsor != null) {
+            widget.onOpenSponsor!();
+            return;
+          }
           await Navigator.of(context)
               .push(MaterialPageRoute(builder: (_) => const SponsorScreen()));
           await _load();
