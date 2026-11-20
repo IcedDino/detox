@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 
 import '../services/app_blocking_service.dart';
 import '../services/app_catalog_service.dart';
+import '../services/focus_notification_service.dart';
 import '../services/location_zone_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
@@ -50,6 +51,7 @@ class _ProtectionStatusScreenState extends State<ProtectionStatusScreen>
     final sources = await blocker.getActiveSources();
     final usage = await blocker.hasUsageAccess();
     final overlay = await blocker.hasOverlayPermission();
+    final notifications = await FocusNotificationService.instance.hasPermission();
     final zones = await StorageService().loadConcentrationZones();
     final locationNeeded = zones.any((zone) => zone.enabled);
     var locationReady = true;
@@ -65,6 +67,7 @@ class _ProtectionStatusScreenState extends State<ProtectionStatusScreen>
       names: {for (final app in apps) app.packageName: app.name},
       usageReady: usage,
       overlayReady: overlay,
+      notificationsReady: notifications,
       locationNeeded: locationNeeded,
       locationReady: locationReady,
       zoneState: LocationZoneService.instance.currentState,
@@ -85,19 +88,52 @@ class _ProtectionStatusScreenState extends State<ProtectionStatusScreen>
     return _es ? 'Otra protección' : 'Other protection';
   }
 
-  Widget _permissionRow(String title, bool ready, VoidCallback action) {
+  Widget _permissionRow({
+    required String title,
+    required String description,
+    required bool ready,
+    required VoidCallback action,
+    bool needed = true,
+  }) {
+    final theme = Theme.of(context);
+    final statusColor = !needed
+        ? theme.colorScheme.onSurfaceVariant
+        : ready
+            ? DetoxColors.success
+            : DetoxColors.warning;
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: Icon(
-        ready ? Icons.check_circle_outline : Icons.warning_amber_rounded,
-        color: ready ? DetoxColors.success : DetoxColors.warning,
+        !needed
+            ? Icons.info_outline_rounded
+            : ready
+                ? Icons.check_circle_outline
+                : Icons.warning_amber_rounded,
+        color: statusColor,
       ),
       title: Text(title),
-      subtitle: Text(ready
-          ? (_es ? 'Disponible' : 'Available')
-          : (_es ? 'Requiere atención' : 'Needs attention')),
-      trailing: ready ? null : const Icon(Icons.open_in_new_rounded),
-      onTap: ready ? null : action,
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(description, style: theme.textTheme.bodySmall),
+            const SizedBox(height: 4),
+            Text(
+              !needed
+                  ? (_es ? 'No se necesita ahora' : 'Not needed right now')
+                  : ready
+                      ? (_es ? 'Disponible' : 'Available')
+                      : (_es ? 'Requiere atención' : 'Needs attention'),
+              style: theme.textTheme.labelSmall?.copyWith(color: statusColor),
+            ),
+          ],
+        ),
+      ),
+      trailing: needed && !ready
+          ? const Icon(Icons.open_in_new_rounded)
+          : null,
+      onTap: needed && !ready ? action : null,
     );
   }
 
@@ -175,19 +211,44 @@ class _ProtectionStatusScreenState extends State<ProtectionStatusScreen>
                     const SizedBox(height: 24),
                     Text(_es ? 'Permisos' : 'Permissions',
                         style: Theme.of(context).textTheme.titleMedium),
-                    _permissionRow(_es ? 'Acceso al uso' : 'Usage access',
-                        status.usageReady, () {
-                      AppBlockingService.instance.openUsageAccessSettings();
-                    }),
-                    _permissionRow(_es ? 'Mostrar sobre apps' : 'Display over apps',
-                        status.overlayReady, () {
-                      AppBlockingService.instance.openOverlayPermissionSettings();
-                    }),
-                    if (status.locationNeeded)
-                      _permissionRow(_es ? 'Ubicación' : 'Location',
-                          status.locationReady, () {
-                        Geolocator.openAppSettings();
-                      }),
+                    _permissionRow(
+                      title: _es ? 'Acceso al uso' : 'Usage access',
+                      description: _es
+                          ? 'Permite reconocer las apps que abres y aplicar límites y bloqueos que configures.'
+                          : 'Lets Detox recognize the apps you open and apply the limits and blocks you set.',
+                      ready: status.usageReady,
+                      action: () => AppBlockingService.instance
+                          .openUsageAccessSettings(),
+                    ),
+                    _permissionRow(
+                      title: _es ? 'Mostrar sobre apps' : 'Display over apps',
+                      description: _es
+                          ? 'Permite mostrar la pantalla de bloqueo encima de las apps seleccionadas durante el enfoque.'
+                          : 'Lets Detox show a blocking screen over selected apps during focus.',
+                      ready: status.overlayReady,
+                      action: () => AppBlockingService.instance
+                          .openOverlayPermissionSettings(),
+                    ),
+                    _permissionRow(
+                      title: _es ? 'Notificaciones' : 'Notifications',
+                      description: _es
+                          ? 'Muestra el tiempo de enfoque y los avisos mientras la protección está activa.'
+                          : 'Shows focus time and alerts while protection is active.',
+                      ready: status.notificationsReady,
+                      action: () => FocusNotificationService.instance
+                          .openNotificationSettings(),
+                    ),
+                    _permissionRow(
+                      title: _es
+                          ? 'Ubicación en segundo plano'
+                          : 'Background location',
+                      description: _es
+                          ? 'Activa o pausa las zonas al entrar o salir, incluso con Detox cerrada.'
+                          : 'Activates or pauses zones when you enter or leave, even while Detox is closed.',
+                      ready: status.locationReady,
+                      needed: status.locationNeeded,
+                      action: Geolocator.openAppSettings,
+                    ),
                     const SizedBox(height: 12),
                     Text(_es
                         ? 'Si una app sigue bloqueada al apagar una zona, revisa si hay otra regla activa arriba.'
@@ -209,6 +270,7 @@ class _ProtectionStatus {
     required this.names,
     required this.usageReady,
     required this.overlayReady,
+    required this.notificationsReady,
     required this.locationNeeded,
     required this.locationReady,
     required this.zoneState,
@@ -218,6 +280,7 @@ class _ProtectionStatus {
   final Map<String, String> names;
   final bool usageReady;
   final bool overlayReady;
+  final bool notificationsReady;
   final bool locationNeeded;
   final bool locationReady;
   final ZoneState zoneState;

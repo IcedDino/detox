@@ -327,7 +327,94 @@ class _SettingsScreenState extends State<SettingsScreen>
     await _storageService.saveAppLimits(_appLimits);
   }
 
+  Future<bool> _showZoneLocationDisclosure() async {
+    final t = AppStrings.of(context);
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => Dialog.fullscreen(
+        child: Scaffold(
+          appBar: AppBar(
+            title: Text(
+              t.isEs ? 'Antes de crear una zona' : 'Before creating a zone',
+            ),
+          ),
+          body: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Icon(
+                        Icons.location_searching_rounded,
+                        size: 44,
+                        color: Theme.of(dialogContext).colorScheme.secondary,
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        t.isEs
+                            ? 'Tu zona funciona incluso con Detox cerrada'
+                            : 'Your zone works even while Detox is closed',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(dialogContext).textTheme.headlineMedium,
+                      ),
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: DetoxColors.accent.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(detoxRadius),
+                          border: Border.all(
+                            color: DetoxColors.accent.withOpacity(0.45),
+                          ),
+                        ),
+                        child: Text(
+                          t.isEs
+                              ? 'Detox usa tu ubicación en segundo plano para activar o pausar esta zona cuando entras o sales, incluso con la app cerrada. La ubicación se compara en este dispositivo: no guardamos un historial ni enviamos tu posición al servidor.'
+                              : 'Detox uses your location in the background to activate or pause this zone when you enter or leave, even while the app is closed. Location is checked on this device: we do not store a history or send your position to the server.',
+                          style: Theme.of(dialogContext).textTheme.bodyLarge,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          bottomNavigationBar: SafeArea(
+            minimum: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(false),
+                      child: Text(t.isEs ? 'Ahora no' : 'Not now'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
+                      child: Text(t.isEs ? 'Continuar' : 'Continue'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    return accepted ?? false;
+  }
+
   Future<void> _addZone() async {
+    if (!await _showZoneLocationDisclosure() || !mounted) return;
     final zone = await showModalBottomSheet<ConcentrationZone>(
       context: context,
       isScrollControlled: true,
@@ -349,6 +436,7 @@ class _SettingsScreenState extends State<SettingsScreen>
 
   Future<void> _editZone(ConcentrationZone zone) async {
     if (!await _ensureProtectedSettingsAccess()) return;
+    if (!await _showZoneLocationDisclosure() || !mounted) return;
     final updatedZone = await showModalBottomSheet<ConcentrationZone>(
       context: context,
       isScrollControlled: true,
@@ -376,6 +464,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     }
     if (value) {
       if (!mounted) return;
+      if (!await _showZoneLocationDisclosure() || !mounted) return;
       if (!await ensureProtectionPermissions(context, forZone: true) ||
           !mounted) {
         return;

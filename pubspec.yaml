@@ -1,7 +1,7 @@
 name: detox
 description: Detox app MVP with real Android usage tracking.
 publish_to: 'none'
-version: 1.1.11+13
+version: 1.1.11+15
 
 environment:
   sdk: '>=3.13.0 <4.0.0'
